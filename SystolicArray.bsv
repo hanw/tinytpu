@@ -14,7 +14,7 @@ interface SystolicArray_IFC#(numeric type rows, numeric type cols);
 endinterface
 
 module mkSystolicArray(SystolicArray_IFC#(rows, cols))
-   provisos(Add#(1, _, rows), Add#(1, _, cols));
+   provisos(Add#(1, r_, rows), Add#(1, c_, cols));
 
    // 2D grid of PEs
    Vector#(rows, Vector#(cols, PE_IFC)) pes <- replicateM(replicateM(mkPE));

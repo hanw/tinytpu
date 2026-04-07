@@ -22,11 +22,11 @@ interface TensorAccelerator_IFC#(numeric type rows, numeric type cols, numeric t
 endinterface
 
 module mkTensorAccelerator(TensorAccelerator_IFC#(rows, cols, depth))
-   provisos(Add#(1, _, rows),
-            Add#(1, _, cols),
-            Add#(1, _, depth),
+   provisos(Add#(1, r_, rows),
+            Add#(1, c_, cols),
+            Add#(1, d_, depth),
             Log#(depth, logd),
-            Add#(a__, TLog#(depth), 32),
+            Add#(logd_, TLog#(depth), 32),
             Bits#(Vector#(rows, Vector#(cols, Int#(8))), wsz),
             Bits#(Vector#(rows, Int#(8)), asz));
 

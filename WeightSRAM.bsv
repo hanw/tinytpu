@@ -13,9 +13,9 @@ interface WeightSRAM_IFC#(numeric type depth, numeric type rows, numeric type co
 endinterface
 
 module mkWeightSRAM(WeightSRAM_IFC#(depth, rows, cols))
-   provisos(Add#(1, _, depth),
-            Add#(1, _, rows),
-            Add#(1, _, cols),
+   provisos(Add#(1, d_, depth),
+            Add#(1, r_, rows),
+            Add#(1, c_, cols),
             Log#(depth, logd),
             Bits#(Vector#(rows, Vector#(cols, Int#(8))), sz));
 

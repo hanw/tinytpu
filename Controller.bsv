@@ -32,11 +32,11 @@ module mkController#(
       WeightSRAM_IFC#(depth, rows, cols) wSRAM,
       ActivationSRAM_IFC#(depth, rows) aSRAM
    )(Controller_IFC#(rows, cols, depth))
-   provisos(Add#(1, _, rows),
-            Add#(1, _, cols),
-            Add#(1, _, depth),
+   provisos(Add#(1, r_, rows),
+            Add#(1, c_, cols),
+            Add#(1, d_, depth),
             Log#(depth, logd),
-            Add#(a__, TLog#(depth), 32));
+            Add#(logd_, TLog#(depth), 32));
 
    Reg#(ControlState) cstate <- mkReg(Idle);
 

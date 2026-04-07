@@ -13,8 +13,8 @@ interface ActivationSRAM_IFC#(numeric type depth, numeric type rows);
 endinterface
 
 module mkActivationSRAM(ActivationSRAM_IFC#(depth, rows))
-   provisos(Add#(1, _, depth),
-            Add#(1, _, rows),
+   provisos(Add#(1, d_, depth),
+            Add#(1, r_, rows),
             Log#(depth, logd),
             Bits#(Vector#(rows, Int#(8)), sz));
 
