@@ -1,11 +1,1 @@
-*.bi
-*.bo
-*.ba
-*.bexe
-*.bexe.so
-*.cxx
-*.h
-*.o
-*.so
-*.vexe
-*.vcd
+build/

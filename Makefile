@@ -1,49 +1,58 @@
-BSC = bsc -no-show-timestamps -no-show-version
-BSCFLAGS = -sim -p +
+BSC      = bsc -no-show-timestamps -no-show-version
+BUILDDIR = build
+BSCFLAGS = -sim -p src:test:+ -bdir $(BUILDDIR) -simdir $(BUILDDIR)
 
-# Compile any .bsv to .ba
-%.bo: %.bsv
+$(BUILDDIR):
+	mkdir -p $@
+
+# --- Compile rules ---
+
+$(BUILDDIR)/%.bo: src/%.bsv | $(BUILDDIR)
 	$(BSC) $(BSCFLAGS) $<
 
-# PE testbench
-mkTbPE.bexe: TbPE.bo PE.bo
-	$(BSC) $(BSCFLAGS) -o $@ -e mkTbPE mkTbPE.ba
+$(BUILDDIR)/%.bo: test/%.bsv | $(BUILDDIR)
+	$(BSC) $(BSCFLAGS) $<
 
-test-pe: mkTbPE.bexe
-	./$<
+# --- Link rules ---
 
-# Array testbench
-mkTbSystolicArray.bexe: TbSystolicArray.bo SystolicArray.bo PE.bo
-	$(BSC) $(BSCFLAGS) -o $@ -e mkTbSystolicArray mkTbSystolicArray.ba
+$(BUILDDIR)/mkTbPE.bexe: $(BUILDDIR)/TbPE.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbPE $(BUILDDIR)/mkTbPE.ba
 
-test-array: mkTbSystolicArray.bexe
-	./$<
+$(BUILDDIR)/mkTbSystolicArray.bexe: $(BUILDDIR)/TbSystolicArray.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbSystolicArray $(BUILDDIR)/mkTbSystolicArray.ba
 
-# Full accelerator testbench
-mkTbAccelerator.bexe: TbAccelerator.bo TensorAccelerator.bo Controller.bo SystolicArray.bo PE.bo WeightSRAM.bo ActivationSRAM.bo
-	$(BSC) $(BSCFLAGS) -o $@ -e mkTbAccelerator mkTbAccelerator.ba
+$(BUILDDIR)/mkTbAccelerator.bexe: $(BUILDDIR)/TbAccelerator.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbAccelerator $(BUILDDIR)/mkTbAccelerator.ba
 
-test-accel: mkTbAccelerator.bexe
-	./$<
+$(BUILDDIR)/mkTbAccelerator4x4.bexe: $(BUILDDIR)/TbAccelerator4x4.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbAccelerator4x4 $(BUILDDIR)/mkTbAccelerator4x4.ba
 
-# 4x4 testbench
-mkTbAccelerator4x4.bexe: TbAccelerator4x4.bo TensorAccelerator.bo Controller.bo SystolicArray.bo PE.bo WeightSRAM.bo ActivationSRAM.bo
-	$(BSC) $(BSCFLAGS) -o $@ -e mkTbAccelerator4x4 mkTbAccelerator4x4.ba
+# --- Test targets ---
 
-test-4x4: mkTbAccelerator4x4.bexe
-	./$<
+test-pe: $(BUILDDIR)/mkTbPE.bexe
+	$<
 
-test-all: test-pe test-array test-accel test-4x4
+test-array: $(BUILDDIR)/mkTbSystolicArray.bexe
+	$<
 
-# Inter-package dependencies
-TbPE.bo: PE.bo
-TbSystolicArray.bo: SystolicArray.bo
-SystolicArray.bo: PE.bo
-Controller.bo: SystolicArray.bo WeightSRAM.bo ActivationSRAM.bo
-TensorAccelerator.bo: SystolicArray.bo WeightSRAM.bo ActivationSRAM.bo Controller.bo
-TbAccelerator.bo: TensorAccelerator.bo
-TbAccelerator4x4.bo: TensorAccelerator.bo
+test-accel: $(BUILDDIR)/mkTbAccelerator.bexe
+	$<
 
-.PHONY: clean test-pe test-array test-accel test-4x4 test-all
+test-4x4: $(BUILDDIR)/mkTbAccelerator4x4.bexe
+	$<
+
+test: test-pe test-array test-accel test-4x4
+
+# --- Dependencies ---
+
+$(BUILDDIR)/TbPE.bo: $(BUILDDIR)/PE.bo
+$(BUILDDIR)/SystolicArray.bo: $(BUILDDIR)/PE.bo
+$(BUILDDIR)/TbSystolicArray.bo: $(BUILDDIR)/SystolicArray.bo
+$(BUILDDIR)/Controller.bo: $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo
+$(BUILDDIR)/TensorAccelerator.bo: $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/Controller.bo
+$(BUILDDIR)/TbAccelerator.bo: $(BUILDDIR)/TensorAccelerator.bo
+$(BUILDDIR)/TbAccelerator4x4.bo: $(BUILDDIR)/TensorAccelerator.bo
+
+.PHONY: clean test test-pe test-array test-accel test-4x4
 clean:
-	rm -f *.bi *.bo *.ba *.bexe *.cxx *.h *.o *.so
+	rm -rf $(BUILDDIR)
