@@ -1,8 +1,13 @@
 BSC      = bsc -no-show-timestamps -no-show-version
 BUILDDIR = build
+TRACEBUILDDIR = $(BUILDDIR)/trace
 BSCFLAGS = -sim -p src:test:+ -bdir $(BUILDDIR) -simdir $(BUILDDIR)
+TRACE_RUNTIME_SRCS = $(wildcard src/*.bsv) test/TbTinyTPURuntime.bsv bdpi/tinytpu_io.c
 
 $(BUILDDIR):
+	mkdir -p $@
+
+$(TRACEBUILDDIR):
 	mkdir -p $@
 
 # --- Compile rules ---
@@ -60,6 +65,10 @@ $(BUILDDIR)/mkTbTinyTPUChip.bexe: $(BUILDDIR)/TbTinyTPUChip.bo
 $(BUILDDIR)/mkTbTinyTPURuntime.bexe: $(BUILDDIR)/TbTinyTPURuntime.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbTinyTPURuntime $(BUILDDIR)/mkTbTinyTPURuntime.ba bdpi/tinytpu_io.c
 
+$(BUILDDIR)/mkTbTinyTPURuntimeTrace.bexe: $(TRACE_RUNTIME_SRCS) | $(BUILDDIR) $(TRACEBUILDDIR)
+	$(BSC) -sim -D TRACE -p src:test:+ -bdir $(TRACEBUILDDIR) -simdir $(TRACEBUILDDIR) -u -g mkTbTinyTPURuntime test/TbTinyTPURuntime.bsv
+	$(BSC) -sim -D TRACE -p src:test:+ -bdir $(TRACEBUILDDIR) -simdir $(TRACEBUILDDIR) -o $@ -e mkTbTinyTPURuntime $(TRACEBUILDDIR)/mkTbTinyTPURuntime.ba bdpi/tinytpu_io.c
+
 # --- Test targets ---
 
 test-pe: $(BUILDDIR)/mkTbPE.bexe
@@ -106,6 +115,14 @@ test-chip: $(BUILDDIR)/mkTbTinyTPUChip.bexe
 
 runtime-tb: $(BUILDDIR)/mkTbTinyTPURuntime.bexe
 
+runtime-tb-trace: $(BUILDDIR)/mkTbTinyTPURuntimeTrace.bexe
+
+test-trace: runtime-tb-trace
+	python3 scripts/profiler/sample_program.py /tmp/tinytpu_profile_sample.txt
+	TINYTPU_BUNDLE=/tmp/tinytpu_profile_sample.txt ./build/mkTbTinyTPURuntimeTrace.bexe > /tmp/tinytpu_profile_trace.out
+	grep -q "TRACE cycle=" /tmp/tinytpu_profile_trace.out
+	grep -q "status ok" /tmp/tinytpu_profile_trace.out
+
 test: test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc test-chip
 
 # --- Dependencies ---
@@ -132,6 +149,6 @@ $(BUILDDIR)/TinyTPUChip.bo: $(BUILDDIR)/TensorCore.bo $(BUILDDIR)/SparseCore.bo 
 $(BUILDDIR)/TbTinyTPUChip.bo: $(BUILDDIR)/TinyTPUChip.bo
 $(BUILDDIR)/TbTinyTPURuntime.bo: $(BUILDDIR)/TensorCore.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc test-chip runtime-tb
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc test-chip runtime-tb runtime-tb-trace test-trace
 clean:
 	rm -rf $(BUILDDIR)
