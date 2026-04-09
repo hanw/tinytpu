@@ -124,7 +124,39 @@ module mkTbXLU();
       end
    endrule
 
-   rule finish (cycle == 8);
+   // ---- Test 4: TRANSPOSE ----
+   // Input (4x4):  row0=[1,2,3,4] row1=[5,6,7,8] row2=[9,10,11,12] row3=[13,14,15,16]
+   // Expected:     row0=[1,5,9,13] row1=[2,6,10,14] row2=[3,7,11,15] row3=[4,8,12,16]
+   rule dispatch_transpose (cycle == 8);
+      Vector#(4, Vector#(4, Int#(32))) src = newVector;
+      src[0] = cons(1,  cons(2,  cons(3,  cons(4,  nil))));
+      src[1] = cons(5,  cons(6,  cons(7,  cons(8,  nil))));
+      src[2] = cons(9,  cons(10, cons(11, cons(12, nil))));
+      src[3] = cons(13, cons(14, cons(15, cons(16, nil))));
+      xlu.executeTranspose(src);
+      $display("Cycle %0d: dispatched TRANSPOSE", cycle);
+   endrule
+
+   rule check_transpose (cycle == 9);
+      let res = xlu.result;
+      Bool ok = (res[0][0] == 1  && res[0][1] == 5  && res[0][2] == 9  && res[0][3] == 13 &&
+                 res[1][0] == 2  && res[1][1] == 6  && res[1][2] == 10 && res[1][3] == 14 &&
+                 res[2][0] == 3  && res[2][1] == 7  && res[2][2] == 11 && res[2][3] == 15 &&
+                 res[3][0] == 4  && res[3][1] == 8  && res[3][2] == 12 && res[3][3] == 16);
+      if (ok) begin
+         $display("Cycle %0d: PASS TRANSPOSE", cycle);
+         passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL TRANSPOSE", cycle);
+         $display("  row0: [%0d,%0d,%0d,%0d]", res[0][0], res[0][1], res[0][2], res[0][3]);
+         $display("  row1: [%0d,%0d,%0d,%0d]", res[1][0], res[1][1], res[1][2], res[1][3]);
+         $display("  row2: [%0d,%0d,%0d,%0d]", res[2][0], res[2][1], res[2][2], res[2][3]);
+         $display("  row3: [%0d,%0d,%0d,%0d]", res[3][0], res[3][1], res[3][2], res[3][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 10);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0)
          $finish(0);
