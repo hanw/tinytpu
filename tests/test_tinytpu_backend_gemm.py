@@ -8,6 +8,7 @@ os.environ["TINYTPU_SIM"] = str(REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe")
 
 import numpy as np
 from tinygrad import Tensor
+from tinygrad.runtime.ops_tinytpu import _infer_tiling
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -76,6 +77,17 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
   def test_relu_error_reports_missing_instructions(self):
     with self.assertRaisesRegex(NotImplementedError, "SXU_DISPATCH_VPU"):
       Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
+
+
+class TestTinyTPUTilingInference(unittest.TestCase):
+  def test_infers_single_tile_shape(self):
+    self.assertEqual(_infer_tiling(out_size=4, act_size=4, weight_size=16), (1, 1, 1))
+
+  def test_infers_deep_and_wide_shape(self):
+    self.assertEqual(_infer_tiling(out_size=16, act_size=16, weight_size=64), (2, 2, 2))
+
+  def test_rejects_non_square_vector_factor(self):
+    self.assertIsNone(_infer_tiling(out_size=8, act_size=4, weight_size=64))
 
 
 if __name__ == "__main__":
