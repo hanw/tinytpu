@@ -27,6 +27,9 @@ $(BUILDDIR)/mkTbAccelerator.bexe: $(BUILDDIR)/TbAccelerator.bo
 $(BUILDDIR)/mkTbAccelerator4x4.bexe: $(BUILDDIR)/TbAccelerator4x4.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbAccelerator4x4 $(BUILDDIR)/mkTbAccelerator4x4.ba
 
+$(BUILDDIR)/mkTbXLU.bexe: $(BUILDDIR)/TbXLU.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbXLU $(BUILDDIR)/mkTbXLU.ba
+
 # --- Test targets ---
 
 test-pe: $(BUILDDIR)/mkTbPE.bexe
@@ -41,7 +44,10 @@ test-accel: $(BUILDDIR)/mkTbAccelerator.bexe
 test-4x4: $(BUILDDIR)/mkTbAccelerator4x4.bexe
 	$<
 
-test: test-pe test-array test-accel test-4x4
+test-xlu: $(BUILDDIR)/mkTbXLU.bexe
+	$<
+
+test: test-pe test-array test-accel test-4x4 test-xlu
 
 # --- Dependencies ---
 
@@ -52,7 +58,8 @@ $(BUILDDIR)/Controller.bo: $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.b
 $(BUILDDIR)/TensorAccelerator.bo: $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/Controller.bo
 $(BUILDDIR)/TbAccelerator.bo: $(BUILDDIR)/TensorAccelerator.bo
 $(BUILDDIR)/TbAccelerator4x4.bo: $(BUILDDIR)/TensorAccelerator.bo
+$(BUILDDIR)/TbXLU.bo: $(BUILDDIR)/XLU.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu
 clean:
 	rm -rf $(BUILDDIR)
