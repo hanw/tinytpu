@@ -74,6 +74,18 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "weight values must fit in signed int8"):
       (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
 
+  def test_zero_row_gemm_matches_numpy_shape(self):
+    a = Tensor.empty(0, 4, dtype="int32", device="TINYTPU")
+    w = Tensor(np.eye(4, dtype=np.int32), dtype="int32", device="TINYTPU")
+    result = (a @ w).numpy()
+    self.assertEqual(result.shape, (0, 4))
+
+  def test_zero_column_gemm_matches_numpy_shape(self):
+    a = Tensor.empty(2, 4, dtype="int32", device="TINYTPU")
+    w = Tensor.empty(4, 0, dtype="int32", device="TINYTPU")
+    result = (a @ w).numpy()
+    self.assertEqual(result.shape, (2, 0))
+
   def test_relu_error_reports_missing_instructions(self):
     with self.assertRaisesRegex(NotImplementedError, "SXU_DISPATCH_VPU"):
       Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
