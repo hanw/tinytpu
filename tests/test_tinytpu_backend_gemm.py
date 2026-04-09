@@ -8,7 +8,7 @@ os.environ["TINYTPU_SIM"] = str(REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe")
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _infer_tiling
+from tinygrad.runtime.ops_tinytpu import _infer_tiling, _tiling_failure_note
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -119,6 +119,14 @@ class TestTinyTPUTilingInference(unittest.TestCase):
 
   def test_rejects_non_square_vector_factor(self):
     self.assertIsNone(_infer_tiling(out_size=8, act_size=4, weight_size=64))
+
+  def test_failure_note_reports_divisibility_issue(self):
+    note = _tiling_failure_note(out_size=6, act_size=4, weight_size=24)
+    self.assertIn("output size 6 is not divisible by 4", note)
+    self.assertIn("weight size 24 is not divisible by 16", note)
+
+  def test_failure_note_reports_zero_sized_case(self):
+    self.assertIn("zero-sized GEMM", _tiling_failure_note(out_size=8, act_size=0, weight_size=0))
 
 
 if __name__ == "__main__":
