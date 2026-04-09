@@ -1,6 +1,6 @@
 # TinyTPU
 
-A TPU prototype implemented in Bluespec SystemVerilog (BSV), with a tinygrad compiler backend (in progress).
+A TPU prototype implemented in Bluespec SystemVerilog (BSV), with a working tinygrad co-simulation backend.
 
 ## Architecture
 
@@ -25,12 +25,19 @@ The SXU executes a fixed instruction set: `LOAD_VREG`, `STORE_VREG`, `DISPATCH_V
 
 - [BSC compiler](https://github.com/B-Lang-org/bsc) (Bluesim mode)
 - GNU Make
+- Python ≥ 3.11 (for co-simulation)
 
 ## Build & Test
 
 ```sh
-# Run all tests
+# Run all BSV hardware tests
 make test
+
+# Build the co-simulation runtime testbench
+make runtime-tb
+
+# Run the tinygrad co-simulation end-to-end test
+python3 scripts/test_cosim.py
 
 # Run individual test suites
 make test-pe        # Processing element
@@ -54,6 +61,8 @@ make clean
 
 ## Source Files
 
+### Hardware (BSV)
+
 | File | Description |
 |---|---|
 | `src/PE.bsv` | Systolic array processing element |
@@ -73,6 +82,15 @@ make clean
 | `src/ChipNoC.bsv` | Token-ring NOC: per-node inbox FIFOs, ring forwarding FIFO |
 | `src/TinyTPUChip.bsv` | Chip top-level: TC0 + SparseCore + HBMModel + ChipNoC |
 
+### Co-simulation
+
+| File | Description |
+|---|---|
+| `test/TbTinyTPURuntime.bsv` | Generic BSV testbench: reads numeric text bundle, runs TensorCore, prints results |
+| `bdpi/tinytpu_io.c` | BDPI C helper: `tinytpu_bundle_open` / `tinytpu_bundle_read_int` (reads `$TINYTPU_BUNDLE`) |
+| `tinygrad/tinygrad/runtime/ops_tinytpu.py` | tinygrad `TINYTPU` device: allocator, UOp→SXU renderer, program driver |
+| `scripts/test_cosim.py` | End-to-end co-simulation test: identity/scale/permutation GEMMs vs numpy |
+
 ## Tile Format
 
 The fundamental data unit is a **vreg tile**: `Vector#(sublanes, Vector#(lanes, Int#(32)))`. For the 4×4 prototype: 4 sublanes × 4 lanes × 32-bit signed integer = 64 bytes per tile.
@@ -90,7 +108,36 @@ The fundamental data unit is a **vreg tile**: `Vector#(sublanes, Vector#(lanes, 
 
 ## Software Stack
 
-The `tinygrad/` submodule is the planned compiler backend. The co-simulation protocol is defined in `doc/software-spec.md`: a Python tinygrad device (`TinytpuDevice`) compiles tensor ops to SXU microprograms, serializes them to a text bundle, and drives the BSV simulator via subprocess. Implementation is pending.
+The `tinygrad/` submodule (forked at [hanw/tinygrad](https://github.com/hanw/tinygrad)) provides the compiler backend. Registering `device="TINYTPU"` with tinygrad routes tensor operations through:
+
+```
+User Python (tinygrad Tensor ops)
+        │
+        ▼
+TinyTPURenderer          ← detects 4×4 GEMM in UOps, emits JSON descriptor
+        │
+        ▼
+TinyTPUProgram           ← builds numeric text bundle from buffer data,
+        │                   invokes BSV simulator via subprocess,
+        │                   copies Int32 results back to output buffer
+        ▼
+TbTinyTPURuntime.bexe    ← BSV sim reads bundle (via BDPI C helper),
+                            loads TensorCore#(4,4,16), prints results
+```
+
+The co-simulation protocol (bundle format, result format) is documented in `doc/software-spec.md`.
+
+**Quick start:**
+
+```python
+from tinygrad import Tensor
+
+a = Tensor([[1, 2, 3, 4]], dtype='int32', device='TINYTPU')
+w = Tensor([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]], dtype='int32', device='TINYTPU')
+print((a @ w).numpy())  # [[1 2 3 4]] — runs on BSV TensorCore simulation
+```
+
+Currently supports 4×4 GEMM. Other ops raise `NotImplementedError`.
 
 ## Documentation
 
