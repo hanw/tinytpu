@@ -76,7 +76,55 @@ module mkTbXLU();
       end
    endrule
 
-   rule finish (cycle == 4);
+   // ---- Test 3a: PERMUTE identity (all ctrl False -> no change) ----
+   // Input row0: [5, 10, 15, 20] -> expected [5, 10, 15, 20]
+   rule dispatch_permute_id (cycle == 4);
+      Vector#(4, Vector#(4, Int#(32))) src = replicate(replicate(0));
+      src[0][0] = 5; src[0][1] = 10; src[0][2] = 15; src[0][3] = 20;
+      Vector#(2, Vector#(4, Bool)) ctrl = replicate(replicate(False));
+      xlu.executePermute(src, ctrl);
+      $display("Cycle %0d: dispatched PERMUTE identity", cycle);
+   endrule
+
+   rule check_permute_id (cycle == 5);
+      let res = xlu.result;
+      Bool ok = (res[0][0] == 5 && res[0][1] == 10 && res[0][2] == 15 && res[0][3] == 20);
+      if (ok) begin
+         $display("Cycle %0d: PASS PERMUTE identity", cycle);
+         passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL PERMUTE identity got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // ---- Test 3b: PERMUTE reversal (all ctrl True -> lane-reversed) ----
+   // Input row0: [5, 10, 15, 20]
+   // Stage0 (stride=1, all swap): [10, 5, 20, 15]
+   // Stage1 (stride=2, all swap): [20, 15, 10, 5]
+   rule dispatch_permute_rev (cycle == 6);
+      Vector#(4, Vector#(4, Int#(32))) src = replicate(replicate(0));
+      src[0][0] = 5; src[0][1] = 10; src[0][2] = 15; src[0][3] = 20;
+      Vector#(2, Vector#(4, Bool)) ctrl = replicate(replicate(True));
+      xlu.executePermute(src, ctrl);
+      $display("Cycle %0d: dispatched PERMUTE reversal", cycle);
+   endrule
+
+   rule check_permute_rev (cycle == 7);
+      let res = xlu.result;
+      Bool ok = (res[0][0] == 20 && res[0][1] == 15 && res[0][2] == 10 && res[0][3] == 5);
+      if (ok) begin
+         $display("Cycle %0d: PASS PERMUTE reversal", cycle);
+         passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL PERMUTE reversal got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 8);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0)
          $finish(0);
