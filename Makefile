@@ -48,6 +48,9 @@ $(BUILDDIR)/mkTbTensorCore.bexe: $(BUILDDIR)/TbTensorCore.bo
 $(BUILDDIR)/mkTbSparseCore.bexe: $(BUILDDIR)/TbSparseCore.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbSparseCore $(BUILDDIR)/mkTbSparseCore.ba
 
+$(BUILDDIR)/mkTbHBMModel.bexe: $(BUILDDIR)/TbHBMModel.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbHBMModel $(BUILDDIR)/mkTbHBMModel.ba
+
 # --- Test targets ---
 
 test-pe: $(BUILDDIR)/mkTbPE.bexe
@@ -83,7 +86,10 @@ test-tc: $(BUILDDIR)/mkTbTensorCore.bexe
 test-sc: $(BUILDDIR)/mkTbSparseCore.bexe
 	$<
 
-test: test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc
+test-hbm: $(BUILDDIR)/mkTbHBMModel.bexe
+	$<
+
+test: test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm
 
 # --- Dependencies ---
 
@@ -103,7 +109,8 @@ $(BUILDDIR)/TbScalarUnit.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray
 $(BUILDDIR)/TensorCore.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo
 $(BUILDDIR)/TbTensorCore.bo: $(BUILDDIR)/TensorCore.bo
 $(BUILDDIR)/TbSparseCore.bo: $(BUILDDIR)/SparseCore.bo
+$(BUILDDIR)/TbHBMModel.bo: $(BUILDDIR)/HBMModel.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm
 clean:
 	rm -rf $(BUILDDIR)
