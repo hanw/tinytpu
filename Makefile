@@ -36,6 +36,9 @@ $(BUILDDIR)/mkTbVMEM.bexe: $(BUILDDIR)/TbVMEM.bo
 $(BUILDDIR)/mkTbVRegFile.bexe: $(BUILDDIR)/TbVRegFile.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbVRegFile $(BUILDDIR)/mkTbVRegFile.ba
 
+$(BUILDDIR)/mkTbVPU.bexe: $(BUILDDIR)/TbVPU.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbVPU $(BUILDDIR)/mkTbVPU.ba
+
 # --- Test targets ---
 
 test-pe: $(BUILDDIR)/mkTbPE.bexe
@@ -59,7 +62,10 @@ test-vmem: $(BUILDDIR)/mkTbVMEM.bexe
 test-vregfile: $(BUILDDIR)/mkTbVRegFile.bexe
 	$<
 
-test: test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile
+test-vpu: $(BUILDDIR)/mkTbVPU.bexe
+	$<
+
+test: test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu
 
 # --- Dependencies ---
 
@@ -73,7 +79,8 @@ $(BUILDDIR)/TbAccelerator4x4.bo: $(BUILDDIR)/TensorAccelerator.bo
 $(BUILDDIR)/TbXLU.bo: $(BUILDDIR)/XLU.bo
 $(BUILDDIR)/TbVMEM.bo: $(BUILDDIR)/VMEM.bo
 $(BUILDDIR)/TbVRegFile.bo: $(BUILDDIR)/VRegFile.bo
+$(BUILDDIR)/TbVPU.bo: $(BUILDDIR)/VPU.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu
 clean:
 	rm -rf $(BUILDDIR)
