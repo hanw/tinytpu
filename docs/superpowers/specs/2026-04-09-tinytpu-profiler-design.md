@@ -58,18 +58,24 @@ Two components:
 A new `make runtime-tb-trace` target produces
 `build/mkTbTinyTPURuntimeTrace.bexe`, compiled with `-D TRACE`. The source is
 the existing `test/TbTinyTPURuntime.bsv` plus conditional `$display` calls
-added to rules in `src/ScalarUnit.bsv`, `src/Controller.bsv`, `src/VPU.bsv`,
-`src/VMEM.bsv`. Every trace call is wrapped in `` `ifdef TRACE … `endif ``, so
-the untraced `runtime-tb` target stays byte-identical.
+added to rules in `src/ScalarUnit.bsv` and `src/Controller.bsv`. Every trace
+call is wrapped in `` `ifdef TRACE … `endif ``, so the untraced `runtime-tb`
+target stays byte-identical.
 
-At runtime, a Bool `tracing` register is set once on startup from a new BDPI
-helper `tinytpu_trace_enabled` (reads `$TINYTPU_TRACE`). Every traced
-`$display` guards on `tracing`. This lets a single traced binary be run with
-or without noise depending on env.
+Note: `VMEM.bsv` and `VPU.bsv` are method-based modules with no rules of their
+own, so VMEM and VPU events are emitted from the `ScalarUnit` rules that
+invoke `vmem.readReq/readResp/write` and `vpu.execute/result`. This is
+cleaner than adding trace-only rules to the units themselves.
+
+There is no runtime toggle: the `-D TRACE` compile gate is sufficient. If
+you want an untraced run, use the untraced `runtime-tb` binary; if you want
+a traced run, use `runtime-tb-trace`. Keeping the two binaries separate is
+simpler than a runtime switch.
 
 Each traced module carries a local `UInt#(32) cycle` register incremented
-every clock by a free-running rule, so all timestamps share the same clock
-and do not require plumbing a cycle signal through interfaces.
+every clock by a free-running rule (under `` `ifdef TRACE ``), so all
+timestamps share the same clock and do not require plumbing a cycle signal
+through interfaces.
 
 ### 3.2 Python profiler (`scripts/profile_tpu.py`)
 
@@ -117,15 +123,15 @@ Events per unit:
 | SXU  | `DISPATCH_MXU` | `pc=<P>`          | `do_mxu`                   |
 | SXU  | `WAIT_MXU`     | `pc=<P>`          | `do_wait_mxu` (per cycle)  |
 | SXU  | `HALT`         | `pc=<P>`          | `do_fetch` when opcode=HALT |
-| MXU  | `LOAD_W`       | `addr=<A>`        | Controller FSM state       |
-| MXU  | `STREAM_A`     | `addr=<A>`        | Controller FSM state       |
-| MXU  | `DRAIN`        |                   | Controller FSM state       |
-| MXU  | `DONE`         |                   | Controller FSM state       |
-| VPU  | `EXEC`         | `op=<O>`          | VPU dispatch rule          |
-| VPU  | `RESULT`       |                   | VPU result rule            |
-| VMEM | `READ_REQ`     | `addr=<A>`        | VMEM readReq               |
-| VMEM | `READ_RESP`    |                   | VMEM readResp              |
-| VMEM | `WRITE`        | `addr=<A>`        | VMEM write                 |
+| MXU  | `LOAD_W`       | `addr=<A>`        | `do_load_weights` in Controller |
+| MXU  | `LOAD_W_RESP`  |                   | `do_load_weights_resp`     |
+| MXU  | `STREAM_A`     | `cyc=<C>`         | `do_stream` in Controller  |
+| MXU  | `DRAIN`        |                   | `do_drain` in Controller   |
+| VPU  | `EXEC`         | `op=<O>`          | emitted from SXU `do_vpu`  |
+| VPU  | `RESULT`       |                   | emitted from SXU `do_vpu_collect` |
+| VMEM | `READ_REQ`     | `addr=<A>`        | emitted from SXU `do_load_req` |
+| VMEM | `READ_RESP`    |                   | emitted from SXU `do_load_resp` |
+| VMEM | `WRITE`        | `addr=<A>`        | emitted from SXU `do_store` |
 
 The parser ignores unknown keys so the format can be extended without
 breaking old traces.
@@ -210,8 +216,8 @@ The untraced `runtime-tb` target is unchanged.
 ### 6.2 Tests
 
 - **`test-trace`** (new make target) — builds the traced binary, runs
-  a hand-written tiny bundle with `TINYTPU_TRACE=1`, greps stdout for
-  at least one `TRACE cycle=` line and the expected `status ok`.
+  a hand-written tiny bundle, greps stdout for at least one
+  `TRACE cycle=` line and the expected `status ok`.
 - **`tests/test_profile_tpu.py`** (new Python test dir) — runs the
   profiler on the sample bundle, asserts: bundle parses, traced binary
   exits 0, `trace.json` is valid JSON with non-empty `traceEvents`,
@@ -245,7 +251,7 @@ non-zero MXU stall cycles.
 | `--csv` output            | No downstream consumer                        |
 | Labeled sections          | Bundle format has no labels; add when asm lang lands |
 | Chip-level tracing        | Runtime testbench is TensorCore-only          |
-| Standalone BDPI C wrapper | The existing `tinytpu_io.c` can host the new helper |
+| Runtime `TINYTPU_TRACE` env gate | Compile-time `-D TRACE` already produces a separate binary |
 
 ## 9. Extension notes
 
