@@ -54,6 +54,9 @@ $(BUILDDIR)/mkTbHBMModel.bexe: $(BUILDDIR)/TbHBMModel.bo
 $(BUILDDIR)/mkTbChipNoC.bexe: $(BUILDDIR)/TbChipNoC.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbChipNoC $(BUILDDIR)/mkTbChipNoC.ba
 
+$(BUILDDIR)/mkTbTinyTPUChip.bexe: $(BUILDDIR)/TbTinyTPUChip.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbTinyTPUChip $(BUILDDIR)/mkTbTinyTPUChip.ba
+
 # --- Test targets ---
 
 test-pe: $(BUILDDIR)/mkTbPE.bexe
@@ -95,7 +98,10 @@ test-hbm: $(BUILDDIR)/mkTbHBMModel.bexe
 test-noc: $(BUILDDIR)/mkTbChipNoC.bexe
 	$<
 
-test: test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc
+test-chip: $(BUILDDIR)/mkTbTinyTPUChip.bexe
+	$<
+
+test: test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc test-chip
 
 # --- Dependencies ---
 
@@ -117,7 +123,9 @@ $(BUILDDIR)/TbTensorCore.bo: $(BUILDDIR)/TensorCore.bo
 $(BUILDDIR)/TbSparseCore.bo: $(BUILDDIR)/SparseCore.bo
 $(BUILDDIR)/TbHBMModel.bo: $(BUILDDIR)/HBMModel.bo
 $(BUILDDIR)/TbChipNoC.bo: $(BUILDDIR)/ChipNoC.bo
+$(BUILDDIR)/TinyTPUChip.bo: $(BUILDDIR)/TensorCore.bo $(BUILDDIR)/SparseCore.bo $(BUILDDIR)/HBMModel.bo $(BUILDDIR)/ChipNoC.bo
+$(BUILDDIR)/TbTinyTPUChip.bo: $(BUILDDIR)/TinyTPUChip.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc test-chip
 clean:
 	rm -rf $(BUILDDIR)
