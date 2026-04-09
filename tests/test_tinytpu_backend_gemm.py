@@ -36,6 +36,18 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np @ w_np)
 
+  def test_activation_out_of_int8_range_raises(self):
+    a_np = np.array([[128, 0, 0, 0]], dtype=np.int32)
+    w_np = np.eye(4, dtype=np.int32)
+    with self.assertRaisesRegex(ValueError, "activation values must fit in signed int8"):
+      (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+
+  def test_weight_out_of_int8_range_raises(self):
+    a_np = np.array([[1, 2, 3, 4]], dtype=np.int32)
+    w_np = np.eye(4, dtype=np.int32) * 256
+    with self.assertRaisesRegex(ValueError, "weight values must fit in signed int8"):
+      (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+
 
 if __name__ == "__main__":
   unittest.main()
