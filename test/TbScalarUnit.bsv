@@ -6,6 +6,10 @@ import VRegFile :: *;
 import VPU :: *;
 import XLU :: *;
 import ScalarUnit :: *;
+import SystolicArray :: *;
+import WeightSRAM :: *;
+import ActivationSRAM :: *;
+import Controller :: *;
 
 (* synthesize *)
 module mkTbScalarUnit();
@@ -15,8 +19,14 @@ module mkTbScalarUnit();
    VPU_IFC#(4, 4)          vpu  <- mkVPU;
    XLU_IFC#(4, 4)          xlu  <- mkXLU;
 
+   // Stub Controller for the SXU (not used by this test, just required by interface)
+   SystolicArray_IFC#(4, 4)   arr   <- mkSystolicArray;
+   WeightSRAM_IFC#(16, 4, 4)  wsram <- mkWeightSRAM;
+   ActivationSRAM_IFC#(16, 4) asram <- mkActivationSRAM;
+   Controller_IFC#(4, 4, 16)  ctrl  <- mkController(arr, wsram, asram);
+
    // progDepth=8: up to 8 instructions
-   SXU_IFC#(8, 16, 8, 4, 4) sxu <- mkScalarUnit(vmem, vrf, vpu, xlu);
+   SXU_IFC#(8, 16, 8, 4, 4) sxu <- mkScalarUnit(vmem, vrf, vpu, xlu, ctrl);
 
    Reg#(UInt#(8)) cycle  <- mkReg(0);
    Reg#(UInt#(8)) passed <- mkReg(0);

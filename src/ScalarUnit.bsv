@@ -6,11 +6,14 @@ import VMEM :: *;
 import VRegFile :: *;
 import VPU :: *;
 import XLU :: *;
+import Controller :: *;
 
 typedef enum {
    SXU_LOAD_VREG,
    SXU_STORE_VREG,
    SXU_DISPATCH_VPU,
+   SXU_DISPATCH_MXU,
+   SXU_WAIT_MXU,
    SXU_HALT
 } SxuOpCode deriving (Bits, Eq, FShow);
 
@@ -21,6 +24,9 @@ typedef struct {
    UInt#(4)  vregSrc;    // Source vreg index (STORE: source to write; VPU: src1)
    VpuOp     vpuOp;      // VPU operation (for DISPATCH_VPU)
    UInt#(4)  vregSrc2;   // Second source vreg (for VPU src2)
+   UInt#(8)  mxuWBase;   // MXU weight base addr
+   UInt#(8)  mxuABase;   // MXU activation base addr
+   UInt#(8)  mxuTLen;    // MXU tile length
 } SxuInstr deriving (Bits, Eq);
 
 interface SXU_IFC#(numeric type progDepth,
@@ -34,14 +40,16 @@ interface SXU_IFC#(numeric type progDepth,
 endinterface
 
 typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
-               SXU_EXEC_STORE, SXU_EXEC_VPU, SXU_EXEC_VPU_COLLECT, SXU_HALTED }
+               SXU_EXEC_STORE, SXU_EXEC_VPU, SXU_EXEC_VPU_COLLECT,
+               SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
 module mkScalarUnit#(
-   VMEM_IFC#(vmDepth, sublanes, lanes)      vmem,
-   VRegFile_IFC#(numRegs, sublanes, lanes)  vrf,
-   VPU_IFC#(sublanes, lanes)                vpu,
-   XLU_IFC#(sublanes, lanes)                xlu
+   VMEM_IFC#(vmDepth, sublanes, lanes)             vmem,
+   VRegFile_IFC#(numRegs, sublanes, lanes)          vrf,
+   VPU_IFC#(sublanes, lanes)                        vpu,
+   XLU_IFC#(sublanes, lanes)                        xlu,
+   Controller_IFC#(sublanes, lanes, vmDepth)        ctrl
 )(SXU_IFC#(progDepth, vmDepth, numRegs, sublanes, lanes))
    provisos(
       Add#(1, p_, progDepth),
@@ -52,8 +60,9 @@ module mkScalarUnit#(
       Bits#(Vector#(sublanes, Vector#(lanes, Int#(32))), vsz),
       Bits#(SxuInstr, isz),
       Add#(0, sublanes, lanes),          // square vregs (XLU requirement)
-      Add#(a__, TLog#(vmDepth), 8),      // vmemAddr:UInt#(8) truncates to TLog#(vmDepth)
-      Add#(b__, TLog#(numRegs), 4)       // vregDst/vregSrc:UInt#(4) truncates to TLog#(numRegs)
+      Add#(a__, TLog#(vmDepth), 8),      // vmemAddr/mxu*:UInt#(8) truncates to TLog#(vmDepth)
+      Add#(b__, TLog#(numRegs), 4),      // vregDst/vregSrc:UInt#(4) truncates to TLog#(numRegs)
+      Add#(logd_, TLog#(vmDepth), 32)    // needed by Controller
    );
 
    RegFile#(UInt#(TLog#(progDepth)), SxuInstr) prog <- mkRegFileFull;
@@ -70,11 +79,13 @@ module mkScalarUnit#(
          SXU_LOAD_VREG:    pc_state <= SXU_EXEC_LOAD_REQ;
          SXU_STORE_VREG:   pc_state <= SXU_EXEC_STORE;
          SXU_DISPATCH_VPU: pc_state <= SXU_EXEC_VPU;
+         SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
+         SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_HALT:         pc_state <= SXU_HALTED;
       endcase
    endrule
 
-   // LOAD step 1: issue VMEM readReq, advance to wait-for-resp
+   // LOAD step 1: issue VMEM readReq
    rule do_load_req (pc_state == SXU_EXEC_LOAD_REQ);
       vmem.readReq(truncate(curInstr.vmemAddr));
       pc_state <= SXU_EXEC_LOAD_RESP;
@@ -95,7 +106,7 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // DISPATCH_VPU: read two source vregs, dispatch VPU, wait 1 cycle
+   // DISPATCH_VPU: read two source vregs, dispatch VPU
    rule do_vpu (pc_state == SXU_EXEC_VPU);
       let s1 = vrf.read(truncate(curInstr.vregSrc));
       let s2 = vrf.read(truncate(curInstr.vregSrc2));
@@ -106,6 +117,21 @@ module mkScalarUnit#(
    // Collect VPU result (1-cycle latency), write to vregDst, advance pc
    rule do_vpu_collect (pc_state == SXU_EXEC_VPU_COLLECT);
       vrf.write(truncate(curInstr.vregDst), vpu.result);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_MXU: trigger Controller, advance pc
+   rule do_mxu (pc_state == SXU_EXEC_MXU);
+      ctrl.start(truncate(curInstr.mxuWBase),
+                 truncate(curInstr.mxuABase),
+                 truncate(curInstr.mxuTLen));
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // WAIT_MXU: stall until Controller isDone, then advance pc
+   rule do_wait_mxu (pc_state == SXU_WAIT_MXU_STATE && ctrl.isDone);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

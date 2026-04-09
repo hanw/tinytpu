@@ -1,0 +1,95 @@
+package TensorCore;
+
+import Vector :: *;
+import VMEM :: *;
+import VRegFile :: *;
+import VPU :: *;
+import XLU :: *;
+import ScalarUnit :: *;
+import SystolicArray :: *;
+import WeightSRAM :: *;
+import ActivationSRAM :: *;
+import Controller :: *;
+
+// TCInstr is SxuInstr; export it so testbench only needs to import TensorCore
+typedef SxuInstr TCInstr;
+
+interface TensorCore_IFC#(numeric type rows, numeric type cols, numeric type depth);
+   // Pre-load weight tile into WeightSRAM at addr
+   method Action loadWeightTile(UInt#(TLog#(depth)) addr,
+                                Vector#(rows, Vector#(cols, Int#(8))) data);
+   // Pre-load activation vector into ActivationSRAM at addr
+   method Action loadActivationTile(UInt#(TLog#(depth)) addr,
+                                    Vector#(rows, Int#(8)) data);
+   // Load one SXU microprogram instruction
+   method Action loadProgram(UInt#(4) pc, TCInstr instr);
+   // Start SXU execution
+   method Action start(UInt#(4) len);
+   method Bool isDone;
+   // MXU result vector (valid after isDone)
+   method Vector#(cols, Int#(32)) getMxuResult;
+endinterface
+
+module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
+   provisos(
+      Add#(1, r_, rows),
+      Add#(1, c_, cols),
+      Add#(1, d_, depth),
+      Add#(0, rows, cols),               // square (rows == cols, needed for XLU)
+      Log#(depth, logDepth),
+      Add#(logd_, TLog#(depth), 32),
+      Bits#(Vector#(rows, Vector#(cols, Int#(8))), wsz),
+      Bits#(Vector#(rows, Int#(8)), asz),
+      Bits#(Vector#(rows, Vector#(rows, Int#(32))), vrsz),
+      Bits#(SxuInstr, isz),
+      Add#(a__, TLog#(depth), 8),        // mxu*:UInt#(8) truncates to TLog#(depth)
+      Add#(b__, TLog#(16), 4)            // vregDst/vregSrc:UInt#(4) truncates to TLog#(16)
+   );
+
+   // MXU sub-system
+   SystolicArray_IFC#(rows, cols)     array <- mkSystolicArray;
+   WeightSRAM_IFC#(depth, rows, cols) wsram <- mkWeightSRAM;
+   ActivationSRAM_IFC#(depth, rows)   asram <- mkActivationSRAM;
+   Controller_IFC#(rows, cols, depth) ctrl  <- mkController(array, wsram, asram);
+
+   // VPU/XLU sub-system — rows is both sublanes and lanes (square)
+   VMEM_IFC#(depth, rows, rows)    vmem <- mkVMEM;
+   VRegFile_IFC#(16, rows, rows)   vrf  <- mkVRegFile;
+   VPU_IFC#(rows, rows)            vpu  <- mkVPU;
+   XLU_IFC#(rows, rows)            xlu  <- mkXLU;
+
+   // Scalar Unit drives everything
+   SXU_IFC#(16, depth, 16, rows, rows) sxu <-
+      mkScalarUnit(vmem, vrf, vpu, xlu, ctrl);
+
+   method Action loadWeightTile(UInt#(TLog#(depth)) addr,
+                                Vector#(rows, Vector#(cols, Int#(8))) data);
+      wsram.write(addr, data);
+   endmethod
+
+   method Action loadActivationTile(UInt#(TLog#(depth)) addr,
+                                    Vector#(rows, Int#(8)) data);
+      asram.write(addr, data);
+   endmethod
+
+   method Action loadProgram(UInt#(4) pc, TCInstr instr);
+      sxu.loadInstr(extend(pc), instr);
+   endmethod
+
+   method Action start(UInt#(4) len);
+      sxu.start(extend(len));
+   endmethod
+
+   method Bool isDone = sxu.isDone;
+
+   method Vector#(cols, Int#(32)) getMxuResult;
+      return ctrl.results;
+   endmethod
+
+endmodule
+
+export TCInstr(..);
+export TensorCore_IFC(..);
+export mkTensorCore;
+
+endpackage
