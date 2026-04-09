@@ -24,6 +24,18 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np @ w_np)
 
+  def test_wide_output_gemm_matches_numpy(self):
+    a_np = np.array([[1, 2, 3, 4]], dtype=np.int32)
+    w_np = np.arange(32, dtype=np.int32).reshape(4, 8)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np)
+
+  def test_multi_row_wide_output_gemm_matches_numpy(self):
+    a_np = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.int32)
+    w_np = np.arange(32, dtype=np.int32).reshape(4, 8)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np)
+
 
 if __name__ == "__main__":
   unittest.main()
