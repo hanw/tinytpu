@@ -78,6 +78,12 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     with self.assertRaisesRegex(NotImplementedError, "SXU_DISPATCH_VPU"):
       Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
 
+  def test_unsupported_width_reports_tiling_constraint(self):
+    a_np = np.arange(4, dtype=np.int32).reshape(1, 4)
+    w_np = np.arange(24, dtype=np.int32).reshape(4, 6)
+    with self.assertRaisesRegex(NotImplementedError, "output size 6 is not divisible by 4"):
+      (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
