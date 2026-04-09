@@ -96,6 +96,12 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     with self.assertRaisesRegex(NotImplementedError, "output size 6 is not divisible by 4"):
       (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
 
+  def test_zero_k_reports_zero_sized_gemm(self):
+    a = Tensor.empty(2, 0, dtype="int32", device="TINYTPU")
+    w = Tensor.empty(0, 4, dtype="int32", device="TINYTPU")
+    with self.assertRaisesRegex(NotImplementedError, "zero-sized gemm"):
+      (a @ w).numpy()
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
