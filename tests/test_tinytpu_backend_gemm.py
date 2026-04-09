@@ -48,6 +48,10 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "weight values must fit in signed int8"):
       (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
 
+  def test_relu_error_reports_missing_instructions(self):
+    with self.assertRaisesRegex(NotImplementedError, "SXU_DISPATCH_VPU"):
+      Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
+
 
 if __name__ == "__main__":
   unittest.main()
