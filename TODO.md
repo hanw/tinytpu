@@ -78,8 +78,8 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [x] `CMPNE`
 - [x] `CMPEQ`
 - [x] `WHERE`
-- [ ] `AND`
-- [ ] `OR`
+- [x] `AND`
+- [x] `OR`
 - [ ] `XOR`
 - [ ] `SHL`
 - [ ] `SHR`
