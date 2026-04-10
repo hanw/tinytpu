@@ -83,3 +83,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	5969391	1	VMEM bundle records	Profiler roundtrip for VMEM input output records	not recorded	TODO marked bundle record roundtrip	Fork submodule URL
 2026-04-10	65ba605	1	Submodule URL	tinygrad submodule points to fork	not recorded	not tracked before results.tsv	Next 50 batch
 2026-04-10	3289dc8	50	TinyTPU tinyspec expansion	VPU CMPEQ; reverse scalar sub; grouped scalar constants; lowering dumps; VMEM protocol tests; profiler bundle tooling	make test-vpu: 9 passed, 0 failed; pytest TinyTPU/profiler/run tests: 84 passed	Next 50 iteration plan completed; recommended next work refreshed	Multi-tile elementwise ADD and multiple VMEM output tiles
+2026-04-10	2d75e93	1	Multi-tile VPU elementwise	numel>16 VPU binary/unary via chunked tile loop	pytest tiling/parsing: 13 passed; profiler: 17 passed	Marked multi-tile elementwise loops done	Multi-tile test coverage for MUL/SUB/MAX/compare
