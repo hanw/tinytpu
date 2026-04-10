@@ -58,6 +58,8 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
   - [x] `x + scalar`
   - [x] `x * scalar`
   - [x] `maximum(x, scalar)`
+  - [x] `x < scalar`
+  - [x] `x != scalar`
 - [ ] Scalar broadcasting
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
@@ -271,5 +273,5 @@ Estimate: **500-800 iterations**
 6. Add selected upstream tinygrad test invocation for covered VPU ops.
 7. Add structural VPU lowering helpers to replace UOp-count checks.
 8. Add bool dtype coverage for comparison outputs.
-9. Add scalar-constant comparison support.
-10. Add scalar `SUB` constant coverage.
+9. Add scalar `SUB` constant coverage.
+10. Add scalar `CMPLT` reverse-operand coverage.
