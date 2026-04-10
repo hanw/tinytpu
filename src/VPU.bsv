@@ -2,7 +2,7 @@ package VPU;
 
 import Vector :: *;
 
-typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ }
+typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE }
    VpuOp deriving (Bits, Eq, FShow);
 
 interface VPU_IFC#(numeric type sublanes, numeric type lanes);
@@ -20,6 +20,15 @@ function Int#(32) lane_sum(Vector#(lanes, Int#(32)) row)
    Int#(32) acc = 0;
    for (Integer i = 0; i < valueOf(lanes); i = i + 1)
       acc = acc + row[i];
+   return acc;
+endfunction
+
+// Max of all lanes in one row: unrolled comparator
+function Int#(32) lane_max(Vector#(lanes, Int#(32)) row)
+   provisos(Add#(1, l_, lanes));
+   Int#(32) acc = row[0];
+   for (Integer i = 1; i < valueOf(lanes); i = i + 1)
+      acc = (row[i] > acc) ? row[i] : acc;
    return acc;
 endfunction
 
@@ -77,6 +86,11 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_CMPEQ: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = (src1[s][l] == src2[s][l]) ? 1 : 0;
+            end
+            VPU_MAX_REDUCE: begin
+               Int#(32) m_val = lane_max(src1[s]);
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = m_val;
             end
          endcase
          res[s] = row;
