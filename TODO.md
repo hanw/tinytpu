@@ -77,7 +77,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [x] `CMPLT`
 - [x] `CMPNE`
 - [x] `CMPEQ`
-- [ ] `WHERE`
+- [x] `WHERE`
 - [ ] `AND`
 - [ ] `OR`
 - [ ] `XOR`
@@ -221,7 +221,7 @@ Estimate: **~50 total iterations**
 - [x] Single-tile ReLU
 - [x] One simple reduction
 - [ ] Constants and scalar broadcasting
-- [ ] `WHERE` and comparisons
+- [x] `WHERE` and comparisons
 - [ ] Basic reshape/transpose within one 4x4 tile
 - [x] VPU-only runtime completion cleanup
 

@@ -359,12 +359,12 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (10 - Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, 10 - a_np)
 
-  def test_where_reports_select_lowering_gap(self):
-    cond = Tensor([True, False, True], device="TINYTPU")
-    lhs = Tensor([1, 2, 3], dtype="int32", device="TINYTPU")
-    rhs = Tensor([4, 5, 6], dtype="int32", device="TINYTPU")
-    with self.assertRaisesRegex(NotImplementedError, "Compare/select UOps are present"):
-      Tensor.where(cond, lhs, rhs).numpy()
+  def test_where_matches_reference(self):
+    cond = Tensor([True, False, True, False], device="TINYTPU")
+    lhs = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")
+    rhs = Tensor([5, 6, 7, 8], dtype="int32", device="TINYTPU")
+    result = Tensor.where(cond, lhs, rhs).numpy()
+    np.testing.assert_array_equal(result, np.array([1, 6, 3, 8], dtype=np.int32))
 
   def test_permute_reports_movement_lowering_gap(self):
     with self.assertRaisesRegex(NotImplementedError, "General VMEM<->VReg movement kernels are not lowered yet"):
