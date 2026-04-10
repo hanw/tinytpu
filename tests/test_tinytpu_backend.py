@@ -492,6 +492,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor([1, 5, 3, 10], dtype="int32", device="TINYTPU").minimum(5).numpy()
     np.testing.assert_array_equal(result, np.array([1, 5, 3, 5], dtype=np.int32))
 
+  def test_maximum_scalar_const_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    result = Tensor(a_np, dtype="int32", device="TINYTPU").maximum(10).numpy()
+    np.testing.assert_array_equal(result, np.maximum(a_np, 10))
+
   def test_minimum_scalar_const_multi_tile_matches_reference(self):
     a_np = np.arange(32, dtype=np.int32)
     result = Tensor(a_np, dtype="int32", device="TINYTPU").minimum(10).numpy()
