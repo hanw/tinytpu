@@ -349,6 +349,16 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") == 10).numpy()
     np.testing.assert_array_equal(result, a_np == 10)
 
+  def test_vpu_reverse_sub_const_multi_tile_matches_reference(self):
+    a_np = np.arange(17, dtype=np.int32)
+    result = (10 - Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, 10 - a_np)
+
+  def test_vpu_reverse_sub_const_multi_tile_32_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    result = (10 - Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, 10 - a_np)
+
   def test_where_reports_select_lowering_gap(self):
     cond = Tensor([True, False, True], device="TINYTPU")
     lhs = Tensor([1, 2, 3], dtype="int32", device="TINYTPU")
