@@ -1,2 +1,85 @@
 date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_gap
+2026-04-07	8bbb7ac	1	INT8 processing element	PE MAC and testbench	not recorded	not tracked before results.tsv	Tensor array integration
+2026-04-07	7921bfc	1	Systolic array	Parameterized systolic array and 2x2 matrix-vector test	not recorded	not tracked before results.tsv	SRAM and controller integration
+2026-04-07	439f05c	1	SRAM banks	Parameterized weight and activation SRAM banks	not recorded	not tracked before results.tsv	Controller sequencing
+2026-04-07	5536813	1	Controller	Weight-load stream drain FSM	not recorded	not tracked before results.tsv	Top-level accelerator integration
+2026-04-07	a8a2d48	1	Tensor accelerator	Top-level accelerator integrates array SRAM and controller	not recorded	not tracked before results.tsv	Full integration testbench
+2026-04-07	700f9f2	1	Accelerator integration	Full integration testbench and proviso fix	not recorded	not tracked before results.tsv	Remove generated build artifacts
+2026-04-07	1f77f03	1	Repository hygiene	Gitignore and tracked build artifact removal	not recorded	not tracked before results.tsv	4x4 parameterization
+2026-04-07	8d29050	1	Accelerator parameterization	4x4 tensor accelerator parameterization test	not recorded	not tracked before results.tsv	Repo source layout cleanup
+2026-04-07	258c2e8	1	Repository layout	Reorganized src test doc and build output	not recorded	not tracked before results.tsv	XLU datapath
+2026-04-08	e5d337c	1	XLU rotate	XLU module with ROTATE support and testbench	not recorded	not tracked before results.tsv	XLU broadcast
+2026-04-08	05361c0	1	XLU broadcast	BROADCAST test in TbXLU	not recorded	not tracked before results.tsv	XLU permute
+2026-04-08	c85d7ad	1	XLU permute	PERMUTE identity and reversal tests	not recorded	not tracked before results.tsv	XLU transpose
+2026-04-08	732f48e	1	XLU transpose	TRANSPOSE test in TbXLU	not recorded	not tracked before results.tsv	Chip architecture docs
+2026-04-08	8aa62b1	1	Design docs	TPU chip XLU and unit plans	not recorded	not tracked before results.tsv	tinygrad integration
+2026-04-08	b2b745c	1	tinygrad submodule	tinygrad compiler stack added as submodule	not recorded	not tracked before results.tsv	VMEM scratchpad
+2026-04-08	c3e8a42	1	VMEM	Unified scratchpad SRAM and tests plus software spec	not recorded	not tracked before results.tsv	VRegFile
+2026-04-08	f56ee99	1	VRegFile	Vector register file with isolation tests	not recorded	not tracked before results.tsv	VPU
+2026-04-08	3349c9e	1	VPU initial ops	ADD MUL RELU MAX SUM_REDUCE and 5 tests	not recorded	not tracked before results.tsv	ScalarUnit sequencing
+2026-04-08	ad4dcf0	1	ScalarUnit	Microprogram sequencer for VMEM VRegFile VPU XLU	not recorded	not tracked before results.tsv	TensorCore integration
+2026-04-08	35ba221	1	TensorCore	SXU MXU VPU XLU VRegFile VMEM integration and MXU dispatch wait	not recorded	not tracked before results.tsv	Chip peripheral blocks
+2026-04-08	43977f5	1	SparseCore	Embedding lookup accelerator with sum pooling	not recorded	not tracked before results.tsv	HBM model
+2026-04-08	53c0393	1	HBM model	Configurable read latency behavioral model	not recorded	not tracked before results.tsv	NoC
+2026-04-08	4060658	1	Chip NoC	On-chip ring NoC with single-hop two-hop loopback tests	not recorded	not tracked before results.tsv	Top-level chip
+2026-04-08	c3a5115	1	TinyTPUChip	Top-level chip integrating TC0 SparseCore HBMModel NoC	not recorded	not tracked before results.tsv	README
+2026-04-08	70d0b1c	1	README	Top-level README added	not recorded	not tracked before results.tsv	Co-simulation backend
+2026-04-08	1ae533f	1	Co-simulation backend	TinyTPU runtime testbench and tinygrad co-sim path	not recorded	not tracked before results.tsv	Submodule backend pointer
+2026-04-08	286c799	1	tinygrad backend pointer	Submodule updated to include ops_tinytpu.py	not recorded	not tracked before results.tsv	README update
+2026-04-08	f272fe1	1	README co-sim docs	README updated for completed co-simulation backend	not recorded	not tracked before results.tsv	Profiler design
+2026-04-09	182dea3	1	Profiler design	TinyTPU profiler design spec	not recorded	not tracked before results.tsv	Tracing clarification
+2026-04-09	e2deeff	1	Tracing docs	Clarified tracing approach for VMEM and VPU	not recorded	not tracked before results.tsv	Move profiler spec
+2026-04-09	4bf62ce	1	Profiler docs	Profiler design moved to doc	not recorded	not tracked before results.tsv	Profiler implementation
+2026-04-09	e350f7f	1	Profiler and ONNX trace	Profiler tooling and ONNX trace flow	not recorded	not tracked before results.tsv	Runtime runner
+2026-04-09	76274ae	1	Runtime runner	TinyTPU numeric bundle runtime runner	not recorded	not tracked before results.tsv	Python cache hygiene
+2026-04-09	ffed9a9	1	Gitignore	Python bytecode caches ignored	not recorded	not tracked before results.tsv	Agent loop docs
+2026-04-09	b3a4249	1	Agent workflow	Expanded AGENT implementation loop	not recorded	not tracked before results.tsv	GEMM coverage expansion
+2026-04-09	38e383b	1	GEMM coverage	Batched TinyTPU GEMM tests	not recorded	not tracked before results.tsv	Wide GEMM
+2026-04-09	f82d0e6	1	GEMM coverage	Wide TinyTPU GEMM tests	not recorded	not tracked before results.tsv	Int8 range checks
+2026-04-09	9eea0dc	1	GEMM diagnostics	Int8 range checks	not recorded	not tracked before results.tsv	Lowering errors
+2026-04-09	175bf33	1	Lowering diagnostics	TinyTPU lowering error tests	not recorded	not tracked before results.tsv	Deep GEMM
+2026-04-09	3c8a4bb	1	GEMM coverage	Deep TinyTPU GEMM tests	not recorded	not tracked before results.tsv	Batched deep GEMM
+2026-04-09	4668472	1	GEMM coverage	Batched deep TinyTPU GEMM tests	not recorded	not tracked before results.tsv	Random signed GEMM
+2026-04-09	bd64e71	1	GEMM coverage	Random signed TinyTPU GEMM tests	not recorded	not tracked before results.tsv	Tiling inference
+2026-04-09	c500a30	1	Tiling tests	TinyTPU tiling inference locked	not recorded	not tracked before results.tsv	Width diagnostics
+2026-04-09	f635c6e	1	Tiling diagnostics	Width diagnostics for unsupported TinyTPU GEMM	not recorded	not tracked before results.tsv	Empty GEMM shapes
+2026-04-09	3be5495	1	GEMM edge cases	Empty TinyTPU GEMM shape tests	not recorded	not tracked before results.tsv	Zero-sized GEMM diagnostics
+2026-04-09	e99a9fd	1	GEMM diagnostics	Zero-sized TinyTPU GEMM error tests	not recorded	not tracked before results.tsv	Batched random GEMM
+2026-04-09	4d2ecdd	1	GEMM coverage	Batched random TinyTPU GEMM tests	not recorded	not tracked before results.tsv	Tiling notes
+2026-04-09	5a1e696	1	Tiling diagnostics	TinyTPU tiling notes locked	not recorded	not tracked before results.tsv	UOp diagnostics
+2026-04-09	0c86375	1	UOp diagnostics	TinyTPU UOp diagnostics tests	not recorded	not tracked before results.tsv	Profiler validation
+2026-04-09	f71b3c0	1	Profiler validation	Invalid bundle integer diagnostics	not recorded	not tracked before results.tsv	Output flag validation
+2026-04-09	0f71f54	1	Profiler validation	Bundle output flag validation	not recorded	not tracked before results.tsv	Simulator output parsing
+2026-04-09	e6b5adb	1	Simulator parsing	Indented TinyTPU sim output	not recorded	not tracked before results.tsv	Malformed sim output
+2026-04-09	79c228c	1	Simulator parsing	Malformed TinyTPU sim output diagnostics	not recorded	not tracked before results.tsv	MXU result width
+2026-04-09	201dd65	1	Simulator parsing	TinyTPU MXU result width validation	not recorded	not tracked before results.tsv	Simulator failure lines
+2026-04-09	3163c27	1	Simulator status	Simulator failure line rejection	not recorded	not tracked before results.tsv	Simulator ok status
+2026-04-09	5adfdd1	1	Simulator status	Simulator status ok requirement	not recorded	not tracked before results.tsv	Trace parser validation
+2026-04-09	fdda68b	1	Trace parser validation	Malformed trace line rejection	not recorded	not tracked before results.tsv	Trace field validation
+2026-04-09	06dfb26	1	Trace parser validation	Malformed trace field rejection	not recorded	not tracked before results.tsv	Empty trace field validation
+2026-04-09	7a8e0c8	1	Trace parser validation	Empty trace field rejection	not recorded	not tracked before results.tsv	VPU add lowering
+2026-04-09	4311142	1	VPU add lowering	tinygrad int add runs on TinyTPU VPU	not recorded	not tracked before results.tsv	VPU binary coverage
+2026-04-09	246163c	1	VPU binary coverage	TinyTPU VPU binary op tests	not recorded	not tracked before results.tsv	ReLU lowering
+2026-04-09	302b005	1	ReLU lowering	TinyTPU ReLU lowering tests	not recorded	not tracked before results.tsv	Sum lowering
+2026-04-09	24a4d34	1	Sum lowering	TinyTPU four-element sum lowering tests	not recorded	not tracked before results.tsv	Full-tile add
+2026-04-09	906f337	1	Full-tile ADD	TinyTPU full-tile ADD tests	not recorded	not tracked before results.tsv	Full-tile mul
+2026-04-09	1ce885f	1	Full-tile MUL	TinyTPU full-tile MUL tests	not recorded	not tracked before results.tsv	Full-tile max
+2026-04-09	2ab8a37	1	Full-tile MAX	TinyTPU full-tile MAX tests	not recorded	not tracked before results.tsv	Full-tile relu
+2026-04-09	335e38c	1	Full-tile RELU	TinyTPU full-tile RELU tests	not recorded	not tracked before results.tsv	Signed VPU ops
+2026-04-09	10ead63	1	Signed VPU ops	Signed TinyTPU VPU op coverage	not recorded	not tracked before results.tsv	VMEM result parsing
+2026-04-09	d41253c	1	VMEM parsing	TinyTPU VMEM result parsing	not recorded	not tracked before results.tsv	VMEM width validation
+2026-04-09	3e7354d	1	VMEM parsing	TinyTPU VMEM result width validation	not recorded	not tracked before results.tsv	Malformed VMEM output
+2026-04-09	04ee5ed	1	VMEM parsing	Malformed VMEM output diagnostics	not recorded	not tracked before results.tsv	Tinyspec tracking
+2026-04-09	961a02d	1	Tinyspec tracking	TODO and tinyspec source saved	not recorded	TODO introduced with tinyspec estimate	VPU-only runtime completion
+2026-04-10	b70bf44	1	VPU-only runtime	VPU-only bundles complete without dummy MXU dispatch	not recorded	TODO marked VPU-only runtime progress	Scalar constants
+2026-04-10	697817e	1	Scalar ADD constant	TinyTPU scalar add constants covered	not recorded	TODO marked x + scalar	Scalar MUL constant
+2026-04-10	0e24b7f	1	Scalar MUL constant	TinyTPU scalar mul constants covered	not recorded	TODO marked x * scalar	Scalar MAX constant
+2026-04-10	f5b7622	1	Scalar MAX constant	TinyTPU scalar max constants covered	not recorded	TODO marked maximum x scalar	Less-than compare
+2026-04-10	aaecd9a	1	VPU CMPLT	VPU less-than compare hardware backend and tests	not recorded	TODO marked CMPLT	Not-equal compare
+2026-04-10	fd72f7d	1	VPU CMPNE	VPU not-equal compare hardware backend and tests	not recorded	TODO marked CMPNE	Subtract
+2026-04-10	139ea5e	1	VPU SUB	VPU subtract hardware backend and tests	not recorded	TODO marked SUB	NEG coverage
+2026-04-10	1c69ee3	1	NEG coverage	TinyTPU neg lowering through multiply by -1	not recorded	TODO marked NEG	Scalar comparisons
+2026-04-10	91bfd49	1	Scalar comparisons	TinyTPU scalar comparison constants covered	not recorded	TODO marked scalar comparison constants	VMEM bundle records
+2026-04-10	5969391	1	VMEM bundle records	Profiler roundtrip for VMEM input output records	not recorded	TODO marked bundle record roundtrip	Fork submodule URL
+2026-04-10	65ba605	1	Submodule URL	tinygrad submodule points to fork	not recorded	not tracked before results.tsv	Next 50 batch
 2026-04-10	3289dc8	50	TinyTPU tinyspec expansion	VPU CMPEQ; reverse scalar sub; grouped scalar constants; lowering dumps; VMEM protocol tests; profiler bundle tooling	make test-vpu: 9 passed, 0 failed; pytest TinyTPU/profiler/run tests: 84 passed	Next 50 iteration plan completed; recommended next work refreshed	Multi-tile elementwise ADD and multiple VMEM output tiles
