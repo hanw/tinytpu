@@ -87,4 +87,5 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	8beeabc	1	Multi-tile binary coverage	Multi-tile MUL SUB MAX CMPLT CMPNE CMPEQ tests	pytest backend: 58 passed (sim-backed)	none	Multi-tile scalar const and ReLU coverage
 2026-04-10	8daa17e	1	Multi-tile scalar const coverage	Scalar ADD/SUB 17-elem; scalar CMPLT/CMPEQ 32-elem	pytest backend: 62 passed (sim-backed)	none	Multi-tile ReLU coverage
 2026-04-10	fbaf5a6	1	Multi-tile ReLU coverage	32-elem and 33-elem (tail) multi-tile ReLU	pytest backend: 64 passed (sim-backed)	none	Multi-tile reverse sub const
-2026-04-10	717dba9	1	Multi-tile reverse sub const	Reverse sub const at 17-elem and 32-elem	pytest backend: 66 passed (sim-backed)	none	Multi-tile neg coverage
+2026-04-10	717dba9	1	Multi-tile reverse sub const	Reverse sub const at 17-elem and 32-elem	pytest backend: 66 passed (sim-backed)	none	WHERE op
+2026-04-10	016ae86	1	WHERE op	WHERE via multi-instruction VPU bundle (MUL+SUB+MUL+ADD)	pytest backend: 66 passed (sim-backed)	Marked WHERE done	WHERE full-tile and multi-tile coverage
