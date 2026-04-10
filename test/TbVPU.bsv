@@ -131,7 +131,30 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 10);
+   // Test 6: VPU_CMPLT
+   // [1,5,2,6] < [3,4,3,4] = [1,0,1,0]
+   rule dispatch_cmplt (cycle == 10);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 1; s1[0][1] = 5; s1[0][2] = 2; s1[0][3] = 6;
+      s2[0][0] = 3; s2[0][1] = 4; s2[0][2] = 3; s2[0][3] = 4;
+      vpu.execute(VPU_CMPLT, s1, s2);
+      $display("Cycle %0d: dispatched VPU_CMPLT", cycle);
+   endrule
+
+   rule check_cmplt (cycle == 11);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 1 && res[0][1] == 0 && res[0][2] == 1 && res[0][3] == 0);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_CMPLT", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_CMPLT got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 12);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
