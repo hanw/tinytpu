@@ -54,8 +54,10 @@ class BundleInstr:
 class Bundle:
   weight_tiles: list[tuple[int, list[int]]] = field(default_factory=list)
   act_tiles: list[tuple[int, list[int]]] = field(default_factory=list)
+  vmem_tiles: list[tuple[int, list[int]]] = field(default_factory=list)
   instructions: list[BundleInstr] = field(default_factory=list)
   output_mxu: bool = False
+  output_vmem_addr: int | None = None
 
   def to_text(self) -> str:
     lines: list[str] = []
@@ -65,8 +67,13 @@ class Bundle:
     for addr, vals in self.act_tiles:
       if len(vals) != 4: raise ValueError(f"activation tile at addr {addr} must have 4 values")
       lines.append("1 " + " ".join([str(addr)] + [str(v) for v in vals]))
+    for addr, vals in self.vmem_tiles:
+      if len(vals) != 16: raise ValueError(f"vmem tile at addr {addr} must have 16 values")
+      lines.append("5 " + " ".join([str(addr)] + [str(v) for v in vals]))
     lines.extend(instr.to_record() for instr in self.instructions)
     lines.append(f"3 {1 if self.output_mxu else 0}")
+    if self.output_vmem_addr is not None:
+      lines.append(f"6 {self.output_vmem_addr}")
     lines.append("4")
     return "\n".join(lines) + "\n"
 
@@ -98,6 +105,12 @@ def parse_bundle_text(text:str) -> Bundle:
       bundle.output_mxu = vals[0] != 0
     elif rec_type == "4":
       break
+    elif rec_type == "5":
+      if len(vals) != 17: raise ValueError(f"line {lineno}: vmem tile record expects 17 integers")
+      bundle.vmem_tiles.append((vals[0], vals[1:]))
+    elif rec_type == "6":
+      if len(vals) != 1: raise ValueError(f"line {lineno}: output vmem record expects 1 integer")
+      bundle.output_vmem_addr = vals[0]
     else:
       raise ValueError(f"line {lineno}: unknown record type {rec_type!r}")
   return bundle

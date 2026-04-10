@@ -6,7 +6,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from profiler.bundle import parse_bundle_text
+from profiler.bundle import Bundle, parse_bundle_text
 from profiler.reports import print_summary, print_utilization
 from profiler.sample_program import make_sample_bundle
 from profiler.trace_parser import parse_trace_output
@@ -20,6 +20,13 @@ class TestProfilerHelpers(unittest.TestCase):
     self.assertEqual(len(parsed.instructions), len(bundle.instructions))
     self.assertTrue(parsed.output_mxu)
 
+  def test_bundle_roundtrip_vmem_records(self):
+    bundle = Bundle(vmem_tiles=[(2, list(range(16)))], output_vmem_addr=2)
+    parsed = parse_bundle_text(bundle.to_text())
+    self.assertEqual(parsed.vmem_tiles, [(2, list(range(16)))])
+    self.assertEqual(parsed.output_vmem_addr, 2)
+    self.assertFalse(parsed.output_mxu)
+
   def test_bundle_parse_reports_bad_integer_line(self):
     with self.assertRaisesRegex(ValueError, "line 2: invalid integer 'nope'"):
       parse_bundle_text("3 1\n2 5 nope\n4\n")
@@ -27,6 +34,14 @@ class TestProfilerHelpers(unittest.TestCase):
   def test_bundle_parse_rejects_non_boolean_output_flag(self):
     with self.assertRaisesRegex(ValueError, "line 1: output flag must be 0 or 1"):
       parse_bundle_text("3 7\n4\n")
+
+  def test_bundle_parse_rejects_bad_vmem_tile_width(self):
+    with self.assertRaisesRegex(ValueError, "line 1: vmem tile record expects 17 integers"):
+      parse_bundle_text("5 2 1 2 3\n4\n")
+
+  def test_bundle_parse_rejects_bad_output_vmem_width(self):
+    with self.assertRaisesRegex(ValueError, "line 1: output vmem record expects 1 integer"):
+      parse_bundle_text("6 2 3\n4\n")
 
   def test_trace_parser(self):
     events, lines = parse_trace_output(

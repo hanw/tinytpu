@@ -186,7 +186,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [ ] Full VPU-only trace coverage
 - [ ] VMEM bundle dump utility
 - [ ] Lowering decision dump
-- [ ] Runtime bundle round-trip tests for all record types
+- [x] Runtime bundle round-trip tests for all record types
 - [ ] Per-op cycle reports
 - [ ] MXU/VPU/VMEM utilization by lowered tinygrad op
 
@@ -269,9 +269,9 @@ Estimate: **500-800 iterations**
 2. Add single-tile transpose through XLU.
 3. Add single-tile reshape/permute no-copy cases.
 4. Add multi-tile elementwise loop for `ADD`.
-5. Add runtime bundle round-trip tests for VMEM records.
-6. Add selected upstream tinygrad test invocation for covered VPU ops.
-7. Add structural VPU lowering helpers to replace UOp-count checks.
-8. Add bool dtype coverage for comparison outputs.
-9. Add scalar `SUB` constant coverage.
-10. Add scalar `CMPLT` reverse-operand coverage.
+5. Add selected upstream tinygrad test invocation for covered VPU ops.
+6. Add structural VPU lowering helpers to replace UOp-count checks.
+7. Add bool dtype coverage for comparison outputs.
+8. Add scalar `SUB` constant coverage.
+9. Add scalar `CMPLT` reverse-operand coverage.
+10. Add runtime bundle dump utility for captured tinygrad programs.
