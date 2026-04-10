@@ -390,6 +390,12 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (a & b).numpy()
     np.testing.assert_array_equal(result, np.array([True, False, False, True], dtype=np.bool_))
 
+  def test_xor_matches_reference(self):
+    a = Tensor([True, False, True, False], device="TINYTPU")
+    b = Tensor([True, True, False, False], device="TINYTPU")
+    result = (a ^ b).numpy()
+    np.testing.assert_array_equal(result, np.array([False, True, True, False], dtype=np.bool_))
+
   def test_or_matches_reference(self):
     a = Tensor([True, False, True, False], device="TINYTPU")
     b = Tensor([False, False, True, True], device="TINYTPU")

@@ -80,7 +80,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [x] `WHERE`
 - [x] `AND`
 - [x] `OR`
-- [ ] `XOR`
+- [x] `XOR`
 - [ ] `SHL`
 - [ ] `SHR`
 - [ ] `MOD`
