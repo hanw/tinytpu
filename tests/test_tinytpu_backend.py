@@ -12,7 +12,7 @@ from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling,
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
-class TestTinyTPUBackendGemm(unittest.TestCase):
+class TestTinyTPUBackend(unittest.TestCase):
   def test_multi_row_gemm_matches_numpy(self):
     a_np = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.int32)
     w_np = np.eye(4, dtype=np.int32)

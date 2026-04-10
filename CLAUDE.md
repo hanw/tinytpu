@@ -17,7 +17,7 @@ When asked to do iterations (e.g. "do 25 iterations"):
 Run tests from the repo root. Use `/Users/hanwang/miniconda3/bin/python3` (has pytest).
 
 ```
-PYTHONPATH=tinygrad /Users/hanwang/miniconda3/bin/python3 -m pytest tests/test_tinytpu_backend_gemm.py::TestTinyTPUBackendGemm -x -v   # sim-backed backend tests
+PYTHONPATH=tinygrad /Users/hanwang/miniconda3/bin/python3 -m pytest tests/test_tinytpu_backend.py::TestTinyTPUBackend -x -v   # sim-backed backend tests
 PYTHONPATH=tinygrad /Users/hanwang/miniconda3/bin/python3 -m pytest tests/ -x -v   # all Python-side tests
 make test-<unit>                         # BSV unit tests
 python3 scripts/test_cosim.py            # end-to-end co-sim
