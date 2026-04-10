@@ -291,7 +291,30 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 24);
+   // Test 13: VPU_MIN
+   // min([1,5,2,6], [3,4,3,4]) = [1,4,2,4]
+   rule dispatch_min (cycle == 24);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 1; s1[0][1] = 5; s1[0][2] = 2; s1[0][3] = 6;
+      s2[0][0] = 3; s2[0][1] = 4; s2[0][2] = 3; s2[0][3] = 4;
+      vpu.execute(VPU_MIN, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MIN", cycle);
+   endrule
+
+   rule check_min (cycle == 25);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 1 && res[0][1] == 4 && res[0][2] == 2 && res[0][3] == 4);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MIN", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MIN got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 26);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
