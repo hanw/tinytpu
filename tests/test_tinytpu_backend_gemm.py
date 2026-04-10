@@ -137,6 +137,10 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
   def test_parses_indented_mxu_result(self):
     self.assertEqual(_parse_sim_output("  mxu_result 1 -2 3 -4\nstatus ok\n"), [1, -2, 3, -4])
 
+  def test_reports_bad_mxu_result_integer(self):
+    with self.assertRaisesRegex(ValueError, "invalid mxu_result integer 'bad'"):
+      _parse_sim_output("mxu_result 1 bad 3 4\nstatus ok\n")
+
 
 if __name__ == "__main__":
   unittest.main()
