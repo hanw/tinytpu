@@ -140,6 +140,16 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = Tensor(a_np, dtype="int32", device="TINYTPU").sum().numpy()
     np.testing.assert_array_equal(result, a_np.sum())
 
+  def test_sum_negative_matches_reference(self):
+    a_np = np.array([-3, 5, -7, 2], dtype=np.int32)
+    result = Tensor(a_np, dtype="int32", device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, a_np.sum())
+
+  def test_max_negative_matches_reference(self):
+    a_np = np.array([-5, -1, -8, -3], dtype=np.int32)
+    result = Tensor(a_np, dtype="int32", device="TINYTPU").max().numpy()
+    np.testing.assert_array_equal(result, a_np.max())
+
   def test_unsupported_width_reports_tiling_constraint(self):
     a_np = np.arange(4, dtype=np.int32).reshape(1, 4)
     w_np = np.arange(24, dtype=np.int32).reshape(4, 6)
