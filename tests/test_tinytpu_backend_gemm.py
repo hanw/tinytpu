@@ -158,6 +158,18 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       with self.assertRaisesRegex(RuntimeError, "simulator reported failure: ERROR: injected failure"):
         _run_gemm_vec(str(sim), np.eye(4, dtype=np.int8), np.arange(4, dtype=np.int8))
 
+  def test_run_gemm_requires_ok_status(self):
+    with tempfile.TemporaryDirectory() as td:
+      sim = Path(td) / "fake_sim.py"
+      sim.write_text(textwrap.dedent("""\
+        #!/usr/bin/env python3
+        print("mxu_result 1 2 3 4")
+        print("status busy")
+      """), encoding="utf-8")
+      sim.chmod(sim.stat().st_mode | stat.S_IEXEC)
+      with self.assertRaisesRegex(RuntimeError, "simulator did not report `status ok`"):
+        _run_gemm_vec(str(sim), np.eye(4, dtype=np.int8), np.arange(4, dtype=np.int8))
+
 
 if __name__ == "__main__":
   unittest.main()
