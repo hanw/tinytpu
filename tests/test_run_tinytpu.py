@@ -39,6 +39,18 @@ class TestRunTinyTPU(unittest.TestCase):
       self.assertEqual(payload["cycles"], 12)
       self.assertEqual(payload["status"], "ok")
 
+  def test_upstream_subset_wrapper_dry_run(self):
+    proc = subprocess.run(
+      [sys.executable, str(REPO_ROOT / "scripts" / "run_tinytpu_upstream_subset.py"), "--dry-run"],
+      cwd=REPO_ROOT,
+      text=True,
+      capture_output=True,
+      check=False,
+    )
+    self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+    self.assertIn("DEVICE=TINYTPU", proc.stdout)
+    self.assertIn("test/test_tiny.py::TestTiny::test_plus_int", proc.stdout)
+
 
 if __name__ == "__main__":
   unittest.main()

@@ -1,0 +1,4 @@
+# Selected upstream tinygrad tests that overlap current TinyTPU coverage.
+# Run with: python3 scripts/run_tinytpu_upstream_subset.py --dry-run
+test/test_tiny.py::TestTiny::test_plus_int
+test/test_tiny.py::TestTiny::test_plus_big

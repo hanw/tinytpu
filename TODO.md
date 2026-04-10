@@ -47,7 +47,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [ ] Support multiple VPU instructions in one tinygrad lowered program
 - [ ] Add runtime tests for VMEM preload/output protocol
 - [ ] Improve trace output for VPU-only programs
-- [ ] Document bundle records for VMEM input/output
+- [x] Document bundle records for VMEM input/output
 
 ### General Elementwise Scalar/Tile Support: 30-60 iterations
 
@@ -313,11 +313,11 @@ Estimate: **500-800 iterations**
 30. [x] Reuse profiler `Bundle` for VPU bundle text where practical.
 31. [x] Add VMEM/VPU bundle dump utility.
 32. [x] Add lowering-decision dump behind an env var.
-33. [ ] Add selected upstream tinygrad VPU test list.
-34. [ ] Add selected upstream tinygrad invocation wrapper.
-35. [ ] Add skipped manifest for unsupported tinyspec areas.
-36. [ ] Add tinyspec coverage category table.
-37. [ ] Document VMEM input/output bundle records.
+33. [x] Add selected upstream tinygrad VPU test list.
+34. [x] Add selected upstream tinygrad invocation wrapper.
+35. [x] Add skipped manifest for unsupported tinyspec areas.
+36. [x] Add tinyspec coverage category table.
+37. [x] Document VMEM input/output bundle records.
 38. [ ] Add runtime VMEM preload/output protocol test.
 39. [ ] Add trace parser coverage for VPU-only traces.
 40. [ ] Add per-op cycle report for VPU traces.
