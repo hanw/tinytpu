@@ -121,3 +121,12 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	941b248	1	Negative MIN reduction	min with all-negative int32 values	pytest backend: 96 passed (sim-backed)	none	Scalar MIN const
 2026-04-10	d03f172	1	Scalar minimum const	minimum(x, c) via XOR+MAX decomposition detection	pytest backend: 97 passed (sim-backed)	none	Clip support
 2026-04-10	a031e37	1	Clip diagnostic	clip correctly reports unsupported (was silently wrong)	pytest backend: 98 passed (sim-backed)	none	Fused clamp lowering or more reductions
+2026-04-10	b7e5071	1	Analyzer fix: add+relu	Block grouped binary with CMPLT+WHERE (fused epilogue)	pytest backend: 98 passed (sim-backed)	none	Add+relu diagnostic test
+2026-04-10	4cab815	1	Add+relu diagnostic	Fused add+relu correctly reports unsupported	pytest backend: 99 passed (sim-backed)	none	Multi-tile scalar const coverage
+2026-04-10	b750920	1	Multi-tile min scalar const	32-elem minimum(x, 10)	pytest backend: 100 passed (sim-backed)	none	More multi-tile coverage
+2026-04-10	bb9f4b9	1	Multi-tile max scalar const	32-elem maximum(x, 10)	pytest backend: 101 passed (sim-backed)	none	More multi-tile coverage
+2026-04-10	f97cb31	1	Multi-tile CMPNE scalar const	32-elem x != 10	pytest backend: 102 passed (sim-backed)	none	WHERE tail coverage
+2026-04-10	804c46b	1	WHERE tail coverage	17-elem WHERE with tail handling	pytest backend: 103 passed (sim-backed)	none	Signed minimum
+2026-04-10	0c56fc3	1	Signed minimum	Minimum with negative values on both sides	pytest backend: 104 passed (sim-backed)	none	Negative min const
+2026-04-10	f3b0c0b	1	Negative min const	minimum(x, -2)	pytest backend: 105 passed (sim-backed)	none	Diagnostic tests
+2026-04-10	bb86956	1	Diagnostic tests	IDIV/MOD/ABS unsupported + minimum regression	pytest backend: 109 passed (sim-backed)	none	Fused clamp or CAST lowering
