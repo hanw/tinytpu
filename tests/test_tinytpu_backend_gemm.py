@@ -97,9 +97,9 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
     np.testing.assert_array_equal(result, np.array([[0, 2, 0, 4]], dtype=np.int32))
 
-  def test_sum_error_reports_uop_mix(self):
-    with self.assertRaisesRegex(NotImplementedError, "op_counts: .*ADD=3"):
-      Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").sum().numpy()
+  def test_sum4_matches_reference(self):
+    result = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, np.array(10, dtype=np.int32))
 
   def test_unsupported_width_reports_tiling_constraint(self):
     a_np = np.arange(4, dtype=np.int32).reshape(1, 4)
