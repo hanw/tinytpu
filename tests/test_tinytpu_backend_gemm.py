@@ -113,6 +113,14 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     with self.assertRaisesRegex(NotImplementedError, "zero-sized gemm"):
       (a @ w).numpy()
 
+  def test_tiny_plus_int_matches_reference(self):
+    # Mirrors tinygrad/test/test_tiny.py::TestTiny::test_plus_int.
+    result = (
+      Tensor([1, 2, 3], dtype="int32", device="TINYTPU") +
+      Tensor([4, 5, 6], dtype="int32", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_array_equal(result, np.array([5, 7, 9], dtype=np.int32))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):

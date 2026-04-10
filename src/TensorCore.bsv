@@ -23,6 +23,11 @@ interface TensorCore_IFC#(numeric type rows, numeric type cols, numeric type dep
                                     Vector#(rows, Int#(8)) data);
    // Load one SXU microprogram instruction
    method Action loadProgram(UInt#(4) pc, TCInstr instr);
+   // Pre-load/read unified VMEM tiles for VPU/XLU programs.
+   method Action loadVmemTile(UInt#(TLog#(depth)) addr,
+                              Vector#(rows, Vector#(cols, Int#(32))) data);
+   method Action readVmemTile(UInt#(TLog#(depth)) addr);
+   method Vector#(rows, Vector#(cols, Int#(32))) getVmemResult;
    // Start SXU execution
    method Action start(UInt#(4) len);
    method Bool isDone;
@@ -74,6 +79,19 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
 
    method Action loadProgram(UInt#(4) pc, TCInstr instr);
       sxu.loadInstr(extend(pc), instr);
+   endmethod
+
+   method Action loadVmemTile(UInt#(TLog#(depth)) addr,
+                              Vector#(rows, Vector#(cols, Int#(32))) data);
+      vmem.write(addr, data);
+   endmethod
+
+   method Action readVmemTile(UInt#(TLog#(depth)) addr);
+      vmem.readReq(addr);
+   endmethod
+
+   method Vector#(rows, Vector#(cols, Int#(32))) getVmemResult;
+      return vmem.readResp;
    endmethod
 
    method Action start(UInt#(4) len);

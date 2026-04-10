@@ -14,9 +14,14 @@
 //       OUTPUT_MXU: 1 = emit getMxuResult line after HALT
 //   4
 //       END: stop loading, start execution
+//   5 addr v00 v01 v02 v03 v10 ... v33
+//       VMEM_TILE: SRAM addr + 4x4 Int32 values (row-major)
+//   6 addr
+//       OUTPUT_VMEM: emit VMEM tile at addr after HALT
 //
 // Output lines:
 //   mxu_result v0 v1 v2 v3   (if OUTPUT_MXU 1)
+//   vmem_result v00 v01 v02 v03 v10 ... v33   (if OUTPUT_VMEM is present)
 //   cycles N
 //   status ok
 
@@ -38,8 +43,11 @@ typedef enum {
    TSIM_ATILE,
    TSIM_INSTR,
    TSIM_OUTPUT_MXU,
+   TSIM_VMEM_TILE,
+   TSIM_OUTPUT_VMEM,
    TSIM_START,
    TSIM_RUNNING,
+   TSIM_OUTPUT_REQ,
    TSIM_OUTPUT
 } TsimState deriving(Bits, Eq, FShow);
 
@@ -51,6 +59,8 @@ module mkTbTinyTPURuntime();
    Reg#(TsimState) state  <- mkReg(TSIM_OPEN);
    Reg#(UInt#(4))  pc     <- mkReg(0);      // instruction counter
    Reg#(Bool)      outMxu <- mkReg(False);
+   Reg#(Bool)      outVmem <- mkReg(False);
+   Reg#(UInt#(4))  outVmemAddr <- mkReg(0);
    Reg#(UInt#(16)) cycle  <- mkReg(0);
 
    rule count_cycles;
@@ -79,6 +89,8 @@ module mkTbTinyTPURuntime();
       else if (typ == 2) state <= TSIM_INSTR;
       else if (typ == 3) state <= TSIM_OUTPUT_MXU;
       else if (typ == 4) state <= TSIM_START;
+      else if (typ == 5) state <= TSIM_VMEM_TILE;
+      else if (typ == 6) state <= TSIM_OUTPUT_VMEM;
       else begin
          $display("ERROR: unknown bundle record type %0d", typ);
          $finish(1);
@@ -176,14 +188,51 @@ module mkTbTinyTPURuntime();
       state  <= TSIM_READ_TYPE;
    endrule
 
+   // Record 5: VMEM_TILE — addr + 16 Int32 values (4 rows × 4 cols, row-major)
+   rule do_vmem_tile (state == TSIM_VMEM_TILE);
+      Int#(32) addr <- tinytpu_bundle_read_int();
+      Int#(32) v00 <- tinytpu_bundle_read_int();
+      Int#(32) v01 <- tinytpu_bundle_read_int();
+      Int#(32) v02 <- tinytpu_bundle_read_int();
+      Int#(32) v03 <- tinytpu_bundle_read_int();
+      Int#(32) v10 <- tinytpu_bundle_read_int();
+      Int#(32) v11 <- tinytpu_bundle_read_int();
+      Int#(32) v12 <- tinytpu_bundle_read_int();
+      Int#(32) v13 <- tinytpu_bundle_read_int();
+      Int#(32) v20 <- tinytpu_bundle_read_int();
+      Int#(32) v21 <- tinytpu_bundle_read_int();
+      Int#(32) v22 <- tinytpu_bundle_read_int();
+      Int#(32) v23 <- tinytpu_bundle_read_int();
+      Int#(32) v30 <- tinytpu_bundle_read_int();
+      Int#(32) v31 <- tinytpu_bundle_read_int();
+      Int#(32) v32 <- tinytpu_bundle_read_int();
+      Int#(32) v33 <- tinytpu_bundle_read_int();
+      Vector#(4, Vector#(4, Int#(32))) tile = replicate(replicate(0));
+      tile[0][0] = v00; tile[0][1] = v01; tile[0][2] = v02; tile[0][3] = v03;
+      tile[1][0] = v10; tile[1][1] = v11; tile[1][2] = v12; tile[1][3] = v13;
+      tile[2][0] = v20; tile[2][1] = v21; tile[2][2] = v22; tile[2][3] = v23;
+      tile[3][0] = v30; tile[3][1] = v31; tile[3][2] = v32; tile[3][3] = v33;
+      tc.loadVmemTile(unpack(truncate(pack(addr))), tile);
+      state <= TSIM_READ_TYPE;
+   endrule
+
+   // Record 6: OUTPUT_VMEM — addr to emit after HALT
+   rule do_output_vmem (state == TSIM_OUTPUT_VMEM);
+      Int#(32) addr <- tinytpu_bundle_read_int();
+      outVmem <= True;
+      outVmemAddr <= unpack(truncate(pack(addr)));
+      state <= TSIM_READ_TYPE;
+   endrule
+
    // Record 4: END — start TensorCore execution
    rule do_start (state == TSIM_START);
       tc.start(pc);
       state <= TSIM_RUNNING;
    endrule
 
-   // Wait for TensorCore to finish
-   rule do_running (state == TSIM_RUNNING && tc.isDone);
+   // Wait for TensorCore to finish and issue optional VMEM read before printing.
+   rule do_output_req (state == TSIM_RUNNING && tc.isDone);
+      if (outVmem) tc.readVmemTile(outVmemAddr);
       state <= TSIM_OUTPUT;
    endrule
 
@@ -193,6 +242,14 @@ module mkTbTinyTPURuntime();
          Vector#(4, Int#(32)) res = tc.getMxuResult;
          $display("mxu_result %0d %0d %0d %0d",
                   res[0], res[1], res[2], res[3]);
+      end
+      if (outVmem) begin
+         Vector#(4, Vector#(4, Int#(32))) tile = tc.getVmemResult;
+         $display("vmem_result %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",
+                  tile[0][0], tile[0][1], tile[0][2], tile[0][3],
+                  tile[1][0], tile[1][1], tile[1][2], tile[1][3],
+                  tile[2][0], tile[2][1], tile[2][2], tile[2][3],
+                  tile[3][0], tile[3][1], tile[3][2], tile[3][3]);
       end
       $display("cycles %0d", cycle);
       $display("status ok");
