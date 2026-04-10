@@ -16,10 +16,12 @@ class Event:
 def parse_trace_output(stdout:str) -> tuple[list[Event], list[str]]:
   events: list[Event] = []
   other: list[str] = []
-  for raw in stdout.splitlines():
+  for lineno, raw in enumerate(stdout.splitlines(), start=1):
     line = raw.strip()
     if not line: continue
     if (m := TRACE_RE.match(line)) is None:
+      if line.startswith("TRACE "):
+        raise ValueError(f"line {lineno}: malformed TRACE line")
       other.append(line)
       continue
     fields: dict[str, str] = {}
