@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, stat, sys, tempfile, textwrap, unittest
+import json, os, stat, subprocess, sys, tempfile, textwrap, unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -279,6 +279,44 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
     self.assertEqual(_VPU_BOOL_OPS, {_VPU_OPS["CMPLT"], _VPU_OPS["CMPNE"], _VPU_OPS["CMPEQ"]})
+
+  def test_lowering_dump_records_scalar_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((Tensor([1, 2, 3], dtype="int32", device="TINYTPU") + 1).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["ADD"] and r.get("rhs_const") == 1 for r in records))
+
+  def test_lowering_dump_records_equality_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((Tensor([1, 2, 3], dtype="int32", device="TINYTPU") == Tensor([1, 0, 3], dtype="int32", device="TINYTPU")).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["CMPEQ"] for r in records))
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):

@@ -306,13 +306,13 @@ Estimate: **500-800 iterations**
 23. [x] Refactor bool-result opcode set into a helper.
 24. [x] Refactor VPU opcode table into module constants.
 25. [x] Refactor scalar-const descriptor fields.
-26. [ ] Add tests for descriptor JSON for VPU binary ops.
-27. [ ] Add tests for descriptor JSON for scalar const ops.
-28. [ ] Add tests for descriptor JSON for equality ops.
+26. [x] Add tests for descriptor JSON for VPU binary ops.
+27. [x] Add tests for descriptor JSON for scalar const ops.
+28. [x] Add tests for descriptor JSON for equality ops.
 29. [ ] Add runtime bundle builder helper for VPU binary programs.
 30. [ ] Reuse profiler `Bundle` for VPU bundle text where practical.
 31. [x] Add VMEM/VPU bundle dump utility.
-32. [ ] Add lowering-decision dump behind an env var.
+32. [x] Add lowering-decision dump behind an env var.
 33. [ ] Add selected upstream tinygrad VPU test list.
 34. [ ] Add selected upstream tinygrad invocation wrapper.
 35. [ ] Add skipped manifest for unsupported tinyspec areas.
