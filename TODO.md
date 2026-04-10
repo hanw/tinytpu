@@ -68,7 +68,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 ### More Elementwise Ops: 35-70 iterations
 
 - [x] `SUB` as `ADD + NEG`, lowered to `VPU_SUB`
-- [ ] `NEG` as multiply by `-1`
+- [x] `NEG` as multiply by `-1`
 - [x] `CMPLT`
 - [x] `CMPNE`
 - [ ] `WHERE`
@@ -264,12 +264,12 @@ Estimate: **500-800 iterations**
 ## Recommended Next Iterations
 
 1. Add `WHERE`.
-2. Add `NEG` coverage for multiply-by-`-1` lowering.
-3. Add single-tile transpose through XLU.
-4. Add single-tile reshape/permute no-copy cases.
-5. Add multi-tile elementwise loop for `ADD`.
-6. Add runtime bundle round-trip tests for VMEM records.
-7. Add selected upstream tinygrad test invocation for covered VPU ops.
-8. Add structural VPU lowering helpers to replace UOp-count checks.
-9. Add bool dtype coverage for comparison outputs.
-10. Add scalar-constant comparison support.
+2. Add single-tile transpose through XLU.
+3. Add single-tile reshape/permute no-copy cases.
+4. Add multi-tile elementwise loop for `ADD`.
+5. Add runtime bundle round-trip tests for VMEM records.
+6. Add selected upstream tinygrad test invocation for covered VPU ops.
+7. Add structural VPU lowering helpers to replace UOp-count checks.
+8. Add bool dtype coverage for comparison outputs.
+9. Add scalar-constant comparison support.
+10. Add scalar `SUB` constant coverage.

@@ -166,6 +166,10 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     ).numpy()
     np.testing.assert_array_equal(result, np.array([3, 4, -6], dtype=np.int32))
 
+  def test_tiny_neg_int_matches_reference(self):
+    result = (-Tensor([1, -2, 3], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([-1, 2, -3], dtype=np.int32))
+
   def test_tiny_max_int_matches_reference(self):
     result = Tensor([1, 7, 3], dtype="int32", device="TINYTPU").maximum(
       Tensor([4, 5, 6], dtype="int32", device="TINYTPU")
