@@ -93,13 +93,9 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (a @ w).numpy()
     self.assertEqual(result.shape, (2, 0))
 
-  def test_relu_error_reports_missing_instructions(self):
-    with self.assertRaisesRegex(NotImplementedError, "SXU_DISPATCH_VPU"):
-      Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
-
-  def test_relu_error_reports_uop_mix(self):
-    with self.assertRaisesRegex(NotImplementedError, "op_counts: .*CMPLT="):
-      Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
+  def test_relu_matches_reference(self):
+    result = Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
+    np.testing.assert_array_equal(result, np.array([[0, 2, 0, 4]], dtype=np.int32))
 
   def test_sum_error_reports_uop_mix(self):
     with self.assertRaisesRegex(NotImplementedError, "op_counts: .*ADD=3"):
