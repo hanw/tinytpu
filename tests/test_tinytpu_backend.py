@@ -547,6 +547,15 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") != 10).numpy()
     np.testing.assert_array_equal(result, a_np != 10)
 
+  def test_where_multi_tile_tail_matches_reference(self):
+    cond_np = np.array([i % 2 == 0 for i in range(17)], dtype=np.bool_)
+    lhs_np = np.arange(17, dtype=np.int32)
+    rhs_np = np.arange(100, 117, dtype=np.int32)
+    result = Tensor.where(Tensor(cond_np, device="TINYTPU"),
+                          Tensor(lhs_np, dtype="int32", device="TINYTPU"),
+                          Tensor(rhs_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.where(cond_np, lhs_np, rhs_np))
+
   def test_fused_add_relu_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       (Tensor([-3, 1, -1, 5], dtype="int32", device="TINYTPU") + Tensor([1, 1, 1, 1], dtype="int32", device="TINYTPU")).relu().numpy()
