@@ -101,6 +101,10 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     with self.assertRaisesRegex(NotImplementedError, "op_counts: .*CMPLT="):
       Tensor([[-1, 2, -3, 4]], dtype="int32", device="TINYTPU").relu().numpy()
 
+  def test_sum_error_reports_uop_mix(self):
+    with self.assertRaisesRegex(NotImplementedError, "op_counts: .*ADD=3"):
+      Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").sum().numpy()
+
   def test_unsupported_width_reports_tiling_constraint(self):
     a_np = np.arange(4, dtype=np.int32).reshape(1, 4)
     w_np = np.arange(24, dtype=np.int32).reshape(4, 6)
@@ -120,6 +124,19 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
       Tensor([4, 5, 6], dtype="int32", device="TINYTPU")
     ).numpy()
     np.testing.assert_array_equal(result, np.array([5, 7, 9], dtype=np.int32))
+
+  def test_tiny_mul_int_matches_reference(self):
+    result = (
+      Tensor([1, 2, 3], dtype="int32", device="TINYTPU") *
+      Tensor([4, 5, 6], dtype="int32", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_array_equal(result, np.array([4, 10, 18], dtype=np.int32))
+
+  def test_tiny_max_int_matches_reference(self):
+    result = Tensor([1, 7, 3], dtype="int32", device="TINYTPU").maximum(
+      Tensor([4, 5, 6], dtype="int32", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_array_equal(result, np.array([4, 7, 6], dtype=np.int32))
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):
