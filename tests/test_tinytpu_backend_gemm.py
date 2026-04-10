@@ -406,6 +406,12 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (a ^ b).numpy()
     np.testing.assert_array_equal(result, np.array([False, True, True, False], dtype=np.bool_))
 
+  def test_xor_multi_tile_matches_reference(self):
+    a = np.array([True, False, True, False]*8, dtype=np.bool_)
+    b = np.array([True, True, False, False]*8, dtype=np.bool_)
+    result = (Tensor(a, device="TINYTPU") ^ Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a ^ b)
+
   def test_and_multi_tile_matches_reference(self):
     a = np.array([True, False]*16, dtype=np.bool_)
     b = np.array([True, True, False, False]*8, dtype=np.bool_)
