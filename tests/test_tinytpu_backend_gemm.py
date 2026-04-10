@@ -157,6 +157,16 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = Tensor(a_np, dtype="int32", device="TINYTPU").maximum(Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, np.maximum(a_np, b_np))
 
+  def test_vpu_binary_signed_full_tile_matches_reference(self):
+    a_np = np.arange(-8, 8, dtype=np.int32)
+    b_np = np.arange(8, -8, -1, dtype=np.int32)
+    add = (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    mul = (Tensor(a_np, dtype="int32", device="TINYTPU") * Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    mx = Tensor(a_np, dtype="int32", device="TINYTPU").maximum(Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(add, a_np + b_np)
+    np.testing.assert_array_equal(mul, a_np * b_np)
+    np.testing.assert_array_equal(mx, np.maximum(a_np, b_np))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
