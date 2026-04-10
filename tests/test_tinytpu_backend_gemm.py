@@ -141,6 +141,10 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "invalid mxu_result integer 'bad'"):
       _parse_sim_output("mxu_result 1 bad 3 4\nstatus ok\n")
 
+  def test_rejects_wrong_mxu_result_width(self):
+    with self.assertRaisesRegex(ValueError, "mxu_result expects 4 values, got 3"):
+      _parse_sim_output("mxu_result 1 2 3\nstatus ok\n")
+
 
 if __name__ == "__main__":
   unittest.main()
