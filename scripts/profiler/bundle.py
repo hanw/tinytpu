@@ -20,6 +20,7 @@ VPU_OP_NAMES = {
   5: "VPU_CMPLT",
   6: "VPU_CMPNE",
   7: "VPU_SUB",
+  8: "VPU_CMPEQ",
 }
 
 

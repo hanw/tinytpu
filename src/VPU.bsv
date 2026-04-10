@@ -2,7 +2,7 @@ package VPU;
 
 import Vector :: *;
 
-typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB }
+typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ }
    VpuOp deriving (Bits, Eq, FShow);
 
 interface VPU_IFC#(numeric type sublanes, numeric type lanes);
@@ -73,6 +73,10 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_SUB: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = src1[s][l] - src2[s][l];
+            end
+            VPU_CMPEQ: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = (src1[s][l] == src2[s][l]) ? 1 : 0;
             end
          endcase
          res[s] = row;

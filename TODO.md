@@ -23,6 +23,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
   - [x] `ADD`
   - [x] `MUL`
   - [x] `MAX`
+  - [x] `SUB`
 - [x] Tinygrad int32 single-tile VPU unary lowering
   - [x] `RELU`
 - [x] Tinygrad 4-element int32 reduction lowering
@@ -63,6 +64,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [ ] Scalar broadcasting
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
+  - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
 - [ ] Multi-tile elementwise loops for `numel > 16`
 - [ ] Mixed VPU op chains without host round trips
 - [ ] Output shape preservation for scalar, vector, and small matrix cases
@@ -73,6 +75,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [x] `NEG` as multiply by `-1`
 - [x] `CMPLT`
 - [x] `CMPNE`
+- [x] `CMPEQ`
 - [ ] `WHERE`
 - [ ] `AND`
 - [ ] `OR`
@@ -135,7 +138,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 
 - [x] int32 VMEM values for VPU paths
 - [x] int8 operands for MXU paths
-- [ ] bool
+- [x] bool comparison outputs
 - [ ] int8 elementwise
 - [ ] uint8 elementwise
 - [ ] int16 elementwise
@@ -278,20 +281,20 @@ Estimate: **500-800 iterations**
 
 ## Next 50 Iteration Plan
 
-1. [ ] Add scalar `x - c` coverage.
-2. [ ] Add reverse scalar `c - x` lowering.
-3. [ ] Add reverse scalar `c - x` coverage.
-4. [ ] Add `CMPEQ` VPU opcode.
-5. [ ] Lower tensor equality through `CMPEQ`.
-6. [ ] Lower scalar equality through `CMPEQ`.
-7. [ ] Add equality dtype coverage.
-8. [ ] Add full-tile `SUB` coverage.
-9. [ ] Add full-tile `CMPLT` coverage.
-10. [ ] Add full-tile `CMPNE` coverage.
-11. [ ] Add full-tile `CMPEQ` coverage.
-12. [ ] Add shape-preservation coverage for 2x2 elementwise ops.
-13. [ ] Mark arbitrary `numel <= 16` coverage for supported VPU ops.
-14. [ ] Add explicit unsupported test for `numel > 16`.
+1. [x] Add scalar `x - c` coverage.
+2. [x] Add reverse scalar `c - x` lowering.
+3. [x] Add reverse scalar `c - x` coverage.
+4. [x] Add `CMPEQ` VPU opcode.
+5. [x] Lower tensor equality through `CMPEQ`.
+6. [x] Lower scalar equality through `CMPEQ`.
+7. [x] Add equality dtype coverage.
+8. [x] Add full-tile `SUB` coverage.
+9. [x] Add full-tile `CMPLT` coverage.
+10. [x] Add full-tile `CMPNE` coverage.
+11. [x] Add full-tile `CMPEQ` coverage.
+12. [x] Add shape-preservation coverage for 2x2 elementwise ops.
+13. [x] Mark arbitrary `numel <= 16` coverage for supported VPU ops.
+14. [x] Add explicit unsupported test for `numel > 16`.
 15. [ ] Add scalar negative constant coverage for `ADD`.
 16. [ ] Add scalar negative constant coverage for `MUL`.
 17. [ ] Add scalar negative constant coverage for `MAX`.

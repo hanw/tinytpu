@@ -8,7 +8,7 @@ os.environ["TINYTPU_SIM"] = str(REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe")
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _infer_tiling, _parse_sim_output, _parse_vmem_output, _run_gemm_vec, _tiling_failure_note
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _run_gemm_vec, _tiling_failure_note
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -152,6 +152,13 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     ).numpy()
     np.testing.assert_array_equal(result, np.array([False, True, False], dtype=np.bool_))
 
+  def test_vpu_cmpeq_matches_reference(self):
+    result = (
+      Tensor([1, 2, 3], dtype="int32", device="TINYTPU") ==
+      Tensor([1, 0, 3], dtype="int32", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_array_equal(result, np.array([True, False, True], dtype=np.bool_))
+
   def test_vpu_cmplt_scalar_const_matches_reference(self):
     result = (Tensor([1, 2, 3], dtype="int32", device="TINYTPU") < 3).numpy()
     np.testing.assert_array_equal(result, np.array([True, True, False], dtype=np.bool_))
@@ -159,6 +166,10 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
   def test_vpu_cmpne_scalar_const_matches_reference(self):
     result = (Tensor([1, 2, 3], dtype="int32", device="TINYTPU") != 2).numpy()
     np.testing.assert_array_equal(result, np.array([True, False, True], dtype=np.bool_))
+
+  def test_vpu_cmpeq_scalar_const_matches_reference(self):
+    result = (Tensor([1, 2, 3], dtype="int32", device="TINYTPU") == 2).numpy()
+    np.testing.assert_array_equal(result, np.array([False, True, False], dtype=np.bool_))
 
   def test_tiny_mul_int_matches_reference(self):
     result = (
@@ -173,6 +184,14 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
       Tensor([2, 3, 4], dtype="int32", device="TINYTPU")
     ).numpy()
     np.testing.assert_array_equal(result, np.array([3, 4, -6], dtype=np.int32))
+
+  def test_vpu_sub_scalar_const_matches_reference(self):
+    result = (Tensor([5, 7, -2], dtype="int32", device="TINYTPU") - 1).numpy()
+    np.testing.assert_array_equal(result, np.array([4, 6, -3], dtype=np.int32))
+
+  def test_vpu_reverse_sub_scalar_const_matches_reference(self):
+    result = (1 - Tensor([5, 7, -2], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([-4, -6, 3], dtype=np.int32))
 
   def test_tiny_neg_int_matches_reference(self):
     result = (-Tensor([1, -2, 3], dtype="int32", device="TINYTPU")).numpy()
@@ -207,10 +226,38 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     b_np = np.arange(8, -8, -1, dtype=np.int32)
     add = (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
     mul = (Tensor(a_np, dtype="int32", device="TINYTPU") * Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    sub = (Tensor(a_np, dtype="int32", device="TINYTPU") - Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
     mx = Tensor(a_np, dtype="int32", device="TINYTPU").maximum(Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(add, a_np + b_np)
     np.testing.assert_array_equal(mul, a_np * b_np)
+    np.testing.assert_array_equal(sub, a_np - b_np)
     np.testing.assert_array_equal(mx, np.maximum(a_np, b_np))
+
+  def test_vpu_compare_full_tile_matches_reference(self):
+    a_np = np.arange(-8, 8, dtype=np.int32)
+    b_np = np.arange(8, -8, -1, dtype=np.int32)
+    lt = (Tensor(a_np, dtype="int32", device="TINYTPU") < Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    ne = (Tensor(a_np, dtype="int32", device="TINYTPU") != Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    eq = (Tensor(a_np, dtype="int32", device="TINYTPU") == Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(lt, a_np < b_np)
+    np.testing.assert_array_equal(ne, a_np != b_np)
+    np.testing.assert_array_equal(eq, a_np == b_np)
+
+  def test_vpu_shape_preserved_for_small_matrix_add(self):
+    a_np = np.array([[1, 2], [3, 4]], dtype=np.int32)
+    b_np = np.array([[5, 6], [7, 8]], dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np + b_np)
+    self.assertEqual(result.shape, (2, 2))
+
+  def test_vpu_rejects_multi_tile_elementwise(self):
+    a_np = np.arange(17, dtype=np.int32)
+    with self.assertRaisesRegex(NotImplementedError, "one int32 VMEM tile with 1..16 elements"):
+      (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
+
+  def test_vpu_opcode_table_marks_bool_results(self):
+    self.assertEqual(_VPU_OPS["CMPEQ"], 8)
+    self.assertEqual(_VPU_BOOL_OPS, {_VPU_OPS["CMPLT"], _VPU_OPS["CMPNE"], _VPU_OPS["CMPEQ"]})
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):
