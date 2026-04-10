@@ -112,6 +112,20 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = Tensor(a_np, dtype="int32", device="TINYTPU").relu().numpy()
     np.testing.assert_array_equal(result, np.maximum(a_np, 0))
 
+  def test_min4_matches_reference(self):
+    result = Tensor([3, 7, 1, 5], dtype="int32", device="TINYTPU").min().numpy()
+    np.testing.assert_array_equal(result, np.array(1, dtype=np.int32))
+
+  def test_min16_matches_reference(self):
+    a_np = np.arange(16, dtype=np.int32)
+    result = Tensor(a_np, dtype="int32", device="TINYTPU").min().numpy()
+    np.testing.assert_array_equal(result, a_np.min())
+
+  def test_min32_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    result = Tensor(a_np, dtype="int32", device="TINYTPU").min().numpy()
+    np.testing.assert_array_equal(result, a_np.min())
+
   def test_max4_matches_reference(self):
     result = Tensor([3, 7, 1, 5], dtype="int32", device="TINYTPU").max().numpy()
     np.testing.assert_array_equal(result, np.array(7, dtype=np.int32))
