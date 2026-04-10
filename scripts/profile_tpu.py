@@ -10,7 +10,7 @@ from profiler.bundle import Bundle, parse_bundle_file, write_bundle_file
 from profiler.perfetto_emitter import write_perfetto
 from profiler.reports import (
   print_bubbles, print_hotspots, print_instruction_mix, print_mxu_breakdown,
-  print_summary, print_utilization,
+  print_summary, print_utilization, print_vpu_breakdown,
 )
 from profiler.sample_program import make_sample_bundle
 from profiler.tinygrad_bridge import bundle_from_tinygrad_script
@@ -72,6 +72,7 @@ def main(argv:list[str]) -> int:
   print_utilization(events, lines)
   print_hotspots(bundle, events)
   print_mxu_breakdown(events)
+  print_vpu_breakdown(events)
   print_bubbles(events, lines)
   print(f"\ntrace_json: {args.trace_out}")
   return 0

@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from profiler.bundle import Bundle, make_vpu_binary_bundle, parse_bundle_text
-from profiler.reports import print_summary, print_utilization
+from profiler.reports import print_summary, print_utilization, print_vpu_breakdown
 from profiler.sample_program import make_sample_bundle
 from profiler.trace_parser import parse_trace_output
 
@@ -99,6 +99,19 @@ class TestProfilerHelpers(unittest.TestCase):
     self.assertIn("MXU: busy=", rendered)
     self.assertIn("VPU: busy=", rendered)
     self.assertIn("VMEM: busy=", rendered)
+
+  def test_vpu_breakdown_reports_exec_cycles(self):
+    events, _ = parse_trace_output(
+      "TRACE cycle=1 unit=VPU ev=EXEC op=0\n"
+      "TRACE cycle=2 unit=VPU ev=EXEC op=0\n"
+      "TRACE cycle=3 unit=VPU ev=EXEC op=5\n"
+    )
+    out = io.StringIO()
+    with redirect_stdout(out):
+      print_vpu_breakdown(events)
+    rendered = out.getvalue()
+    self.assertIn("op=0: exec_cycles=2", rendered)
+    self.assertIn("op=5: exec_cycles=1", rendered)
 
   def test_dump_bundle_cli_writes_sample(self):
     with tempfile.TemporaryDirectory() as td:

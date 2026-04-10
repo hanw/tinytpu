@@ -96,6 +96,13 @@ def print_mxu_breakdown(events:list[Event]) -> None:
   print(f"SXU_WAIT_MXU: {sxu_wait}")
 
 
+def print_vpu_breakdown(events:list[Event]) -> None:
+  vpu_exec = Counter(ev.fields.get("op", "unknown") for ev in events if ev.unit == "VPU" and ev.ev == "EXEC")
+  print("\n== VPU Breakdown ==")
+  for op, cycles in sorted(vpu_exec.items(), key=lambda item: item[0]):
+    print(f"op={op}: exec_cycles={cycles}")
+
+
 def print_bubbles(events:list[Event], lines:list[str], threshold:int=0) -> None:
   total_cycles = _total_cycles(events, lines)
   busy = _busy_cycles(events)

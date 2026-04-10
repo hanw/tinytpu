@@ -10,7 +10,8 @@ tested, committed behavior per iteration.
 - Robust hardware-backed and well-tested coverage: **500-800 iterations**
 
 Current coverage is still a small slice of the full spec, but it now includes
-real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
+real TinyTPU execution for GEMM, core int32 VPU binary ops, ReLU, equality and
+comparison bool outputs, scalar constants, and a simple reduction.
 
 ## Current Progress
 
@@ -45,7 +46,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [ ] Add first-class runtime bundle builder for VMEM/VPU programs
 - [ ] Support multiple VMEM output tiles
 - [ ] Support multiple VPU instructions in one tinygrad lowered program
-- [ ] Add runtime tests for VMEM preload/output protocol
+- [x] Add runtime tests for VMEM preload/output protocol
 - [ ] Improve trace output for VPU-only programs
 - [x] Document bundle records for VMEM input/output
 
@@ -190,7 +191,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [ ] VMEM bundle dump utility
 - [ ] Lowering decision dump
 - [x] Runtime bundle round-trip tests for all record types
-- [ ] Per-op cycle reports
+- [x] Per-op cycle reports
 - [ ] MXU/VPU/VMEM utilization by lowered tinygrad op
 
 ### Optional/Advanced Tinyspec Surface: 50-150 iterations
@@ -268,16 +269,16 @@ Estimate: **500-800 iterations**
 
 ## Recommended Next Iterations
 
-1. Add `WHERE`.
-2. Add single-tile transpose through XLU.
-3. Add single-tile reshape/permute no-copy cases.
-4. Add multi-tile elementwise loop for `ADD`.
-5. Add selected upstream tinygrad test invocation for covered VPU ops.
-6. Add structural VPU lowering helpers to replace UOp-count checks.
-7. Add bool dtype coverage for comparison outputs.
-8. Add scalar `SUB` constant coverage.
-9. Add scalar `CMPLT` reverse-operand coverage.
-10. Add runtime bundle dump utility for captured tinygrad programs.
+1. Add multi-tile elementwise loop for `ADD` using the plan in `doc/tinytpu_multitile_add.md`.
+2. Add multiple VMEM output tile support in the runtime protocol.
+3. Add multi-instruction VPU bundles for two-pass reductions.
+4. Add row-wise sum result compaction.
+5. Add full-tile sum through two-pass VPU lowering.
+6. Add `WHERE` as a first general select op.
+7. Add single-tile transpose through XLU.
+8. Add single-tile reshape/permute no-copy cases or document exact tinygrad movement UOps.
+9. Run `scripts/run_tinytpu_upstream_subset.py` without `--dry-run` in CI once the selected tests are stable.
+10. Replace remaining UOp-count matching with structural pattern helpers.
 
 ## Next 50 Iteration Plan
 
@@ -318,16 +319,16 @@ Estimate: **500-800 iterations**
 35. [x] Add skipped manifest for unsupported tinyspec areas.
 36. [x] Add tinyspec coverage category table.
 37. [x] Document VMEM input/output bundle records.
-38. [ ] Add runtime VMEM preload/output protocol test.
-39. [ ] Add trace parser coverage for VPU-only traces.
-40. [ ] Add per-op cycle report for VPU traces.
-41. [ ] Improve unsupported diagnostics for multi-tile elementwise.
-42. [ ] Improve unsupported diagnostics for `WHERE`.
-43. [ ] Improve unsupported diagnostics for movement ops.
-44. [ ] Add `RESHAPE` no-copy coverage if tinygrad lowers as copy.
-45. [ ] Add `PERMUTE` unsupported diagnostic coverage.
-46. [ ] Add row-wise reduction investigation note.
-47. [ ] Add full-tile sum investigation note.
-48. [ ] Add first multi-tile `ADD` design note.
-49. [ ] Re-estimate remaining tinyspec iterations after this batch.
-50. [ ] Update recommended next iterations from observed gaps.
+38. [x] Add runtime VMEM preload/output protocol test.
+39. [x] Add trace parser coverage for VPU-only traces.
+40. [x] Add per-op cycle report for VPU traces.
+41. [x] Improve unsupported diagnostics for multi-tile elementwise.
+42. [x] Improve unsupported diagnostics for `WHERE`.
+43. [x] Improve unsupported diagnostics for movement ops.
+44. [x] Add `RESHAPE` no-copy coverage if tinygrad lowers as copy.
+45. [x] Add `PERMUTE` unsupported diagnostic coverage.
+46. [x] Add row-wise reduction investigation note.
+47. [x] Add full-tile sum investigation note.
+48. [x] Add first multi-tile `ADD` design note.
+49. [x] Re-estimate remaining tinyspec iterations after this batch.
+50. [x] Update recommended next iterations from observed gaps.

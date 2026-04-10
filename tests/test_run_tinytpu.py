@@ -39,6 +39,36 @@ class TestRunTinyTPU(unittest.TestCase):
       self.assertEqual(payload["cycles"], 12)
       self.assertEqual(payload["status"], "ok")
 
+  def test_vmem_bundle_via_runtime_sim(self):
+    sim = REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe"
+    if not sim.exists():
+      self.skipTest("runtime binary not built")
+    with tempfile.TemporaryDirectory() as td:
+      bundle = Path(td) / "vpu_add.txt"
+      bundle.write_text(textwrap.dedent("""\
+        5 0 1 2 3 0 0 0 0 0 0 0 0 0 0 0 0 0
+        5 1 4 5 6 0 0 0 0 0 0 0 0 0 0 0 0 0
+        2 0 0 0 0 0 0 0 0 0
+        2 0 1 1 0 0 0 0 0 0
+        2 2 0 2 0 0 1 0 0 0
+        2 1 2 0 2 0 0 0 0 0
+        2 5 0 0 0 0 0 0 0 0
+        6 2
+        4
+      """), encoding="utf-8")
+      proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "run_tinytpu.py"), str(bundle)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env={**os.environ, "TINYTPU_SIM": str(sim)},
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      payload = json.loads(proc.stdout)
+      self.assertEqual(payload["vmem_result"][:3], [5, 7, 9])
+      self.assertEqual(payload["status"], "ok")
+
   def test_upstream_subset_wrapper_dry_run(self):
     proc = subprocess.run(
       [sys.executable, str(REPO_ROOT / "scripts" / "run_tinytpu_upstream_subset.py"), "--dry-run"],

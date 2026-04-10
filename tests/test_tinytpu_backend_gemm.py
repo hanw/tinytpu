@@ -276,6 +276,21 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     with self.assertRaisesRegex(NotImplementedError, "one int32 VMEM tile with 1..16 elements"):
       (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
 
+  def test_where_reports_select_lowering_gap(self):
+    cond = Tensor([True, False, True], device="TINYTPU")
+    lhs = Tensor([1, 2, 3], dtype="int32", device="TINYTPU")
+    rhs = Tensor([4, 5, 6], dtype="int32", device="TINYTPU")
+    with self.assertRaisesRegex(NotImplementedError, "Compare/select UOps are present"):
+      Tensor.where(cond, lhs, rhs).numpy()
+
+  def test_permute_reports_movement_lowering_gap(self):
+    with self.assertRaisesRegex(NotImplementedError, "General VMEM<->VReg movement kernels are not lowered yet"):
+      Tensor([[1, 2], [3, 4]], dtype="int32", device="TINYTPU").permute(1, 0).numpy()
+
+  def test_reshape_reports_movement_lowering_gap(self):
+    with self.assertRaisesRegex(NotImplementedError, "General VMEM<->VReg movement kernels are not lowered yet"):
+      Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").reshape(2, 2).numpy()
+
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
     self.assertEqual(_VPU_BOOL_OPS, {_VPU_OPS["CMPLT"], _VPU_OPS["CMPNE"], _VPU_OPS["CMPEQ"]})

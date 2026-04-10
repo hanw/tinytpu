@@ -26,6 +26,8 @@ def _parse_result(stdout: str) -> dict:
       result["failure"] = line
     if line.startswith("mxu_result "):
       result["mxu_result"] = [int(x) for x in line.split()[1:]]
+    elif line.startswith("vmem_result "):
+      result["vmem_result"] = [int(x) for x in line.split()[1:]]
     elif line.startswith("cycles "):
       result["cycles"] = int(line.split()[1])
     elif line.startswith("status "):
