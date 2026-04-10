@@ -319,6 +319,26 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") == Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np == b_np)
 
+  def test_vpu_add_scalar_const_multi_tile_matches_reference(self):
+    a_np = np.arange(17, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") + 5).numpy()
+    np.testing.assert_array_equal(result, a_np + 5)
+
+  def test_vpu_sub_scalar_const_multi_tile_matches_reference(self):
+    a_np = np.arange(17, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") - 1).numpy()
+    np.testing.assert_array_equal(result, a_np - 1)
+
+  def test_vpu_cmplt_scalar_const_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") < 16).numpy()
+    np.testing.assert_array_equal(result, a_np < 16)
+
+  def test_vpu_cmpeq_scalar_const_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") == 10).numpy()
+    np.testing.assert_array_equal(result, a_np == 10)
+
   def test_where_reports_select_lowering_gap(self):
     cond = Tensor([True, False, True], device="TINYTPU")
     lhs = Tensor([1, 2, 3], dtype="int32", device="TINYTPU")
