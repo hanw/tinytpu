@@ -89,4 +89,5 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	fbaf5a6	1	Multi-tile ReLU coverage	32-elem and 33-elem (tail) multi-tile ReLU	pytest backend: 64 passed (sim-backed)	none	Multi-tile reverse sub const
 2026-04-10	717dba9	1	Multi-tile reverse sub const	Reverse sub const at 17-elem and 32-elem	pytest backend: 66 passed (sim-backed)	none	WHERE op
 2026-04-10	016ae86	1	WHERE op	WHERE via multi-instruction VPU bundle (MUL+SUB+MUL+ADD)	pytest backend: 66 passed (sim-backed)	Marked WHERE done	WHERE full-tile and multi-tile coverage
-2026-04-10	fd79399	1	WHERE coverage	WHERE full-tile 16-elem and multi-tile 32-elem	pytest backend: 68 passed (sim-backed)	none	Mixed VPU op chains
+2026-04-10	fd79399	1	WHERE coverage	WHERE full-tile 16-elem and multi-tile 32-elem	pytest backend: 68 passed (sim-backed)	none	AND and OR ops
+2026-04-10	6e2fd5e	1	AND and OR ops	AND via MUL, OR via MAX with bool_out flag	pytest backend: 70 passed (sim-backed)	Marked AND OR done	XOR op
