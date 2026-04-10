@@ -35,8 +35,9 @@ Loop continuously until interrupted:
 5. Run the narrowest useful verification first, then broader verification if warranted.
 6. Keep the change only if it advances functionality or simplifies the code without regression.
 7. Update `TODO.md` when the iteration changes tinyspec coverage, milestone progress, known gaps, or recommended next work.
-8. Commit the improvement.
-9. Repeat from the new head.
+8. Update `results.tsv` with one tab-separated progress row for the completed iteration or iteration batch.
+9. Commit the improvement.
+10. Repeat from the new head.
 
 The loop is intended to keep expanding real capability, not just churn code.
 
@@ -139,6 +140,23 @@ When updating `TODO.md`, keep the edit scoped to the completed iteration:
 - Adjust recommended next iterations if the priority changed.
 - Do not rewrite unrelated estimates or checklist sections unless the iteration made them obsolete.
 
+When updating `results.tsv`, append one row per completed iteration or batch. Keep the file tab-separated with this schema:
+
+```text
+date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_gap
+```
+
+Rules for `results.tsv`:
+
+- Use ISO dates.
+- Use the short commit hash after the commit is created.
+- Keep fields concise and avoid tabs inside field values.
+- Set `iterations` to the number of loop iterations represented by the row.
+- Use `supported_delta` for newly supported behavior or `none` for docs-only/tooling-only work.
+- Use `tests_passed` for the highest-signal verification command and result.
+- Use `todo_delta` to summarize TODO progress changed by the iteration.
+- Use `remaining_gap` for the next concrete blocker surfaced by the work.
+
 ## Expected Output
 
 For each completed loop iteration, leave the repo in a state where a human can see:
@@ -148,4 +166,5 @@ For each completed loop iteration, leave the repo in a state where a human can s
 - What was changed
 - What verification passed
 - What `TODO.md` progress was updated, if applicable
+- What `results.tsv` progress row was appended
 - What limitations remain, if any

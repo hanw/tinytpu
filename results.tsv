@@ -1,0 +1,2 @@
+date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_gap
+2026-04-10	3289dc8	50	TinyTPU tinyspec expansion	VPU CMPEQ; reverse scalar sub; grouped scalar constants; lowering dumps; VMEM protocol tests; profiler bundle tooling	make test-vpu: 9 passed, 0 failed; pytest TinyTPU/profiler/run tests: 84 passed	Next 50 iteration plan completed; recommended next work refreshed	Multi-tile elementwise ADD and multiple VMEM output tiles
