@@ -91,6 +91,7 @@ def parse_bundle_text(text:str) -> Bundle:
       bundle.instructions.append(BundleInstr(*vals))
     elif rec_type == "3":
       if len(vals) != 1: raise ValueError(f"line {lineno}: output flag record expects 1 integer")
+      if vals[0] not in (0, 1): raise ValueError(f"line {lineno}: output flag must be 0 or 1")
       bundle.output_mxu = vals[0] != 0
     elif rec_type == "4":
       break

@@ -24,6 +24,10 @@ class TestProfilerHelpers(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "line 2: invalid integer 'nope'"):
       parse_bundle_text("3 1\n2 5 nope\n4\n")
 
+  def test_bundle_parse_rejects_non_boolean_output_flag(self):
+    with self.assertRaisesRegex(ValueError, "line 1: output flag must be 0 or 1"):
+      parse_bundle_text("3 7\n4\n")
+
   def test_trace_parser(self):
     events, lines = parse_trace_output(
       "TRACE cycle=7 unit=SXU ev=WAIT_MXU pc=3\n"
