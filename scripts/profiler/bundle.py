@@ -74,7 +74,12 @@ def parse_bundle_text(text:str) -> Bundle:
     line = raw.strip()
     if not line or line.startswith("#"): continue
     parts = line.split()
-    rec_type, vals = parts[0], [int(x) for x in parts[1:]]
+    rec_type = parts[0]
+    try:
+      vals = [int(x) for x in parts[1:]]
+    except ValueError as exc:
+      bad = next((x for x in parts[1:] if not x.lstrip("-").isdigit()), parts[1])
+      raise ValueError(f"line {lineno}: invalid integer {bad!r}") from exc
     if rec_type == "0":
       if len(vals) != 17: raise ValueError(f"line {lineno}: weight tile record expects 17 integers")
       bundle.weight_tiles.append((vals[0], vals[1:]))
