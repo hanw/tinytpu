@@ -56,6 +56,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [x] Single-tile int32 `RELU`
 - [ ] Constants in VPU programs, e.g. `x + 1`, `x * 2`
   - [x] `x + scalar`
+  - [x] `x * scalar`
 - [ ] Scalar broadcasting
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
@@ -261,13 +262,13 @@ Estimate: **500-800 iterations**
 
 ## Recommended Next Iterations
 
-1. Add scalar constant support for `x * 2`.
-2. Add scalar constant support for `maximum(x, 0)`.
-3. Add `CMPLT`.
-4. Add `CMPNE`.
-5. Add `WHERE`.
-6. Add `SUB` and `NEG` decompositions.
-7. Add single-tile transpose through XLU.
-8. Add single-tile reshape/permute no-copy cases.
-9. Add multi-tile elementwise loop for `ADD`.
-10. Add runtime bundle round-trip tests for VMEM records.
+1. Add scalar constant support for `maximum(x, 0)`.
+2. Add `CMPLT`.
+3. Add `CMPNE`.
+4. Add `WHERE`.
+5. Add `SUB` and `NEG` decompositions.
+6. Add single-tile transpose through XLU.
+7. Add single-tile reshape/permute no-copy cases.
+8. Add multi-tile elementwise loop for `ADD`.
+9. Add runtime bundle round-trip tests for VMEM records.
+10. Add selected upstream tinygrad test invocation for covered VPU ops.
