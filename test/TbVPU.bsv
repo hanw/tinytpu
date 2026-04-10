@@ -314,7 +314,29 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 26);
+   // Test 14: VPU_MIN_REDUCE
+   // min([3, 7, 1, 5]) = 1, broadcast -> [1, 1, 1, 1]
+   rule dispatch_min_reduce (cycle == 26);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 3; s1[0][1] = 7; s1[0][2] = 1; s1[0][3] = 5;
+      vpu.execute(VPU_MIN_REDUCE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MIN_REDUCE", cycle);
+   endrule
+
+   rule check_min_reduce (cycle == 27);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 1 && res[0][1] == 1 && res[0][2] == 1 && res[0][3] == 1);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MIN_REDUCE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MIN_REDUCE got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 28);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
