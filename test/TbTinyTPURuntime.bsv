@@ -47,7 +47,6 @@ typedef enum {
    TSIM_OUTPUT_VMEM,
    TSIM_START,
    TSIM_RUNNING,
-   TSIM_OUTPUT_REQ,
    TSIM_OUTPUT
 } TsimState deriving(Bits, Eq, FShow);
 
@@ -230,27 +229,52 @@ module mkTbTinyTPURuntime();
       state <= TSIM_RUNNING;
    endrule
 
-   // Wait for TensorCore to finish and issue optional VMEM read before printing.
-   rule do_output_req (state == TSIM_RUNNING && tc.isDone);
-      if (outVmem) tc.readVmemTile(outVmemAddr);
+   // Wait for TensorCore to finish.
+   rule do_running_done (state == TSIM_RUNNING && tc.isDone);
       state <= TSIM_OUTPUT;
    endrule
 
    // Print results, finish simulation
-   rule do_output (state == TSIM_OUTPUT);
-      if (outMxu) begin
-         Vector#(4, Int#(32)) res = tc.getMxuResult;
-         $display("mxu_result %0d %0d %0d %0d",
-                  res[0], res[1], res[2], res[3]);
-      end
-      if (outVmem) begin
-         Vector#(4, Vector#(4, Int#(32))) tile = tc.getVmemResult;
+   function Action print_status();
+      action
+         $display("cycles %0d", cycle);
+         $display("status ok");
+         $finish(0);
+      endaction
+   endfunction
+
+   function Action print_vmem();
+      action
+         Vector#(4, Vector#(4, Int#(32))) tile = tc.peekVmemTile(outVmemAddr);
          $display("vmem_result %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",
                   tile[0][0], tile[0][1], tile[0][2], tile[0][3],
                   tile[1][0], tile[1][1], tile[1][2], tile[1][3],
                   tile[2][0], tile[2][1], tile[2][2], tile[2][3],
                   tile[3][0], tile[3][1], tile[3][2], tile[3][3]);
-      end
+      endaction
+   endfunction
+
+   rule do_output_vmem_only (state == TSIM_OUTPUT && outVmem && !outMxu);
+      print_vmem();
+      print_status();
+   endrule
+
+   rule do_output_mxu_only (state == TSIM_OUTPUT && outMxu && !outVmem);
+      Vector#(4, Int#(32)) res = tc.getMxuResult;
+      $display("mxu_result %0d %0d %0d %0d",
+               res[0], res[1], res[2], res[3]);
+      print_status();
+   endrule
+
+   rule do_output_both (state == TSIM_OUTPUT && outMxu && outVmem);
+      Vector#(4, Int#(32)) res = tc.getMxuResult;
+      $display("mxu_result %0d %0d %0d %0d",
+               res[0], res[1], res[2], res[3]);
+      print_vmem();
+      print_status();
+   endrule
+
+   rule do_output_status_only (state == TSIM_OUTPUT && !outMxu && !outVmem);
       $display("cycles %0d", cycle);
       $display("status ok");
       $finish(0);

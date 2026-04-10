@@ -28,6 +28,7 @@ interface TensorCore_IFC#(numeric type rows, numeric type cols, numeric type dep
                               Vector#(rows, Vector#(cols, Int#(32))) data);
    method Action readVmemTile(UInt#(TLog#(depth)) addr);
    method Vector#(rows, Vector#(cols, Int#(32))) getVmemResult;
+   method Vector#(rows, Vector#(cols, Int#(32))) peekVmemTile(UInt#(TLog#(depth)) addr);
    // Start SXU execution
    method Action start(UInt#(4) len);
    method Bool isDone;
@@ -92,6 +93,10 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
 
    method Vector#(rows, Vector#(cols, Int#(32))) getVmemResult;
       return vmem.readResp;
+   endmethod
+
+   method Vector#(rows, Vector#(cols, Int#(32))) peekVmemTile(UInt#(TLog#(depth)) addr);
+      return vmem.peek(addr);
    endmethod
 
    method Action start(UInt#(4) len);

@@ -40,7 +40,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 
 ### Current VPU/Runtime Architecture: 20-40 iterations
 
-- [ ] Make VPU-only programs complete without dummy MXU dispatch
+- [x] Make VPU-only programs complete without dummy MXU dispatch
 - [ ] Add first-class runtime bundle builder for VMEM/VPU programs
 - [ ] Support multiple VMEM output tiles
 - [ ] Support multiple VPU instructions in one tinygrad lowered program
@@ -214,7 +214,7 @@ Estimate: **~50 total iterations**
 - [ ] Constants and scalar broadcasting
 - [ ] `WHERE` and comparisons
 - [ ] Basic reshape/transpose within one 4x4 tile
-- [ ] VPU-only runtime completion cleanup
+- [x] VPU-only runtime completion cleanup
 
 ### Milestone 2: Multi-Tile Core Tensor Ops
 
@@ -260,13 +260,13 @@ Estimate: **500-800 iterations**
 
 ## Recommended Next Iterations
 
-1. Remove dummy MXU dispatch from VPU-only programs.
-2. Add scalar constant support for `x + 1`.
-3. Add scalar constant support for `x * 2`.
-4. Add `CMPLT`.
-5. Add `CMPNE`.
-6. Add `WHERE`.
-7. Add `SUB` and `NEG` decompositions.
-8. Add single-tile transpose through XLU.
-9. Add single-tile reshape/permute no-copy cases.
-10. Add multi-tile elementwise loop for `ADD`.
+1. Add scalar constant support for `x + 1`.
+2. Add scalar constant support for `x * 2`.
+3. Add `CMPLT`.
+4. Add `CMPNE`.
+5. Add `WHERE`.
+6. Add `SUB` and `NEG` decompositions.
+7. Add single-tile transpose through XLU.
+8. Add single-tile reshape/permute no-copy cases.
+9. Add multi-tile elementwise loop for `ADD`.
+10. Add runtime bundle round-trip tests for VMEM records.

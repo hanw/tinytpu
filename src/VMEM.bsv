@@ -8,6 +8,7 @@ interface VMEM_IFC#(numeric type depth, numeric type sublanes, numeric type lane
                        Vector#(sublanes, Vector#(lanes, Int#(32))) data);
    method Action readReq(UInt#(TLog#(depth)) addr);
    method Vector#(sublanes, Vector#(lanes, Int#(32))) readResp;
+   method Vector#(sublanes, Vector#(lanes, Int#(32))) peek(UInt#(TLog#(depth)) addr);
 endinterface
 
 module mkVMEM(VMEM_IFC#(depth, sublanes, lanes))
@@ -34,6 +35,10 @@ module mkVMEM(VMEM_IFC#(depth, sublanes, lanes))
 
    method Vector#(sublanes, Vector#(lanes, Int#(32))) readResp;
       return resp;
+   endmethod
+
+   method Vector#(sublanes, Vector#(lanes, Int#(32))) peek(UInt#(TLog#(depth)) addr);
+      return mem.sub(addr);
    endmethod
 
 endmodule
