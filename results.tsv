@@ -92,3 +92,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	fd79399	1	WHERE coverage	WHERE full-tile 16-elem and multi-tile 32-elem	pytest backend: 68 passed (sim-backed)	none	AND and OR ops
 2026-04-10	6e2fd5e	1	AND and OR ops	AND via MUL, OR via MAX with bool_out flag	pytest backend: 70 passed (sim-backed)	Marked AND OR done	XOR op
 2026-04-10	80b1a2f	1	XOR op	XOR via CMPNE with bool_out flag	pytest backend: 71 passed (sim-backed)	Marked XOR done	Multi-tile sum reduction
+2026-04-10	ac5451d	1	Multi-tile sum reduction	N-element sum via chunked VPU_SUM_REDUCE + host accumulate	pytest backend: 73 passed (sim-backed)	Marked full-tile and multi-tile sum done	Update recommended next iterations
