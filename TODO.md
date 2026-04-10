@@ -67,7 +67,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 
 ### More Elementwise Ops: 35-70 iterations
 
-- [ ] `SUB` as `ADD + NEG`
+- [x] `SUB` as `ADD + NEG`, lowered to `VPU_SUB`
 - [ ] `NEG` as multiply by `-1`
 - [x] `CMPLT`
 - [x] `CMPNE`
@@ -264,7 +264,7 @@ Estimate: **500-800 iterations**
 ## Recommended Next Iterations
 
 1. Add `WHERE`.
-2. Add `SUB` and `NEG` decompositions.
+2. Add `NEG` coverage for multiply-by-`-1` lowering.
 3. Add single-tile transpose through XLU.
 4. Add single-tile reshape/permute no-copy cases.
 5. Add multi-tile elementwise loop for `ADD`.

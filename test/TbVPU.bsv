@@ -177,7 +177,30 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 14);
+   // Test 8: VPU_SUB
+   // [5,7,-2,0] - [2,3,4,-9] = [3,4,-6,9]
+   rule dispatch_sub (cycle == 14);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 5; s1[0][1] = 7; s1[0][2] = -2; s1[0][3] = 0;
+      s2[0][0] = 2; s2[0][1] = 3; s2[0][2] = 4;  s2[0][3] = -9;
+      vpu.execute(VPU_SUB, s1, s2);
+      $display("Cycle %0d: dispatched VPU_SUB", cycle);
+   endrule
+
+   rule check_sub (cycle == 15);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 3 && res[0][1] == 4 && res[0][2] == -6 && res[0][3] == 9);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_SUB", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_SUB got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 16);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

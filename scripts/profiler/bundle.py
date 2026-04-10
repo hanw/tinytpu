@@ -17,6 +17,9 @@ VPU_OP_NAMES = {
   2: "VPU_RELU",
   3: "VPU_MAX",
   4: "VPU_SUM_REDUCE",
+  5: "VPU_CMPLT",
+  6: "VPU_CMPNE",
+  7: "VPU_SUB",
 }
 
 
