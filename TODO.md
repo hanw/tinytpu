@@ -55,6 +55,7 @@ real TinyTPU execution for GEMM, VPU binary ops, ReLU, and a simple reduction.
 - [x] Single-tile int32 `MAX`
 - [x] Single-tile int32 `RELU`
 - [ ] Constants in VPU programs, e.g. `x + 1`, `x * 2`
+  - [x] `x + scalar`
 - [ ] Scalar broadcasting
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
@@ -260,8 +261,8 @@ Estimate: **500-800 iterations**
 
 ## Recommended Next Iterations
 
-1. Add scalar constant support for `x + 1`.
-2. Add scalar constant support for `x * 2`.
+1. Add scalar constant support for `x * 2`.
+2. Add scalar constant support for `maximum(x, 0)`.
 3. Add `CMPLT`.
 4. Add `CMPNE`.
 5. Add `WHERE`.
