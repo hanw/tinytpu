@@ -44,6 +44,10 @@ class TestProfilerHelpers(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "line 1: malformed TRACE line"):
       parse_trace_output("TRACE unit=SXU ev=FETCH\n")
 
+  def test_trace_parser_rejects_malformed_field_token(self):
+    with self.assertRaisesRegex(ValueError, "line 1: malformed TRACE field 'pc3'"):
+      parse_trace_output("TRACE cycle=0 unit=SXU ev=FETCH pc3\n")
+
   def test_reports_render_expected_sections(self):
     bundle = make_sample_bundle()
     events, lines = parse_trace_output(
