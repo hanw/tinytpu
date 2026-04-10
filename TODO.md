@@ -94,6 +94,8 @@ comparison bool outputs, scalar constants, and a simple reduction.
 ### Reductions: 30-60 iterations
 
 - [x] 4-element int32 sum to scalar
+- [x] Full-tile int32 sum to scalar
+- [x] Multi-tile int32 sum to scalar
 - [ ] Row-wise sum over a 4x4 VMEM tile
 - [ ] Column-wise sum over a 4x4 VMEM tile
 - [ ] Full-tile sum
