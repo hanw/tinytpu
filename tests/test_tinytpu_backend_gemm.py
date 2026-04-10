@@ -130,13 +130,25 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (Tensor([1, 2, 3], dtype="int32", device="TINYTPU") + 1).numpy()
     np.testing.assert_array_equal(result, np.array([2, 3, 4], dtype=np.int32))
 
+  def test_vpu_add_negative_scalar_const_matches_reference(self):
+    result = (Tensor([1, 2, 3], dtype="int32", device="TINYTPU") + -2).numpy()
+    np.testing.assert_array_equal(result, np.array([-1, 0, 1], dtype=np.int32))
+
   def test_vpu_mul_scalar_const_matches_reference(self):
     result = (Tensor([1, 2, 3], dtype="int32", device="TINYTPU") * 2).numpy()
     np.testing.assert_array_equal(result, np.array([2, 4, 6], dtype=np.int32))
 
+  def test_vpu_mul_negative_scalar_const_matches_reference(self):
+    result = (Tensor([1, -2, 3], dtype="int32", device="TINYTPU") * -2).numpy()
+    np.testing.assert_array_equal(result, np.array([-2, 4, -6], dtype=np.int32))
+
   def test_vpu_max_scalar_const_matches_reference(self):
     result = Tensor([-1, 2, -3], dtype="int32", device="TINYTPU").maximum(0).numpy()
     np.testing.assert_array_equal(result, np.array([0, 2, 0], dtype=np.int32))
+
+  def test_vpu_max_negative_scalar_const_matches_reference(self):
+    result = Tensor([-3, -1, 2], dtype="int32", device="TINYTPU").maximum(-2).numpy()
+    np.testing.assert_array_equal(result, np.array([-2, -1, 2], dtype=np.int32))
 
   def test_vpu_cmplt_matches_reference(self):
     result = (
@@ -242,6 +254,15 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     np.testing.assert_array_equal(lt, a_np < b_np)
     np.testing.assert_array_equal(ne, a_np != b_np)
     np.testing.assert_array_equal(eq, a_np == b_np)
+
+  def test_vpu_scalar_compare_full_tile_matches_reference(self):
+    a_np = np.arange(-8, 8, dtype=np.int32)
+    lt = (Tensor(a_np, dtype="int32", device="TINYTPU") < 0).numpy()
+    ne = (Tensor(a_np, dtype="int32", device="TINYTPU") != 0).numpy()
+    eq = (Tensor(a_np, dtype="int32", device="TINYTPU") == 0).numpy()
+    np.testing.assert_array_equal(lt, a_np < 0)
+    np.testing.assert_array_equal(ne, a_np != 0)
+    np.testing.assert_array_equal(eq, a_np == 0)
 
   def test_vpu_shape_preserved_for_small_matrix_add(self):
     a_np = np.array([[1, 2], [3, 4]], dtype=np.int32)

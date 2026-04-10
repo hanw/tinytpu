@@ -295,12 +295,12 @@ Estimate: **500-800 iterations**
 12. [x] Add shape-preservation coverage for 2x2 elementwise ops.
 13. [x] Mark arbitrary `numel <= 16` coverage for supported VPU ops.
 14. [x] Add explicit unsupported test for `numel > 16`.
-15. [ ] Add scalar negative constant coverage for `ADD`.
-16. [ ] Add scalar negative constant coverage for `MUL`.
-17. [ ] Add scalar negative constant coverage for `MAX`.
-18. [ ] Add scalar `x != c` full-tile coverage.
-19. [ ] Add scalar `x < c` full-tile coverage.
-20. [ ] Add scalar `x == c` full-tile coverage.
+15. [x] Add scalar negative constant coverage for `ADD`.
+16. [x] Add scalar negative constant coverage for `MUL`.
+17. [x] Add scalar negative constant coverage for `MAX`.
+18. [x] Add scalar `x != c` full-tile coverage.
+19. [x] Add scalar `x < c` full-tile coverage.
+20. [x] Add scalar `x == c` full-tile coverage.
 21. [ ] Add reverse scalar `c < x` diagnostics/coverage.
 22. [ ] Add VPU opcode table tests.
 23. [ ] Refactor bool-result opcode set into a helper.
