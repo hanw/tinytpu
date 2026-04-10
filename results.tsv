@@ -102,3 +102,12 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	b449fa9	1	MAX reduction 4-elem	MAX reduction through VPU_MAX_REDUCE	pytest backend: 79 passed (sim-backed)	Marked MAX reduction done	Full-tile MAX reduction
 2026-04-10	7ee2bef	1	MAX reduction full-tile	16-elem MAX reduction	pytest backend: 80 passed (sim-backed)	none	Multi-tile MAX reduction
 2026-04-10	26d8c06	1	MAX reduction multi-tile	32-elem MAX reduction via chunked VPU_MAX_REDUCE + host max	pytest backend: 81 passed (sim-backed)	Marked multi-tile MAX reduction done	MUL reduction or movement ops
+2026-04-10	8f156fb	1	Analyzer fix: complex ops	Reject IDIV/ABS/MOD from RELU and scalar const paths	pytest backend: 81 passed (sim-backed)	none	MINIMUM misdetection
+2026-04-10	776a68d	1	Analyzer fix: MINIMUM	Require bool inputs for AND/XOR/OR detection	pytest backend: 81 passed (sim-backed)	none	SHL/SHR hardware
+2026-04-10	f8b1142	1	VPU SHL/SHR hardware	VPU_SHL and VPU_SHR opcodes with BSV tests	make test-vpu: 12 passed; pytest backend: 81 passed	none	SHL/SHR lowering
+2026-04-10	3bc8fb3	1	SHL lowering	Scalar const SHL through VPU_SHL	pytest backend: 82 passed (sim-backed)	Marked SHL done	SHR lowering
+2026-04-10	cfd333c	1	SHR lowering	Scalar const SHR through VPU_SHR	pytest backend: 83 passed (sim-backed)	Marked SHR done	Multi-tile SHL
+2026-04-10	ea7a01a	1	Multi-tile SHL	32-elem SHL with scalar const disambiguation	pytest backend: 84 passed (sim-backed)	none	Multi-tile SHR
+2026-04-10	fd0e668	1	Multi-tile SHR	32-elem SHR	pytest backend: 85 passed (sim-backed)	none	Full-tile SHL/SHR
+2026-04-10	3ce7bc8	1	Full-tile SHL/SHR	16-elem SHL and SHR coverage	pytest backend: 87 passed (sim-backed)	none	Negative reduction coverage
+2026-04-10	2b8b5ce	1	Negative reductions	Sum and max with negative int32 values	pytest backend: 89 passed (sim-backed)	none	Loop-based reductions or IDIV

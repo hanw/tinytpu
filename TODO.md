@@ -83,8 +83,8 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [x] `OR`
 - [x] `XOR`
 - [x] `NOT`
-- [ ] `SHL`
-- [ ] `SHR`
+- [x] `SHL`
+- [x] `SHR`
 - [ ] `MOD`
 - [ ] `IDIV`
 - [ ] `RECIP`
