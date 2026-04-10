@@ -31,6 +31,8 @@ def parse_trace_output(stdout:str) -> tuple[list[Event], list[str]]:
         if "=" not in tok:
           raise ValueError(f"line {lineno}: malformed TRACE field {tok!r}")
         k, v = tok.split("=", 1)
+        if not v:
+          raise ValueError(f"line {lineno}: empty TRACE field value for {k}")
         fields[k] = v
     events.append(Event(cycle=int(m.group("cycle")), unit=m.group("unit"), ev=m.group("ev"), fields=fields))
   return events, other
