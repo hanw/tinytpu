@@ -309,8 +309,8 @@ Estimate: **500-800 iterations**
 26. [x] Add tests for descriptor JSON for VPU binary ops.
 27. [x] Add tests for descriptor JSON for scalar const ops.
 28. [x] Add tests for descriptor JSON for equality ops.
-29. [ ] Add runtime bundle builder helper for VPU binary programs.
-30. [ ] Reuse profiler `Bundle` for VPU bundle text where practical.
+29. [x] Add runtime bundle builder helper for VPU binary programs.
+30. [x] Reuse profiler `Bundle` for VPU bundle text where practical.
 31. [x] Add VMEM/VPU bundle dump utility.
 32. [x] Add lowering-decision dump behind an env var.
 33. [ ] Add selected upstream tinygrad VPU test list.

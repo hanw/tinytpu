@@ -1,7 +1,7 @@
-from .bundle import Bundle, BundleInstr, parse_bundle_file, write_bundle_file
+from .bundle import Bundle, BundleInstr, make_vpu_binary_bundle, parse_bundle_file, write_bundle_file
 from .trace_parser import Event, parse_trace_output
 
 __all__ = [
-  "Bundle", "BundleInstr", "Event",
+  "Bundle", "BundleInstr", "Event", "make_vpu_binary_bundle",
   "parse_bundle_file", "write_bundle_file", "parse_trace_output",
 ]

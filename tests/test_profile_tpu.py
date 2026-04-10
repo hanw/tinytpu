@@ -6,7 +6,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from profiler.bundle import Bundle, parse_bundle_text
+from profiler.bundle import Bundle, make_vpu_binary_bundle, parse_bundle_text
 from profiler.reports import print_summary, print_utilization
 from profiler.sample_program import make_sample_bundle
 from profiler.trace_parser import parse_trace_output
@@ -26,6 +26,19 @@ class TestProfilerHelpers(unittest.TestCase):
     self.assertEqual(parsed.vmem_tiles, [(2, list(range(16)))])
     self.assertEqual(parsed.output_vmem_addr, 2)
     self.assertFalse(parsed.output_mxu)
+
+  def test_make_vpu_binary_bundle(self):
+    bundle = make_vpu_binary_bundle([1, 2, 3], [4, 5, 6], vpu_op=0)
+    parsed = parse_bundle_text(bundle.to_text())
+    self.assertEqual(parsed.vmem_tiles[0], (0, [1, 2, 3] + [0] * 13))
+    self.assertEqual(parsed.vmem_tiles[1], (1, [4, 5, 6] + [0] * 13))
+    self.assertEqual([instr.opcode for instr in parsed.instructions], [0, 0, 2, 1, 5])
+    self.assertEqual(parsed.instructions[2].vpu_op, 0)
+    self.assertEqual(parsed.output_vmem_addr, 2)
+
+  def test_make_vpu_binary_bundle_rejects_bad_width(self):
+    with self.assertRaisesRegex(ValueError, "expects 1..16 elements"):
+      make_vpu_binary_bundle(list(range(17)), list(range(17)), vpu_op=0)
 
   def test_bundle_parse_reports_bad_integer_line(self):
     with self.assertRaisesRegex(ValueError, "line 2: invalid integer 'nope'"):

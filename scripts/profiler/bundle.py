@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Sequence
 
 SXU_OP_NAMES = {
   0: "SXU_LOAD_VREG",
@@ -123,3 +124,28 @@ def parse_bundle_file(path:str|Path) -> Bundle:
 
 def write_bundle_file(path:str|Path, bundle:Bundle) -> None:
   Path(path).write_text(bundle.to_text(), encoding="utf-8")
+
+
+def make_vpu_binary_bundle(lhs:Sequence[int], rhs:Sequence[int], vpu_op:int, num_elems:int|None=None) -> Bundle:
+  elem_count = len(lhs) if num_elems is None else num_elems
+  if not 0 < elem_count <= 16:
+    raise ValueError(f"VPU binary bundle expects 1..16 elements, got {elem_count}")
+  if len(lhs) < elem_count or len(rhs) < elem_count:
+    raise ValueError(f"VPU binary operands shorter than num_elems={elem_count}")
+
+  def tile(vals:Sequence[int]) -> list[int]:
+    padded = [0] * 16
+    padded[:elem_count] = [int(v) for v in vals[:elem_count]]
+    return padded
+
+  return Bundle(
+    vmem_tiles=[(0, tile(lhs)), (1, tile(rhs))],
+    instructions=[
+      BundleInstr(0, 0, 0, 0, 0, 0, 0, 0, 0),
+      BundleInstr(0, 1, 1, 0, 0, 0, 0, 0, 0),
+      BundleInstr(2, 0, 2, 0, int(vpu_op), 1, 0, 0, 0),
+      BundleInstr(1, 2, 0, 2, 0, 0, 0, 0, 0),
+      BundleInstr(5, 0, 0, 0, 0, 0, 0, 0, 0),
+    ],
+    output_vmem_addr=2,
+  )
