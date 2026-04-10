@@ -145,6 +145,13 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     ).numpy()
     np.testing.assert_array_equal(result, np.array([True, False], dtype=np.bool_))
 
+  def test_vpu_cmpne_matches_reference(self):
+    result = (
+      Tensor([1, 2, 3], dtype="int32", device="TINYTPU") !=
+      Tensor([1, 0, 3], dtype="int32", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_array_equal(result, np.array([False, True, False], dtype=np.bool_))
+
   def test_tiny_mul_int_matches_reference(self):
     result = (
       Tensor([1, 2, 3], dtype="int32", device="TINYTPU") *
