@@ -275,3 +275,56 @@ Estimate: **500-800 iterations**
 8. Add scalar `SUB` constant coverage.
 9. Add scalar `CMPLT` reverse-operand coverage.
 10. Add runtime bundle dump utility for captured tinygrad programs.
+
+## Next 50 Iteration Plan
+
+1. [ ] Add scalar `x - c` coverage.
+2. [ ] Add reverse scalar `c - x` lowering.
+3. [ ] Add reverse scalar `c - x` coverage.
+4. [ ] Add `CMPEQ` VPU opcode.
+5. [ ] Lower tensor equality through `CMPEQ`.
+6. [ ] Lower scalar equality through `CMPEQ`.
+7. [ ] Add equality dtype coverage.
+8. [ ] Add full-tile `SUB` coverage.
+9. [ ] Add full-tile `CMPLT` coverage.
+10. [ ] Add full-tile `CMPNE` coverage.
+11. [ ] Add full-tile `CMPEQ` coverage.
+12. [ ] Add shape-preservation coverage for 2x2 elementwise ops.
+13. [ ] Mark arbitrary `numel <= 16` coverage for supported VPU ops.
+14. [ ] Add explicit unsupported test for `numel > 16`.
+15. [ ] Add scalar negative constant coverage for `ADD`.
+16. [ ] Add scalar negative constant coverage for `MUL`.
+17. [ ] Add scalar negative constant coverage for `MAX`.
+18. [ ] Add scalar `x != c` full-tile coverage.
+19. [ ] Add scalar `x < c` full-tile coverage.
+20. [ ] Add scalar `x == c` full-tile coverage.
+21. [ ] Add reverse scalar `c < x` diagnostics/coverage.
+22. [ ] Add VPU opcode table tests.
+23. [ ] Refactor bool-result opcode set into a helper.
+24. [ ] Refactor VPU opcode table into module constants.
+25. [ ] Refactor scalar-const descriptor fields.
+26. [ ] Add tests for descriptor JSON for VPU binary ops.
+27. [ ] Add tests for descriptor JSON for scalar const ops.
+28. [ ] Add tests for descriptor JSON for equality ops.
+29. [ ] Add runtime bundle builder helper for VPU binary programs.
+30. [ ] Reuse profiler `Bundle` for VPU bundle text where practical.
+31. [ ] Add VMEM/VPU bundle dump utility.
+32. [ ] Add lowering-decision dump behind an env var.
+33. [ ] Add selected upstream tinygrad VPU test list.
+34. [ ] Add selected upstream tinygrad invocation wrapper.
+35. [ ] Add skipped manifest for unsupported tinyspec areas.
+36. [ ] Add tinyspec coverage category table.
+37. [ ] Document VMEM input/output bundle records.
+38. [ ] Add runtime VMEM preload/output protocol test.
+39. [ ] Add trace parser coverage for VPU-only traces.
+40. [ ] Add per-op cycle report for VPU traces.
+41. [ ] Improve unsupported diagnostics for multi-tile elementwise.
+42. [ ] Improve unsupported diagnostics for `WHERE`.
+43. [ ] Improve unsupported diagnostics for movement ops.
+44. [ ] Add `RESHAPE` no-copy coverage if tinygrad lowers as copy.
+45. [ ] Add `PERMUTE` unsupported diagnostic coverage.
+46. [ ] Add row-wise reduction investigation note.
+47. [ ] Add full-tile sum investigation note.
+48. [ ] Add first multi-tile `ADD` design note.
+49. [ ] Re-estimate remaining tinyspec iterations after this batch.
+50. [ ] Update recommended next iterations from observed gaps.
