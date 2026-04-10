@@ -366,6 +366,24 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = Tensor.where(cond, lhs, rhs).numpy()
     np.testing.assert_array_equal(result, np.array([1, 6, 3, 8], dtype=np.int32))
 
+  def test_where_full_tile_matches_reference(self):
+    cond_np = np.array([i % 2 == 0 for i in range(16)], dtype=np.bool_)
+    lhs_np = np.arange(16, dtype=np.int32)
+    rhs_np = np.arange(100, 116, dtype=np.int32)
+    result = Tensor.where(Tensor(cond_np, device="TINYTPU"),
+                          Tensor(lhs_np, dtype="int32", device="TINYTPU"),
+                          Tensor(rhs_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.where(cond_np, lhs_np, rhs_np))
+
+  def test_where_multi_tile_matches_reference(self):
+    cond_np = np.array([i % 3 == 0 for i in range(32)], dtype=np.bool_)
+    lhs_np = np.arange(32, dtype=np.int32)
+    rhs_np = np.arange(100, 132, dtype=np.int32)
+    result = Tensor.where(Tensor(cond_np, device="TINYTPU"),
+                          Tensor(lhs_np, dtype="int32", device="TINYTPU"),
+                          Tensor(rhs_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.where(cond_np, lhs_np, rhs_np))
+
   def test_permute_reports_movement_lowering_gap(self):
     with self.assertRaisesRegex(NotImplementedError, "General VMEM<->VReg movement kernels are not lowered yet"):
       Tensor([[1, 2], [3, 4]], dtype="int32", device="TINYTPU").permute(1, 0).numpy()
