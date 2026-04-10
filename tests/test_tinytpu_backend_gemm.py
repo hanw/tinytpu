@@ -8,7 +8,7 @@ os.environ["TINYTPU_SIM"] = str(REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe")
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _infer_tiling, _parse_sim_output, _run_gemm_vec, _tiling_failure_note
+from tinygrad.runtime.ops_tinytpu import _infer_tiling, _parse_sim_output, _parse_vmem_output, _run_gemm_vec, _tiling_failure_note
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -198,6 +198,10 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
   def test_rejects_wrong_mxu_result_width(self):
     with self.assertRaisesRegex(ValueError, "mxu_result expects 4 values, got 3"):
       _parse_sim_output("mxu_result 1 2 3\nstatus ok\n")
+
+  def test_parses_vmem_result(self):
+    result = _parse_vmem_output("vmem_result 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15\nstatus ok\n")
+    self.assertEqual(result, list(range(16)))
 
   def test_run_gemm_rejects_sim_error_line(self):
     with tempfile.TemporaryDirectory() as td:
