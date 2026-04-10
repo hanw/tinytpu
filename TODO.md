@@ -66,7 +66,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
-- [ ] Multi-tile elementwise loops for `numel > 16`
+- [x] Multi-tile elementwise loops for `numel > 16`
 - [ ] Mixed VPU op chains without host round trips
 - [ ] Output shape preservation for scalar, vector, and small matrix cases
 

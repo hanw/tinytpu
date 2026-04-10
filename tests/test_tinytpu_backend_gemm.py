@@ -271,10 +271,17 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     np.testing.assert_array_equal(result, a_np + b_np)
     self.assertEqual(result.shape, (2, 2))
 
-  def test_vpu_rejects_multi_tile_elementwise(self):
+  def test_vpu_add_multi_tile_32_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    b_np = np.arange(100, 132, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np + b_np)
+
+  def test_vpu_add_multi_tile_tail_matches_reference(self):
     a_np = np.arange(17, dtype=np.int32)
-    with self.assertRaisesRegex(NotImplementedError, "one int32 VMEM tile with 1..16 elements"):
-      (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
+    b_np = np.arange(100, 117, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np + b_np)
 
   def test_where_reports_select_lowering_gap(self):
     cond = Tensor([True, False, True], device="TINYTPU")
