@@ -8,7 +8,7 @@ os.environ["TINYTPU_SIM"] = str(REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe")
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _infer_tiling, _tiling_failure_note
+from tinygrad.runtime.ops_tinytpu import _infer_tiling, _parse_sim_output, _tiling_failure_note
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -131,6 +131,11 @@ class TestTinyTPUTilingInference(unittest.TestCase):
 
   def test_failure_note_reports_zero_sized_case(self):
     self.assertIn("zero-sized GEMM", _tiling_failure_note(out_size=8, act_size=0, weight_size=0))
+
+
+class TestTinyTPUSimOutputParsing(unittest.TestCase):
+  def test_parses_indented_mxu_result(self):
+    self.assertEqual(_parse_sim_output("  mxu_result 1 -2 3 -4\nstatus ok\n"), [1, -2, 3, -4])
 
 
 if __name__ == "__main__":
