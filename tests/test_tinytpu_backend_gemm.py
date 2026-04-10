@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys, unittest
+import os, stat, sys, tempfile, textwrap, unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -8,7 +8,7 @@ os.environ["TINYTPU_SIM"] = str(REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe")
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _infer_tiling, _parse_sim_output, _tiling_failure_note
+from tinygrad.runtime.ops_tinytpu import _infer_tiling, _parse_sim_output, _run_gemm_vec, _tiling_failure_note
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -144,6 +144,19 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
   def test_rejects_wrong_mxu_result_width(self):
     with self.assertRaisesRegex(ValueError, "mxu_result expects 4 values, got 3"):
       _parse_sim_output("mxu_result 1 2 3\nstatus ok\n")
+
+  def test_run_gemm_rejects_sim_error_line(self):
+    with tempfile.TemporaryDirectory() as td:
+      sim = Path(td) / "fake_sim.py"
+      sim.write_text(textwrap.dedent("""\
+        #!/usr/bin/env python3
+        print("ERROR: injected failure")
+        print("mxu_result 1 2 3 4")
+        print("status ok")
+      """), encoding="utf-8")
+      sim.chmod(sim.stat().st_mode | stat.S_IEXEC)
+      with self.assertRaisesRegex(RuntimeError, "simulator reported failure: ERROR: injected failure"):
+        _run_gemm_vec(str(sim), np.eye(4, dtype=np.int8), np.arange(4, dtype=np.int8))
 
 
 if __name__ == "__main__":
