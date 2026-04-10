@@ -503,6 +503,10 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a_np, dtype="int32", device="TINYTPU").maximum(10).numpy()
     np.testing.assert_array_equal(result, np.maximum(a_np, 10))
 
+  def test_minimum_negative_scalar_const_matches_reference(self):
+    result = Tensor([-5, -1, -8, -3], dtype="int32", device="TINYTPU").minimum(-2).numpy()
+    np.testing.assert_array_equal(result, np.array([-5, -2, -8, -3], dtype=np.int32))
+
   def test_minimum_scalar_const_multi_tile_matches_reference(self):
     a_np = np.arange(32, dtype=np.int32)
     result = Tensor(a_np, dtype="int32", device="TINYTPU").minimum(10).numpy()
