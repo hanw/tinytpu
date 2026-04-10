@@ -93,3 +93,12 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	6e2fd5e	1	AND and OR ops	AND via MUL, OR via MAX with bool_out flag	pytest backend: 70 passed (sim-backed)	Marked AND OR done	XOR op
 2026-04-10	80b1a2f	1	XOR op	XOR via CMPNE with bool_out flag	pytest backend: 71 passed (sim-backed)	Marked XOR done	Multi-tile sum reduction
 2026-04-10	ac5451d	1	Multi-tile sum reduction	N-element sum via chunked VPU_SUM_REDUCE + host accumulate	pytest backend: 73 passed (sim-backed)	Marked full-tile and multi-tile sum done	Update recommended next iterations
+2026-04-10	2a3c17f	1	Multi-tile AND	Fix grouped binary analyzer for bool logic ops; 32-elem AND	pytest backend: 74 passed (sim-backed)	none	Multi-tile OR/XOR
+2026-04-10	34e6f21	1	Multi-tile OR	32-elem OR via multi-tile VPU MAX	pytest backend: 75 passed (sim-backed)	none	Multi-tile XOR
+2026-04-10	d7c86e2	1	Multi-tile XOR	32-elem XOR via multi-tile VPU CMPNE	pytest backend: 76 passed (sim-backed)	none	NOT lowering
+2026-04-10	9201c54	1	NOT lowering	NOT via CMPNE with bool input detection	pytest backend: 77 passed (sim-backed)	none	Multi-tile NOT
+2026-04-10	5c5a0f3	1	Multi-tile NOT	32-elem NOT via multi-tile CMPNE	pytest backend: 78 passed (sim-backed)	none	VPU MAX_REDUCE hardware
+2026-04-10	9b87aa1	1	VPU MAX_REDUCE hardware	lane_max reducer and VPU_MAX_REDUCE opcode	make test-vpu: 10 passed; pytest backend: 78 passed	none	MAX reduction lowering
+2026-04-10	b449fa9	1	MAX reduction 4-elem	MAX reduction through VPU_MAX_REDUCE	pytest backend: 79 passed (sim-backed)	Marked MAX reduction done	Full-tile MAX reduction
+2026-04-10	7ee2bef	1	MAX reduction full-tile	16-elem MAX reduction	pytest backend: 80 passed (sim-backed)	none	Multi-tile MAX reduction
+2026-04-10	26d8c06	1	MAX reduction multi-tile	32-elem MAX reduction via chunked VPU_MAX_REDUCE + host max	pytest backend: 81 passed (sim-backed)	Marked multi-tile MAX reduction done	MUL reduction or movement ops

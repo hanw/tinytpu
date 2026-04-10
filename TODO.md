@@ -67,6 +67,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [ ] Arbitrary shapes with `numel <= 16`
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
 - [x] Multi-tile elementwise loops for `numel > 16`
+  - [x] Multi-tile AND/OR/XOR/NOT for bool tensors
 - [ ] Mixed VPU op chains without host round trips
 - [ ] Output shape preservation for scalar, vector, and small matrix cases
 
@@ -81,6 +82,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [x] `AND`
 - [x] `OR`
 - [x] `XOR`
+- [x] `NOT`
 - [ ] `SHL`
 - [ ] `SHR`
 - [ ] `MOD`
@@ -99,7 +101,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [ ] Row-wise sum over a 4x4 VMEM tile
 - [ ] Column-wise sum over a 4x4 VMEM tile
 - [ ] Full-tile sum
-- [ ] `MAX` reduction
+- [x] `MAX` reduction (4-elem, full-tile, multi-tile via VPU_MAX_REDUCE)
 - [ ] `MUL` reduction
 - [ ] `keepdim` behavior
 - [ ] Multi-tile reductions
