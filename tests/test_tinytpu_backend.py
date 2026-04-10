@@ -542,6 +542,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") >> 2).numpy()
     np.testing.assert_array_equal(result, a_np >> 2)
 
+  def test_vpu_cmpne_scalar_const_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") != 10).numpy()
+    np.testing.assert_array_equal(result, a_np != 10)
+
   def test_fused_add_relu_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       (Tensor([-3, 1, -1, 5], dtype="int32", device="TINYTPU") + Tensor([1, 1, 1, 1], dtype="int32", device="TINYTPU")).relu().numpy()
