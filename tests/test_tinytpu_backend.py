@@ -570,6 +570,25 @@ class TestTinyTPUBackend(unittest.TestCase):
     with self.assertRaises(NotImplementedError):
       (Tensor([-3, 1, -1, 5], dtype="int32", device="TINYTPU") + Tensor([1, 1, 1, 1], dtype="int32", device="TINYTPU")).relu().numpy()
 
+  def test_idiv_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      (Tensor([10, 20, 30, 40], dtype="int32", device="TINYTPU") // 3).numpy()
+
+  def test_mod_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      (Tensor([10, 20, 30, 40], dtype="int32", device="TINYTPU") % 3).numpy()
+
+  def test_abs_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([-1, 2, -3, 4], dtype="int32", device="TINYTPU").abs().numpy()
+
+  def test_minimum_int_reports_correct_not_max(self):
+    """Regression: minimum(a,b) previously misidentified as MAX."""
+    result = Tensor([1, 5, 3], dtype="int32", device="TINYTPU").minimum(
+      Tensor([4, 2, 6], dtype="int32", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_array_equal(result, np.array([1, 2, 3], dtype=np.int32))
+
   def test_clip_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([-5, 0, 3, 10], dtype="int32", device="TINYTPU").clip(0, 5).numpy()
