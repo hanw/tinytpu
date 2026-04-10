@@ -111,3 +111,13 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	fd0e668	1	Multi-tile SHR	32-elem SHR	pytest backend: 85 passed (sim-backed)	none	Full-tile SHL/SHR
 2026-04-10	3ce7bc8	1	Full-tile SHL/SHR	16-elem SHL and SHR coverage	pytest backend: 87 passed (sim-backed)	none	Negative reduction coverage
 2026-04-10	2b8b5ce	1	Negative reductions	Sum and max with negative int32 values	pytest backend: 89 passed (sim-backed)	none	Loop-based reductions or IDIV
+2026-04-10	d7a6851	1	Analyzer fix: clip	Reject clip from RELU by checking WHERE <= STORE	pytest backend: 89 passed (sim-backed)	none	VPU_MIN hardware
+2026-04-10	d2c170a	1	VPU_MIN hardware	VPU_MIN opcode with BSV test	make test-vpu: 13 passed; pytest backend: 89 passed	none	minimum lowering
+2026-04-10	56e1f2d	1	minimum lowering	minimum(a,b) through VPU_MIN detecting XOR+MAX pattern	pytest backend: 90 passed (sim-backed)	none	Multi-tile minimum
+2026-04-10	a1039d6	1	Multi-tile minimum	16-elem and 32-elem minimum coverage	pytest backend: 92 passed (sim-backed)	none	VPU_MIN_REDUCE
+2026-04-10	46cd837	1	VPU_MIN_REDUCE hardware	lane_min reducer and VPU_MIN_REDUCE opcode	make test-vpu: 14 passed; pytest backend: 92 passed	none	MIN reduction lowering
+2026-04-10	f27b9a5	1	MIN reduction	4/16/32-elem min through VPU_MIN_REDUCE; exclude XOR from MAX_REDUCE	pytest backend: 95 passed (sim-backed)	Marked MIN reduction done	File rename
+2026-04-10	9ad63e8	1	Test file rename	test_tinytpu_backend_gemm -> test_tinytpu_backend	pytest backend: 95 passed (sim-backed)	none	Negative MIN
+2026-04-10	941b248	1	Negative MIN reduction	min with all-negative int32 values	pytest backend: 96 passed (sim-backed)	none	Scalar MIN const
+2026-04-10	d03f172	1	Scalar minimum const	minimum(x, c) via XOR+MAX decomposition detection	pytest backend: 97 passed (sim-backed)	none	Clip support
+2026-04-10	a031e37	1	Clip diagnostic	clip correctly reports unsupported (was silently wrong)	pytest backend: 98 passed (sim-backed)	none	Fused clamp lowering or more reductions

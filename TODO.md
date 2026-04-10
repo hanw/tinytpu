@@ -60,6 +60,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
   - [x] `x + scalar`
   - [x] `x * scalar`
   - [x] `maximum(x, scalar)`
+  - [x] `minimum(x, scalar)`
   - [x] `x < scalar`
   - [x] `x != scalar`
 - [ ] Scalar broadcasting
@@ -102,6 +103,7 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [ ] Column-wise sum over a 4x4 VMEM tile
 - [ ] Full-tile sum
 - [x] `MAX` reduction (4-elem, full-tile, multi-tile via VPU_MAX_REDUCE)
+- [x] `MIN` reduction (4-elem, full-tile, multi-tile via VPU_MIN_REDUCE)
 - [ ] `MUL` reduction
 - [ ] `keepdim` behavior
 - [ ] Multi-tile reductions
