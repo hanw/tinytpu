@@ -87,6 +87,32 @@ class TestProfilerHelpers(unittest.TestCase):
     self.assertIn("VPU: busy=", rendered)
     self.assertIn("VMEM: busy=", rendered)
 
+  def test_dump_bundle_cli_writes_sample(self):
+    with tempfile.TemporaryDirectory() as td:
+      out = Path(td) / "bundle.txt"
+      proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "dump_tinytpu_bundle.py"), "--sample", "--out", str(out)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      parsed = parse_bundle_text(out.read_text(encoding="utf-8"))
+      self.assertTrue(parsed.output_mxu)
+      self.assertGreater(len(parsed.instructions), 0)
+
+  def test_dump_bundle_cli_rejects_multiple_sources(self):
+    proc = subprocess.run(
+      [sys.executable, str(REPO_ROOT / "scripts" / "dump_tinytpu_bundle.py"), "--sample", "bundle.txt"],
+      cwd=REPO_ROOT,
+      text=True,
+      capture_output=True,
+      check=False,
+    )
+    self.assertNotEqual(proc.returncode, 0)
+    self.assertIn("choose exactly one input source", proc.stderr)
+
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntimeTrace.bexe").exists(), "traced runtime binary not built")
 class TestProfilerIntegration(unittest.TestCase):

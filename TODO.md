@@ -301,17 +301,17 @@ Estimate: **500-800 iterations**
 18. [x] Add scalar `x != c` full-tile coverage.
 19. [x] Add scalar `x < c` full-tile coverage.
 20. [x] Add scalar `x == c` full-tile coverage.
-21. [ ] Add reverse scalar `c < x` diagnostics/coverage.
-22. [ ] Add VPU opcode table tests.
-23. [ ] Refactor bool-result opcode set into a helper.
-24. [ ] Refactor VPU opcode table into module constants.
-25. [ ] Refactor scalar-const descriptor fields.
+21. [x] Add reverse scalar `c < x` diagnostics/coverage.
+22. [x] Add VPU opcode table tests.
+23. [x] Refactor bool-result opcode set into a helper.
+24. [x] Refactor VPU opcode table into module constants.
+25. [x] Refactor scalar-const descriptor fields.
 26. [ ] Add tests for descriptor JSON for VPU binary ops.
 27. [ ] Add tests for descriptor JSON for scalar const ops.
 28. [ ] Add tests for descriptor JSON for equality ops.
 29. [ ] Add runtime bundle builder helper for VPU binary programs.
 30. [ ] Reuse profiler `Bundle` for VPU bundle text where practical.
-31. [ ] Add VMEM/VPU bundle dump utility.
+31. [x] Add VMEM/VPU bundle dump utility.
 32. [ ] Add lowering-decision dump behind an env var.
 33. [ ] Add selected upstream tinygrad VPU test list.
 34. [ ] Add selected upstream tinygrad invocation wrapper.
