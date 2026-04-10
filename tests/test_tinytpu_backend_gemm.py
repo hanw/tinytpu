@@ -112,6 +112,10 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = Tensor(a_np, dtype="int32", device="TINYTPU").relu().numpy()
     np.testing.assert_array_equal(result, np.maximum(a_np, 0))
 
+  def test_max4_matches_reference(self):
+    result = Tensor([3, 7, 1, 5], dtype="int32", device="TINYTPU").max().numpy()
+    np.testing.assert_array_equal(result, np.array(7, dtype=np.int32))
+
   def test_sum4_matches_reference(self):
     result = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").sum().numpy()
     np.testing.assert_array_equal(result, np.array(10, dtype=np.int32))
