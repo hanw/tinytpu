@@ -430,6 +430,10 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (Tensor(a, device="TINYTPU") | Tensor(b, device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a | b)
 
+  def test_not_matches_reference(self):
+    result = (~Tensor([True, False, True, False], device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([False, True, False, True], dtype=np.bool_))
+
   def test_permute_reports_movement_lowering_gap(self):
     with self.assertRaisesRegex(NotImplementedError, "General VMEM<->VReg movement kernels are not lowered yet"):
       Tensor([[1, 2], [3, 4]], dtype="int32", device="TINYTPU").permute(1, 0).numpy()
