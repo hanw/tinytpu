@@ -14,13 +14,16 @@ When asked to do iterations (e.g. "do 25 iterations"):
 
 ## Verification
 
-Run tests from the repo root:
+Run tests from the repo root. Use `/Users/hanwang/miniconda3/bin/python3` (has pytest).
 
 ```
-python3 -m pytest tests/ -x -v          # Python-side tests
+PYTHONPATH=tinygrad /Users/hanwang/miniconda3/bin/python3 -m pytest tests/test_tinytpu_backend_gemm.py::TestTinyTPUBackendGemm -x -v   # sim-backed backend tests
+PYTHONPATH=tinygrad /Users/hanwang/miniconda3/bin/python3 -m pytest tests/ -x -v   # all Python-side tests
 make test-<unit>                         # BSV unit tests
 python3 scripts/test_cosim.py            # end-to-end co-sim
 ```
+
+**IMPORTANT:** The BSV simulator is built at `build/mkTbTinyTPURuntime.bexe`. All tests in `TestTinyTPUBackendGemm` run through the real simulator. Always run these sim-backed tests as verification — do not skip them or assume they pass without executing them.
 
 The tinygrad submodule is at `tinygrad/`. When importing tinygrad in tests, use `PYTHONPATH=tinygrad` or `sys.path.insert(0, "tinygrad")`.
 

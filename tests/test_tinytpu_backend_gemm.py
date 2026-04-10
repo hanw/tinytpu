@@ -283,6 +283,42 @@ class TestTinyTPUBackendGemm(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") + Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np + b_np)
 
+  def test_vpu_mul_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    b_np = np.arange(1, 33, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") * Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np * b_np)
+
+  def test_vpu_sub_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    b_np = np.arange(100, 132, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") - Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np - b_np)
+
+  def test_vpu_max_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    b_np = np.arange(31, -1, -1, dtype=np.int32)
+    result = Tensor(a_np, dtype="int32", device="TINYTPU").maximum(Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.maximum(a_np, b_np))
+
+  def test_vpu_cmplt_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    b_np = np.arange(31, -1, -1, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") < Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np < b_np)
+
+  def test_vpu_cmpne_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    b_np = np.arange(31, -1, -1, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") != Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np != b_np)
+
+  def test_vpu_cmpeq_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    b_np = np.arange(31, -1, -1, dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") == Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np == b_np)
+
   def test_where_reports_select_lowering_gap(self):
     cond = Tensor([True, False, True], device="TINYTPU")
     lhs = Tensor([1, 2, 3], dtype="int32", device="TINYTPU")
