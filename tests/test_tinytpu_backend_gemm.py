@@ -207,6 +207,10 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "vmem_result expects 16 values, got 3"):
       _parse_vmem_output("vmem_result 1 2 3\nstatus ok\n")
 
+  def test_reports_bad_vmem_result_integer(self):
+    with self.assertRaisesRegex(ValueError, "invalid vmem_result integer 'bad'"):
+      _parse_vmem_output("vmem_result 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 bad\nstatus ok\n")
+
   def test_run_gemm_rejects_sim_error_line(self):
     with tempfile.TemporaryDirectory() as td:
       sim = Path(td) / "fake_sim.py"
