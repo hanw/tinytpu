@@ -34,8 +34,9 @@ Loop continuously until interrupted:
 4. Implement the minimum coherent fix.
 5. Run the narrowest useful verification first, then broader verification if warranted.
 6. Keep the change only if it advances functionality or simplifies the code without regression.
-7. Commit the improvement.
-8. Repeat from the new head.
+7. Update `TODO.md` when the iteration changes tinyspec coverage, milestone progress, known gaps, or recommended next work.
+8. Commit the improvement.
+9. Repeat from the new head.
 
 The loop is intended to keep expanding real capability, not just churn code.
 
@@ -131,6 +132,13 @@ Commit only coherent advances. Each commit should describe one implementation st
 
 Do not mix unrelated cleanups into an implementation commit.
 
+When updating `TODO.md`, keep the edit scoped to the completed iteration:
+
+- Mark newly supported behavior as complete.
+- Add newly discovered gaps or limitations.
+- Adjust recommended next iterations if the priority changed.
+- Do not rewrite unrelated estimates or checklist sections unless the iteration made them obsolete.
+
 ## Expected Output
 
 For each completed loop iteration, leave the repo in a state where a human can see:
@@ -139,4 +147,5 @@ For each completed loop iteration, leave the repo in a state where a human can s
 - What test or workload reproduced it
 - What was changed
 - What verification passed
+- What `TODO.md` progress was updated, if applicable
 - What limitations remain, if any
