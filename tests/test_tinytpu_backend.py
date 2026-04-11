@@ -759,6 +759,27 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_sum_reduce_all_positive_4x4_matches_reference(self):
+    """Sum reduction of all-positive 4x4 to scalar via VPU_SUM_REDUCE."""
+    data = np.arange(1, 17, dtype=np.int32).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, int(data.sum()))
+
+  def test_sum_reduce_all_negative_4x4_matches_reference(self):
+    data = -np.arange(1, 17, dtype=np.int32).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, int(data.sum()))
+
+  def test_max_reduce_all_negative_matches_reference(self):
+    data = -np.arange(1, 17, dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max().numpy()
+    np.testing.assert_array_equal(result, int(data.max()))
+
+  def test_min_reduce_all_positive_matches_reference(self):
+    data = np.arange(1, 17, dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min().numpy()
+    np.testing.assert_array_equal(result, int(data.min()))
+
   def test_relu_then_mul_scalar_matches_reference(self):
     """relu -> mul scalar: realize between steps to prevent fusion."""
     data = np.arange(-4, 4, dtype=np.int32)
