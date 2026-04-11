@@ -759,6 +759,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_realize_breaks_fusion_for_chained_ops(self):
+    """Without .realize(), tinygrad fuses relu+add into one kernel our backend
+    may not recognize. With .realize() the ops execute separately."""
+    data = np.arange(-4, 4, dtype=np.int32)
+    # Without realize: fused into one kernel (may fail with NotImplementedError)
+    # With realize: relu executes on TINYTPU, then add executes on TINYTPU
+    relu_result = Tensor(data, device="TINYTPU").relu().realize()
+    final = (relu_result + 1).numpy()
+    np.testing.assert_array_equal(final, np.maximum(data, 0) + 1)
+
+  def test_mul_then_relu_with_realize_matches_reference(self):
+    data = np.arange(-8, 8, dtype=np.int32)
+    mul_result = (Tensor(data, device="TINYTPU") * 2).realize()
+    result = mul_result.relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(data * 2, 0))
+
   def test_sum_reduce_all_positive_4x4_matches_reference(self):
     """Sum reduction of all-positive 4x4 to scalar via VPU_SUM_REDUCE."""
     data = np.arange(1, 17, dtype=np.int32).reshape(4, 4)
