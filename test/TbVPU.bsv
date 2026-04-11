@@ -450,7 +450,29 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 38);
+   // Test 20: VPU_NOT
+   // ~[0, 1, -1, 255] = [-1, -2, 0, -256]
+   rule dispatch_not (cycle == 38);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 0; s1[0][1] = 1; s1[0][2] = -1; s1[0][3] = 255;
+      vpu.execute(VPU_NOT, s1, s2);
+      $display("Cycle %0d: dispatched VPU_NOT", cycle);
+   endrule
+
+   rule check_not (cycle == 39);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == -1 && res[0][1] == -2 && res[0][2] == 0 && res[0][3] == -256);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_NOT", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_NOT got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 40);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

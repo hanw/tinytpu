@@ -4,7 +4,8 @@ import Vector :: *;
 import FloatingPoint :: *;
 
 typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE, VPU_DIV, VPU_AND, VPU_OR, VPU_XOR,
-               VPU_FADD, VPU_FMUL, VPU_FSUB, VPU_FMAX, VPU_FCMPLT, VPU_FRECIP, VPU_I2F, VPU_F2I }
+               VPU_FADD, VPU_FMUL, VPU_FSUB, VPU_FMAX, VPU_FCMPLT, VPU_FRECIP, VPU_I2F, VPU_F2I,
+               VPU_NOT }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -257,6 +258,10 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_F2I: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = float_to_int32(bits2fp(src1[s][l]));
+            end
+            VPU_NOT: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = unpack(~pack(src1[s][l]));
             end
          endcase
          res[s] = row;
