@@ -14,7 +14,7 @@ module mkTbVPU();
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 60) begin $display("FAIL: timeout"); $finish(1); end
+      if (cycle > 100) begin $display("FAIL: timeout"); $finish(1); end
    endrule
 
    // Test 1: VPU_ADD
@@ -336,7 +336,121 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 28);
+   // Test 15: VPU_DIV
+   // [10,20,-9,-10] / [3,5,3,-3] = [3,4,-3,3]
+   rule dispatch_div (cycle == 28);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 10; s1[0][1] = 20; s1[0][2] = -9;  s1[0][3] = -10;
+      s2[0][0] = 3;  s2[0][1] = 5;  s2[0][2] = 3;   s2[0][3] = -3;
+      vpu.execute(VPU_DIV, s1, s2);
+      $display("Cycle %0d: dispatched VPU_DIV", cycle);
+   endrule
+
+   rule check_div (cycle == 29);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 3 && res[0][1] == 4 && res[0][2] == -3 && res[0][3] == 3);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_DIV", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_DIV got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 16: divide by zero returns 0 on the affected lanes.
+   rule dispatch_div_zero (cycle == 30);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 7; s1[0][1] = -8; s1[0][2] = 9; s1[0][3] = 10;
+      s2[0][0] = 0; s2[0][1] = 2;  s2[0][2] = 0; s2[0][3] = -5;
+      vpu.execute(VPU_DIV, s1, s2);
+      $display("Cycle %0d: dispatched VPU_DIV zero-divisor case", cycle);
+   endrule
+
+   rule check_div_zero (cycle == 31);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 0 && res[0][1] == -4 && res[0][2] == 0 && res[0][3] == -2);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_DIV zero-divisor case", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_DIV zero-divisor case got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 17: VPU_AND
+   // [1,0,3,4] & [1,1,2,4] = [1,0,2,4]
+   rule dispatch_and (cycle == 32);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 1; s1[0][1] = 0; s1[0][2] = 3; s1[0][3] = 4;
+      s2[0][0] = 1; s2[0][1] = 1; s2[0][2] = 2; s2[0][3] = 4;
+      vpu.execute(VPU_AND, s1, s2);
+      $display("Cycle %0d: dispatched VPU_AND", cycle);
+   endrule
+
+   rule check_and (cycle == 33);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 1 && res[0][1] == 0 && res[0][2] == 2 && res[0][3] == 4);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_AND", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_AND got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 18: VPU_OR
+   // [1,0,2,4] | [0,1,1,2] = [1,1,3,6]
+   rule dispatch_or (cycle == 34);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 1; s1[0][1] = 0; s1[0][2] = 2; s1[0][3] = 4;
+      s2[0][0] = 0; s2[0][1] = 1; s2[0][2] = 1; s2[0][3] = 2;
+      vpu.execute(VPU_OR, s1, s2);
+      $display("Cycle %0d: dispatched VPU_OR", cycle);
+   endrule
+
+   rule check_or (cycle == 35);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 1 && res[0][1] == 1 && res[0][2] == 3 && res[0][3] == 6);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_OR", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_OR got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 19: VPU_XOR
+   // [1,0,3,7] ^ [1,1,2,3] = [0,1,1,4]
+   rule dispatch_xor (cycle == 36);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 1; s1[0][1] = 0; s1[0][2] = 3; s1[0][3] = 7;
+      s2[0][0] = 1; s2[0][1] = 1; s2[0][2] = 2; s2[0][3] = 3;
+      vpu.execute(VPU_XOR, s1, s2);
+      $display("Cycle %0d: dispatched VPU_XOR", cycle);
+   endrule
+
+   rule check_xor (cycle == 37);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 0 && res[0][1] == 1 && res[0][2] == 1 && res[0][3] == 4);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_XOR", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_XOR got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 38);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

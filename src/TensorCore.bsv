@@ -49,7 +49,7 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
       Bits#(Vector#(rows, Vector#(rows, Int#(32))), vrsz),
       Bits#(SxuInstr, isz),
       Add#(a__, TLog#(depth), 8),        // mxu*:UInt#(8) truncates to TLog#(depth)
-      Add#(b__, TLog#(16), 4)            // vregDst/vregSrc:UInt#(4) truncates to TLog#(16)
+      Add#(b__, TLog#(rows), 4)          // XLU broadcast lane selector truncates from UInt#(4)
    );
 
    // MXU sub-system

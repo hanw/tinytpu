@@ -12,6 +12,7 @@ typedef enum {
    SXU_LOAD_VREG,
    SXU_STORE_VREG,
    SXU_DISPATCH_VPU,
+   SXU_DISPATCH_XLU_BROADCAST,
    SXU_DISPATCH_MXU,
    SXU_WAIT_MXU,
    SXU_HALT
@@ -41,6 +42,7 @@ endinterface
 
 typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_STORE, SXU_EXEC_VPU, SXU_EXEC_VPU_COLLECT,
+               SXU_EXEC_XLU_BROADCAST, SXU_EXEC_XLU_COLLECT,
                SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -62,6 +64,7 @@ module mkScalarUnit#(
       Add#(0, sublanes, lanes),          // square vregs (XLU requirement)
       Add#(a__, TLog#(vmDepth), 8),      // vmemAddr/mxu*:UInt#(8) truncates to TLog#(vmDepth)
       Add#(b__, TLog#(numRegs), 4),      // vregDst/vregSrc:UInt#(4) truncates to TLog#(numRegs)
+      Add#(c__, TLog#(lanes), 4),        // vregSrc2 carries XLU broadcast lane selector
       Add#(logd_, TLog#(vmDepth), 32)    // needed by Controller
    );
 
@@ -89,6 +92,7 @@ module mkScalarUnit#(
          SXU_LOAD_VREG:    pc_state <= SXU_EXEC_LOAD_REQ;
          SXU_STORE_VREG:   pc_state <= SXU_EXEC_STORE;
          SXU_DISPATCH_VPU: pc_state <= SXU_EXEC_VPU;
+         SXU_DISPATCH_XLU_BROADCAST: pc_state <= SXU_EXEC_XLU_BROADCAST;
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_HALT: begin
@@ -152,6 +156,29 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=VPU ev=RESULT", cycle);
 `endif
       vrf.write(truncate(curInstr.vregDst), vpu.result);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_XLU_BROADCAST: read source vreg, broadcast selected lane.
+   rule do_xlu_broadcast (pc_state == SXU_EXEC_XLU_BROADCAST);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      UInt#(TLog#(lanes)) srcLane = truncate(curInstr.vregSrc2);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_XLU_BROADCAST pc=%0d src_lane=%0d", cycle, pc, srcLane);
+      $display("TRACE cycle=%0d unit=XLU ev=BROADCAST src_lane=%0d", cycle, srcLane);
+`endif
+      xlu.executeBroadcast(src, srcLane);
+      pc_state <= SXU_EXEC_XLU_COLLECT;
+   endrule
+
+   // Collect XLU result (1-cycle latency), write to vregDst, advance pc
+   rule do_xlu_collect (pc_state == SXU_EXEC_XLU_COLLECT);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=XLU_COLLECT pc=%0d", cycle, pc);
+      $display("TRACE cycle=%0d unit=XLU ev=RESULT", cycle);
+`endif
+      vrf.write(truncate(curInstr.vregDst), xlu.result);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

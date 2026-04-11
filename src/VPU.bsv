@@ -2,7 +2,7 @@ package VPU;
 
 import Vector :: *;
 
-typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE }
+typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE, VPU_DIV, VPU_AND, VPU_OR, VPU_XOR }
    VpuOp deriving (Bits, Eq, FShow);
 
 interface VPU_IFC#(numeric type sublanes, numeric type lanes);
@@ -121,6 +121,22 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                   Bit#(5) amt = truncate(pack(src2[s][l]));
                   row[l] = unpack(pack(src1[s][l]) >> amt);
                end
+            end
+            VPU_DIV: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = (src2[s][l] == 0) ? 0 : (src1[s][l] / src2[s][l]);
+            end
+            VPU_AND: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = unpack(pack(src1[s][l]) & pack(src2[s][l]));
+            end
+            VPU_OR: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = unpack(pack(src1[s][l]) | pack(src2[s][l]));
+            end
+            VPU_XOR: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = unpack(pack(src1[s][l]) ^ pack(src2[s][l]));
             end
          endcase
          res[s] = row;
