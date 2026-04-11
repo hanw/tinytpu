@@ -698,6 +698,40 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
     np.testing.assert_array_equal(result, data.sum(axis=1))
 
+  def test_where_2d_3x4_matches_reference(self):
+    cond = np.tile([True, False], 6).reshape(3, 4)
+    lhs = np.arange(12, dtype=np.int32).reshape(3, 4)
+    rhs = np.zeros((3, 4), dtype=np.int32)
+    result = Tensor(cond, device="TINYTPU").where(
+      Tensor(lhs, dtype="int32", device="TINYTPU"),
+      Tensor(rhs, dtype="int32", device="TINYTPU"),
+    ).numpy()
+    np.testing.assert_array_equal(result, np.where(cond, lhs, rhs))
+
+  def test_shl_2d_3x4_matches_reference(self):
+    data = np.arange(12, dtype=np.int32).reshape(3, 4)
+    result = (Tensor(data, device="TINYTPU") << 2).numpy()
+    np.testing.assert_array_equal(result, data << 2)
+
+  def test_shr_2d_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) * 4).reshape(4, 4)
+    result = (Tensor(data, device="TINYTPU") >> 2).numpy()
+    np.testing.assert_array_equal(result, data >> 2)
+
+  def test_idiv_2d_3x4_matches_reference(self):
+    import math
+    data = np.arange(3, 15, dtype=np.int32).reshape(3, 4)
+    result = (Tensor(data, device="TINYTPU") // 3).numpy()
+    expected = np.array([math.trunc(x / 3) for x in range(3, 15)], dtype=np.int32).reshape(3, 4)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_mod_2d_4x4_matches_reference(self):
+    import math
+    data = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = (Tensor(data, device="TINYTPU") % 5).numpy()
+    expected = np.array([x - 5 * math.trunc(x / 5) for x in range(16)], dtype=np.int32).reshape(4, 4)
+    np.testing.assert_array_equal(result, expected)
+
   def test_colsum_2d_3x4_matches_reference(self):
     data = (np.arange(12, dtype=np.int32) - 6).reshape(3, 4)
     result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
