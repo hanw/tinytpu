@@ -147,3 +147,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-11	faeb937	1	abs/clip/MOD/CMPEQ SXU_PROGRAM	abs clip MOD CMPEQ patterns via multi-step SXU_PROGRAM	pytest: 340 passed	multi-step patterns marked done	migrate reductions to SXU_PROGRAM
 2026-04-11	96abba7	2	multi-step + data-path ALU fix	abs/clip/MOD/CMPEQ via SXU_PROGRAM; fix RANGE/GROUP ALU filtering	pytest: 340 passed; SXU_PROGRAM 97/263	multi-step marked done; reduction deferred	scalar broadcast in BSV
 2026-04-11	09a5978	1	data-path ALU + SUB/CMPEQ/clip fixes	SUB tensor-tensor, CMPEQ RANGE, clip const detection via SXU_PROGRAM	pytest: 340 passed; SXU_PROGRAM 143/263 (54%)	none	MIN decomposition, scalar broadcast
+2026-04-11	4195857	1	reverse SUB + ALU refactor	scalar-const reverse SUB, data-path ALU in multistep renderer	pytest: 340 passed; SXU_PROGRAM 146/263 (55%)	none	MIN decomposition, fused add+relu, scalar broadcast
