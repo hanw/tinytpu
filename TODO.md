@@ -311,6 +311,24 @@ Highest-value next work:
 6. Multi-output kernel support
 7. Fused kernel detection improvements (tinygrad fuses many 2-op chains)
 
+### Model-blocking gaps (from mnist_gan.py bring-up)
+
+- `leaky_relu(alpha)`: tinygrad emits float mul for the negative slope.
+  - SW path: integer approximation via shift (alpha=0.25 → SHR by 2) + WHERE select.
+    Needs: VPU_SHR + VPU_CMPLT + WHERE sequence lowered as a VPU_PROGRAM.
+  - HW path: not needed if SW approximation suffices.
+- `tanh`: requires RECIPROCAL, EXP, float BITCAST — pure float.
+  - SW path: host software fallback (`HOST_UNARY` with numpy). Or integer clamp approximation.
+  - HW path: would need float datapath (major arch change, not recommended now).
+- `log_softmax`: requires EXP, LOG, RECIPROCAL — pure float.
+  - SW path: host software fallback. For inference-only int models, replace with argmax.
+  - HW path: same as tanh — needs float (not recommended now).
+- `float32` GEMM: GAN training uses float weights/activations throughout.
+  - SW path: host fallback for float matmul. Or quantize-aware int8 inference.
+  - HW path: would need float MXU (major arch change).
+- `backward` / autograd: training is not supported on TinyTPU.
+  - SW path: train on CPU/GPU, export int8 weights, run inference on TinyTPU.
+
 ## Old Recommended Next Iterations
 
 1. Add multi-tile elementwise loop for `ADD` using the plan in `doc/tinytpu_multitile_add.md`.
