@@ -32,7 +32,7 @@ class TestProfilerHelpers(unittest.TestCase):
     parsed = parse_bundle_text(bundle.to_text())
     self.assertEqual(parsed.vmem_tiles[0], (0, [1, 2, 3] + [0] * 13))
     self.assertEqual(parsed.vmem_tiles[1], (1, [4, 5, 6] + [0] * 13))
-    self.assertEqual([instr.opcode for instr in parsed.instructions], [0, 0, 2, 1, 5])
+    self.assertEqual([instr.opcode for instr in parsed.instructions], [0, 0, 2, 1, 6])
     self.assertEqual(parsed.instructions[2].vpu_op, 0)
     self.assertEqual(parsed.output_vmem_addr, 2)
 
