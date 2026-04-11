@@ -219,7 +219,7 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [x] Add VPU_NOT hardware opcode (BSV + testbench + Python table)
 - [x] Migrate scalar-const binary ops (x+c, x*c, NEG, NOT) to SXU_PROGRAM
 - [x] Migrate bool-typed ops (AND/OR/XOR/NOT on bool tensors) to SXU_PROGRAM
-- [x] Migrate WHERE (ternary select) to SXU_PROGRAM
+- [x] Migrate WHERE (ternary select) to SXU_PROGRAM (VPU_SELECT hardware, 2 instrs vs 4)
 - [x] Migrate multi-step VPU_PROGRAM patterns (abs, clip, MOD, CMPEQ) to SXU_PROGRAM
 - [x] Migrate scalar reductions (SUM/MAX/MIN to scalar) to SXU_PROGRAM
 - [ ] Migrate row-wise reduce (VPU_ROWSUM) to SXU_PROGRAM (needs axis detection to avoid colreduce)
