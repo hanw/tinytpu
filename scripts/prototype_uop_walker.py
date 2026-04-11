@@ -187,9 +187,120 @@ def _render_wmma_bundle(uops, wmmas, params, bufs):
 
 
 def _render_elementwise_bundle(uops, params, bufs):
-    """Render a simple elementwise kernel as a bundle."""
-    # For now, fall back to the existing path
-    raise NotImplementedError("elementwise UOp walker not yet implemented")
+    """Render an elementwise kernel by mapping scalar UOps to VPU tile ops.
+
+    The UOp graph has the pattern:
+      PARAM (out, src1, src2) → [RANGE →] LOAD×N + OP×N + STORE×N [→ END]
+    For each RANGE iteration, we emit one VPU tile dispatch.
+    Without RANGE (fully unrolled), we emit one tile for all ops.
+    """
+    from collections import Counter
+    op_counts = Counter(u.op.name for u in uops)
+
+    # Detect ReLU pattern: CMPLT + WHERE (unary, no binary ALU)
+    is_relu = op_counts.get("WHERE", 0) > 0 and op_counts.get("CMPLT", 0) > 0
+    out_arg = 0
+    src_args = sorted(k for k in params if k != out_arg)
+
+    if is_relu and len(src_args) == 1:
+        return _render_relu_bundle(uops, params, bufs)
+
+    if len(src_args) < 2:
+        raise NotImplementedError(f"elementwise UOp walker: expected ≥2 source params, got {len(src_args)}")
+
+    # Find the binary ALU op
+    alu_ops_map = {
+        "ADD": "ADD", "MUL": "MUL", "SUB": "SUB", "MAX": "MAX", "MIN": "MIN",
+        "CMPLT": "CMPLT", "CMPNE": "CMPNE", "CMPEQ": "CMPEQ",
+        "AND": "AND", "OR": "OR", "XOR": "XOR",
+        "SHL": "SHL", "SHR": "SHR", "IDIV": "DIV",
+    }
+    alu_name = None
+    for op_name, vpu_name in alu_ops_map.items():
+        if op_counts.get(op_name, 0) > 0:
+            alu_name = vpu_name
+            break
+    if alu_name is None:
+        raise NotImplementedError(f"elementwise UOp walker: no recognized ALU op in {dict(op_counts)}")
+
+    # Trace param ordering from the UOp graph
+    alu_op_enum = getattr(Ops, [k for k,v in alu_ops_map.items() if v == alu_name][0])
+    alu_uop = next(u for u in uops if u.op is alu_op_enum)
+    lhs_arg = _find_param_arg(alu_uop.src[0])
+    rhs_arg = _find_param_arg(alu_uop.src[1])
+    if lhs_arg is None or rhs_arg is None:
+        raise NotImplementedError(f"elementwise UOp walker: could not trace ALU operand params")
+
+    lhs_i32 = np.frombuffer(bytes(bufs[lhs_arg]), dtype="<i4")
+    rhs_i32 = np.frombuffer(bytes(bufs[rhs_arg]), dtype="<i4")
+    num_elems = min(params[out_arg].dtype.size, lhs_i32.size, rhs_i32.size)
+    vpu_op = _VPU_OPS[alu_name]
+
+    # Emit tiled bundles, one per VMEM tile
+    data_lines = []
+    prog_lines = []
+    out_addrs = []
+
+    for chunk_start in range(0, num_elems, _TILE_ELEMS):
+        chunk_end = min(chunk_start + _TILE_ELEMS, num_elems)
+        chunk_size = chunk_end - chunk_start
+
+        lhs_tile = np.zeros(_TILE_ELEMS, dtype=np.int32)
+        rhs_tile = np.zeros(_TILE_ELEMS, dtype=np.int32)
+        lhs_tile[:chunk_size] = lhs_i32[chunk_start:chunk_end]
+        rhs_tile[:chunk_size] = rhs_i32[chunk_start:chunk_end]
+
+        tile_idx = chunk_start // _TILE_ELEMS
+        vmem_lhs = tile_idx * 3
+        vmem_rhs = tile_idx * 3 + 1
+        vmem_out = tile_idx * 3 + 2
+
+        data_lines.append(_vmem(vmem_lhs, [int(x) for x in lhs_tile]))
+        data_lines.append(_vmem(vmem_rhs, [int(x) for x in rhs_tile]))
+
+        prog_lines.append(_load(0, vmem_lhs))
+        prog_lines.append(_load(1, vmem_rhs))
+        prog_lines.append(_vpu(2, 0, vpu_op, 1))
+        prog_lines.append(_store(vmem_out, 2))
+        out_addrs.append(vmem_out)
+
+    prog_lines.append(_halt())
+    output_lines = [_output_vmem(a) for a in out_addrs] + [_end()]
+
+    return _bundle(*(data_lines + prog_lines + output_lines)), out_addrs
+
+
+def _render_relu_bundle(uops, params, bufs):
+    """Render a ReLU (max(x, 0)) kernel as VPU RELU ops."""
+    out_arg = 0
+    src_arg = next(k for k in params if k != out_arg)
+    src_i32 = np.frombuffer(bytes(bufs[src_arg]), dtype="<i4")
+    num_elems = params[out_arg].dtype.size
+
+    data_lines = []
+    prog_lines = []
+    out_addrs = []
+
+    for chunk_start in range(0, num_elems, _TILE_ELEMS):
+        chunk_end = min(chunk_start + _TILE_ELEMS, num_elems)
+        chunk_size = chunk_end - chunk_start
+        tile = np.zeros(_TILE_ELEMS, dtype=np.int32)
+        tile[:chunk_size] = src_i32[chunk_start:chunk_end]
+
+        tile_idx = chunk_start // _TILE_ELEMS
+        vmem_src = tile_idx * 2
+        vmem_out = tile_idx * 2 + 1
+
+        data_lines.append(_vmem(vmem_src, [int(x) for x in tile]))
+        prog_lines.append(_load(0, vmem_src))
+        prog_lines.append(_vpu(1, 0, 2))  # VPU_RELU = opcode 2
+        prog_lines.append(_store(vmem_out, 1))
+        out_addrs.append(vmem_out)
+
+    prog_lines.append(_halt())
+    output_lines = [_output_vmem(a) for a in out_addrs] + [_end()]
+
+    return _bundle(*(data_lines + prog_lines + output_lines)), out_addrs
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +398,61 @@ def test_walker():
 
         expected = np.maximum(a_np @ w_np + b_np, 0)
         check(desc, result, expected)
+
+    # Test elementwise ops via walker
+    print("\n--- Elementwise via UOp walker ---")
+    for desc, op_fn, np_fn in [
+        ("4-elem ADD", lambda a,b: a+b, lambda a,b: a+b),
+        ("4-elem MUL", lambda a,b: a*b, lambda a,b: a*b),
+        ("4-elem SUB", lambda a,b: a-b, lambda a,b: a-b),
+        ("16-elem ADD", lambda a,b: a+b, lambda a,b: a+b),
+    ]:
+        if "16" in desc:
+            a_np = np.arange(16, dtype=np.int32)
+            b_np = np.arange(16, 32, dtype=np.int32)
+        else:
+            a_np = np.array([1,2,3,4], dtype=np.int32)
+            b_np = np.array([5,6,7,8], dtype=np.int32)
+
+        x = Tensor(a_np, dtype="int32", device="TINYTPU")
+        y = Tensor(b_np, dtype="int32", device="TINYTPU")
+        sched = op_fn(x, y).schedule()
+        for s in sched:
+            if hasattr(s, 'ast') and s.ast.op != Ops.COPY:
+                p = get_program(s.ast, Device['TINYTPU'].renderer)
+                if any(u.op is Ops.WMMA for u in p.uops):
+                    continue  # skip WMMA
+                out_buf = bytearray(len(a_np) * 4)
+                lhs_buf = bytearray(a_np.astype("<i4").tobytes())
+                rhs_buf = bytearray(b_np.astype("<i4").tobytes())
+                try:
+                    bundle, out_addrs = render_bundle(p.uops, (out_buf, lhs_buf, rhs_buf))
+                    stdout = _run_bundle(sim, bundle)
+                    vmem_results = _parse_multi_vmem_output(stdout)
+                    result = np.concatenate([np.array(t[:min(_TILE_ELEMS, len(a_np) - i*_TILE_ELEMS)], dtype=np.int32)
+                                            for i, t in enumerate(vmem_results)])
+                    expected = np_fn(a_np, b_np)
+                    check(desc, result, expected)
+                except NotImplementedError as e:
+                    print(f"  SKIP {desc}: {e}")
+
+    # Test ReLU
+    a_relu = np.array([1, -2, 3, -4], dtype=np.int32)
+    x_relu = Tensor(a_relu, dtype="int32", device="TINYTPU")
+    sched_r = x_relu.relu().schedule()
+    for s in sched_r:
+        if hasattr(s, 'ast') and s.ast.op != Ops.COPY:
+            p = get_program(s.ast, Device['TINYTPU'].renderer)
+            if not any(u.op is Ops.WMMA for u in p.uops):
+                out_buf = bytearray(4 * 4)
+                src_buf = bytearray(a_relu.astype("<i4").tobytes())
+                try:
+                    bundle, out_addrs = render_bundle(p.uops, (out_buf, src_buf))
+                    stdout = _run_bundle(sim, bundle)
+                    result = np.array(_parse_vmem_output(stdout)[:4], dtype=np.int32)
+                    check("4-elem RELU", result, np.maximum(a_relu, 0))
+                except NotImplementedError as e:
+                    print(f"  SKIP RELU: {e}")
 
     print(f"\n{passed} passed, {failed} failed")
     return failed == 0
