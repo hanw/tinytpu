@@ -759,6 +759,47 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_random_where_3x4_matches_reference(self):
+    rng = np.random.default_rng(11)
+    cond = rng.integers(0, 2, size=(3, 4), dtype=np.bool_)
+    lhs  = rng.integers(-50, 50, size=(3, 4), dtype=np.int32)
+    rhs  = rng.integers(-50, 50, size=(3, 4), dtype=np.int32)
+    result = Tensor(cond, device="TINYTPU").where(
+      Tensor(lhs, dtype="int32", device="TINYTPU"),
+      Tensor(rhs, dtype="int32", device="TINYTPU"),
+    ).numpy()
+    np.testing.assert_array_equal(result, np.where(cond, lhs, rhs))
+
+  def test_random_abs_4x4_matches_reference(self):
+    rng = np.random.default_rng(22)
+    data = rng.integers(-200, 200, size=(4, 4), dtype=np.int32)
+    result = Tensor(data, device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.abs(data))
+
+  def test_random_clip_3x8_matches_reference(self):
+    rng = np.random.default_rng(33)
+    data = rng.integers(-20, 20, size=(3, 8), dtype=np.int32)
+    result = Tensor(data, device="TINYTPU").clip(-5, 10).numpy()
+    np.testing.assert_array_equal(result, np.clip(data, -5, 10))
+
+  def test_random_rowsum_4x8_matches_reference(self):
+    rng = np.random.default_rng(44)
+    data = rng.integers(-100, 100, size=(4, 8), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=1))
+
+  def test_random_colmin_4x4_matches_reference(self):
+    rng = np.random.default_rng(55)
+    data = rng.integers(-100, 100, size=(4, 4), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=0))
+
+  def test_random_neg_3x8_matches_reference(self):
+    rng = np.random.default_rng(66)
+    data = rng.integers(-1000, 1000, size=(3, 8), dtype=np.int32)
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
   def test_realize_breaks_fusion_for_chained_ops(self):
     """Without .realize(), tinygrad fuses relu+add into one kernel our backend
     may not recognize. With .realize() the ops execute separately."""
