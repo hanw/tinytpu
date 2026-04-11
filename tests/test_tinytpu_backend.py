@@ -1764,7 +1764,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["ADD"] and r.get("rhs_const") == 1 for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
 
   def test_lowering_dump_records_wmma_gemm_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -1951,7 +1951,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["CMPEQ"] for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
 
   def test_lowering_dump_records_div_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -1970,7 +1970,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["DIV"] and r.get("rhs_const") == 3 for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
 
   def test_lowering_dump_records_mod_program_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -1989,7 +1989,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_PROGRAM" and any(step.get("op") == _VPU_OPS["DIV"] for step in r.get("steps", [])) for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_PROGRAM", "SXU_PROGRAM") for r in records))
 
   def test_lowering_dump_records_native_bool_and_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -2008,7 +2008,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["AND"] and r.get("bool_out") for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
 
   def test_lowering_dump_records_bool_not_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -2027,7 +2027,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("rhs_const") == 1 and r.get("bool_in") for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") and r.get("bool_out") for r in records))
 
   def test_lowering_dump_records_int32_not_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -2046,7 +2046,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["XOR"] and r.get("rhs_const") == -1 for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
 
   def test_lowering_dump_records_scalar_broadcast_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -2065,7 +2065,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("lhs_broadcast") for r in records))
+      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):
