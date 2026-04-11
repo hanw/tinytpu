@@ -5,7 +5,7 @@ import FloatingPoint :: *;
 
 typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE, VPU_DIV, VPU_AND, VPU_OR, VPU_XOR,
                VPU_FADD, VPU_FMUL, VPU_FSUB, VPU_FMAX, VPU_FCMPLT, VPU_FRECIP, VPU_I2F, VPU_F2I,
-               VPU_NOT }
+               VPU_NOT, VPU_SELECT, VPU_COPY }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -262,6 +262,16 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_NOT: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = unpack(~pack(src1[s][l]));
+            end
+            VPU_SELECT: begin
+               // SELECT(cond=src1, true_val=src2, false_val=resultReg)
+               // result[l] = (src1[l] != 0) ? src2[l] : resultReg[s][l]
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = (src1[s][l] != 0) ? src2[s][l] : resultReg[s][l];
+            end
+            VPU_COPY: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = src1[s][l];
             end
          endcase
          res[s] = row;

@@ -472,7 +472,62 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 40);
+   // Test 21: VPU_COPY
+   // copy [10, 20, 30, 40] = [10, 20, 30, 40]
+   rule dispatch_copy (cycle == 40);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 10; s1[0][1] = 20; s1[0][2] = 30; s1[0][3] = 40;
+      vpu.execute(VPU_COPY, s1, s2);
+      $display("Cycle %0d: dispatched VPU_COPY", cycle);
+   endrule
+
+   rule check_copy (cycle == 41);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 10 && res[0][1] == 20 && res[0][2] == 30 && res[0][3] == 40);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_COPY", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_COPY got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 22: VPU_SELECT
+   // cond=[1,0,1,0], true=[10,20,30,40], false=resultReg (from COPY above = [10,20,30,40])
+   // First set resultReg to false values via COPY, then SELECT
+   rule dispatch_select_setup (cycle == 42);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 100; s1[0][1] = 200; s1[0][2] = 300; s1[0][3] = 400;
+      vpu.execute(VPU_COPY, s1, s2);  // set resultReg = [100,200,300,400] (false values)
+      $display("Cycle %0d: dispatched VPU_COPY (SELECT setup)", cycle);
+   endrule
+
+   rule dispatch_select (cycle == 43);
+      Vector#(4, Vector#(4, Int#(32))) cond = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) true_val = replicate(replicate(0));
+      cond[0][0] = 1; cond[0][1] = 0; cond[0][2] = 1; cond[0][3] = 0;
+      true_val[0][0] = 10; true_val[0][1] = 20; true_val[0][2] = 30; true_val[0][3] = 40;
+      vpu.execute(VPU_SELECT, cond, true_val);
+      $display("Cycle %0d: dispatched VPU_SELECT", cycle);
+   endrule
+
+   rule check_select (cycle == 44);
+      let res = vpu.result;
+      // cond[0]=1 → true[0]=10, cond[1]=0 → false[1]=200, cond[2]=1 → true[2]=30, cond[3]=0 → false[3]=400
+      Bool ok = (res[0][0] == 10 && res[0][1] == 200 && res[0][2] == 30 && res[0][3] == 400);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_SELECT", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_SELECT got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 46);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
