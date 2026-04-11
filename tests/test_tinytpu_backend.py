@@ -1831,6 +1831,33 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np @ w_np)
 
+  def test_multi_wmma_4x4_at_4x8_bias_matches_numpy(self):
+    a_np = np.arange(16, dtype=np.int32).reshape(4, 4)
+    w_np = np.arange(32, dtype=np.int32).reshape(4, 8)
+    b_np = np.array([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @
+              Tensor(w_np, dtype="int32", device="TINYTPU") +
+              Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np + b_np)
+
+  def test_multi_wmma_8x4_at_4x4_bias_matches_numpy(self):
+    a_np = np.arange(32, dtype=np.int32).reshape(8, 4)
+    w_np = np.arange(16, dtype=np.int32).reshape(4, 4)
+    b_np = np.array([10, 20, 30, 40], dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @
+              Tensor(w_np, dtype="int32", device="TINYTPU") +
+              Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np + b_np)
+
+  def test_multi_wmma_8x8_at_8x8_bias_matches_numpy(self):
+    a_np = np.arange(64, dtype=np.int32).reshape(8, 8)
+    w_np = np.arange(64, dtype=np.int32).reshape(8, 8)
+    b_np = np.array([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @
+              Tensor(w_np, dtype="int32", device="TINYTPU") +
+              Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np + b_np)
+
   def test_lowering_dump_records_multi_wmma_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
       dump = Path(td) / "lowering.jsonl"
