@@ -81,7 +81,7 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
   - [x] `x != scalar`
 - [x] Scalar broadcasting
   - [x] Add explicit SXU/XLU broadcast opcodes (scalar/row/col)
-  - [x] Migrate scalar broadcast binary ops to SXU_PROGRAM (via VMEM-level broadcast)
+  - [x] Migrate scalar broadcast binary ops to SXU_PROGRAM via `BROADCAST_SCALAR`
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
@@ -269,7 +269,7 @@ Estimate: **~50 total iterations**
 - [x] Single-tile binary VPU ops
 - [x] Single-tile ReLU
 - [x] One simple reduction
-- [ ] Constants and scalar broadcasting
+- [x] Constants and scalar broadcasting
 - [x] `WHERE` and comparisons
 - [ ] Basic reshape/transpose within one 4x4 tile
 - [x] VPU-only runtime completion cleanup

@@ -2131,7 +2131,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
+      self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("primitive") == "BROADCAST_SCALAR" and any(instr.startswith("2 9 ") for instr in r.get("instructions", [])) for r in records), records)
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):
