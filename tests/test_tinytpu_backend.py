@@ -1813,6 +1813,47 @@ class TestTinyTPUBackend(unittest.TestCase):
                           r.get("epilogue") == [{"op": "ADD", "arg": 3, "mode": "ROW_BROADCAST"}, {"op": "RELU"}]
                           for r in records))
 
+  def test_multi_wmma_4x4_at_4x8_matches_numpy(self):
+    a_np = np.arange(16, dtype=np.int32).reshape(4, 4)
+    w_np = np.arange(32, dtype=np.int32).reshape(4, 8)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np)
+
+  def test_multi_wmma_8x4_at_4x4_matches_numpy(self):
+    a_np = np.arange(32, dtype=np.int32).reshape(8, 4)
+    w_np = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np)
+
+  def test_multi_wmma_8x8_at_8x8_matches_numpy(self):
+    a_np = np.arange(64, dtype=np.int32).reshape(8, 8)
+    w_np = np.arange(64, dtype=np.int32).reshape(8, 8)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np)
+
+  def test_lowering_dump_records_multi_wmma_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          import numpy as np
+          from tinygrad import Tensor
+          a = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          b = Tensor(np.arange(32, dtype=np.int32).reshape(4, 8), dtype="int32", device="TINYTPU")
+          print((a @ b).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" and
+                          r.get("num_weight_tiles") == 2 for r in records))
+
   def test_lowering_dump_records_equality_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
       dump = Path(td) / "lowering.jsonl"
