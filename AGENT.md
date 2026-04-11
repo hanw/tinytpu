@@ -90,6 +90,24 @@ Expected output for each investigated workload:
 - If a tinygrad-side workaround can express the behavior cleanly with the current ISA, do that before inventing new hardware.
 - If hardware is required, make the missing contract explicit in code and tests.
 
+## UOp-to-SXU Compilation Strategy
+
+The target architecture for `ops_tinytpu.py` is a **UOp-walking renderer** that
+emits SXU instructions directly from the tinygrad UOp graph — one SXU/VPU
+instruction per UOp, like how CStyleLanguage emits one line of C per UOp.
+
+When a UOp has no corresponding SXU/VPU instruction, **enrich the SXU
+instruction set** to close the gap rather than adding pattern-matching
+workarounds in software. The ISA should be shaped by what tinygrad emits.
+Examples:
+- UOp `CONST` → may need an `SXU_LOAD_IMM` instruction to load a constant into a vreg lane
+- UOp `INDEX` → may need address arithmetic in the SXU
+- UOp `RANGE/END` → may need loop support in the SXU
+
+Propose ISA additions in `TODO.md` and get user approval before implementing
+(per the microarchitecture rule below). The goal is a 1:1 UOp→instruction
+mapping that eliminates the `analyze_tinytpu_uops` pattern-matching layer.
+
 ## Unsupported Feature Triage
 
 When a workload hits an unsupported op, dtype, or shape:
