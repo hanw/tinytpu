@@ -734,6 +734,39 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a + b)
 
+  def test_broadcast_add_1_to_4x4_matches_reference(self):
+    data = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = (Tensor([5], dtype="int32", device="TINYTPU") + Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, 5 + data)
+
+  def test_broadcast_mul_3x4_by_scalar_matches_reference(self):
+    data = np.arange(12, dtype=np.int32).reshape(3, 4)
+    result = (Tensor(data, device="TINYTPU") * Tensor([3], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, data * 3)
+
+  def test_broadcast_sub_scalar_from_4x4_matches_reference(self):
+    data = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = (Tensor([10], dtype="int32", device="TINYTPU") - Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, 10 - data)
+
+  def test_mul_2d_4x4_tensor_tensor_matches_reference(self):
+    a = np.arange(16, dtype=np.int32).reshape(4, 4)
+    b = (np.arange(16, dtype=np.int32) + 1).reshape(4, 4)
+    result = (Tensor(a, device="TINYTPU") * Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a * b)
+
+  def test_sub_2d_8x4_tensor_tensor_matches_reference(self):
+    a = np.arange(32, dtype=np.int32).reshape(8, 4)
+    b = (np.arange(32, dtype=np.int32) + 1).reshape(8, 4)
+    result = (Tensor(a, device="TINYTPU") - Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a - b)
+
+  def test_add_2d_4x8_tensor_tensor_matches_reference(self):
+    a = np.arange(32, dtype=np.int32).reshape(4, 8)
+    b = np.ones((4, 8), dtype=np.int32)
+    result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a + b)
+
   def test_mul_neg_scalar_2d_4x4_matches_reference(self):
     data = np.arange(16, dtype=np.int32).reshape(4, 4)
     result = (Tensor(data, device="TINYTPU") * (-2)).numpy()
