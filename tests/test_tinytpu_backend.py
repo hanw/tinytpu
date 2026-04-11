@@ -597,6 +597,43 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor([-10, -9, 9, 10], dtype="int32", device="TINYTPU") % 3).numpy()
     np.testing.assert_array_equal(result, np.array([-1, 0, 0, 1], dtype=np.int32))
 
+  def test_idiv_full_tile_matches_reference(self):
+    data = list(range(3, 19))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") // 3).numpy()
+    np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) // 3)
+
+  def test_idiv_multi_tile_matches_reference(self):
+    data = list(range(3, 35))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") // 3).numpy()
+    np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) // 3)
+
+  def test_idiv_negative_multi_tile_matches_reference(self):
+    # TinyTPU VPU_DIV truncates toward zero (C-style), not floor (Python-style).
+    # Build expected values using truncation so the test matches hardware semantics.
+    import math
+    data = list(range(-16, 16))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") // 3).numpy()
+    expected = np.array([math.trunc(x / 3) for x in data], dtype=np.int32)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_mod_full_tile_matches_reference(self):
+    data = list(range(3, 19))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") % 7).numpy()
+    np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) % 7)
+
+  def test_mod_multi_tile_matches_reference(self):
+    data = list(range(3, 35))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") % 7).numpy()
+    np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) % 7)
+
+  def test_mod_negative_multi_tile_matches_reference(self):
+    # TinyTPU MOD uses truncation-based remainder: a % b = a - b*(trunc(a/b)).
+    import math
+    data = list(range(-16, 16))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") % 3).numpy()
+    expected = np.array([x - 3 * math.trunc(x / 3) for x in data], dtype=np.int32)
+    np.testing.assert_array_equal(result, expected)
+
   def test_abs_matches_reference(self):
     result = Tensor([-1, 2, -3, 4], dtype="int32", device="TINYTPU").abs().numpy()
     np.testing.assert_array_equal(result, np.array([1, 2, 3, 4], dtype=np.int32))
