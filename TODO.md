@@ -80,6 +80,8 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
   - [x] `x < scalar`
   - [x] `x != scalar`
 - [ ] Scalar broadcasting
+  - [ ] Add VPU_BROADCAST BSV instruction (broadcast lane 0 to all lanes+sublanes)
+  - [ ] Migrate scalar broadcast binary ops to SXU_PROGRAM
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
