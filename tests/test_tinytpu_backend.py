@@ -759,6 +759,38 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_where_all_true_matches_reference(self):
+    cond = np.ones(16, dtype=np.bool_)
+    lhs = np.arange(16, dtype=np.int32)
+    rhs = -np.arange(16, dtype=np.int32)
+    result = Tensor(cond, device="TINYTPU").where(
+      Tensor(lhs, dtype="int32", device="TINYTPU"),
+      Tensor(rhs, dtype="int32", device="TINYTPU"),
+    ).numpy()
+    np.testing.assert_array_equal(result, lhs)
+
+  def test_where_all_false_matches_reference(self):
+    cond = np.zeros(16, dtype=np.bool_)
+    lhs = np.arange(16, dtype=np.int32)
+    rhs = -np.arange(16, dtype=np.int32)
+    result = Tensor(cond, device="TINYTPU").where(
+      Tensor(lhs, dtype="int32", device="TINYTPU"),
+      Tensor(rhs, dtype="int32", device="TINYTPU"),
+    ).numpy()
+    np.testing.assert_array_equal(result, rhs)
+
+  def test_gemm_negative_values_matches_reference(self):
+    a = np.array([[-1, -2, -3, -4]], dtype=np.int32)
+    w = np.eye(4, dtype=np.int32) * (-1)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") @ Tensor(w, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a @ w)
+
+  def test_gemm_zero_weight_matches_reference(self):
+    a = np.array([[1, 2, 3, 4]], dtype=np.int32)
+    w = np.zeros((4, 4), dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") @ Tensor(w, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.zeros((1, 4), dtype=np.int32))
+
   def test_zeros_4x4_add_matches_reference(self):
     z = np.zeros((4, 4), dtype=np.int32)
     result = (Tensor(z, device="TINYTPU") + Tensor(z, device="TINYTPU")).numpy()
