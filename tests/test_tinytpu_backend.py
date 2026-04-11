@@ -807,6 +807,31 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1))
 
+  def test_colsum_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=0))
+
+  def test_colmax_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=0))
+
+  def test_colmin_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=0))
+
+  def test_colsum_8x4_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(8, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=0))
+
+  def test_colsum_4x8_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=0))
+
   def test_rowsum_8x4_matches_reference(self):
     """Row-wise sum for 8 rows (two 4-row hardware tiles)."""
     data = (np.arange(32, dtype=np.int32) - 16).reshape(8, 4)
