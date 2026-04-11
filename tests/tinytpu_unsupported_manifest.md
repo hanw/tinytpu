@@ -42,5 +42,10 @@ instead of rediscovered during each iteration batch.
 
 - VPU lowering handles multiple VMEM tiles by chunking and supports
   multi-instruction TinyTPU programs.
+- Multi-WMMA GEMM lowering through the tinygrad TC/WMMA path is supported
+  for all tiled shapes.
+- GEMM epilogues (bias add, ReLU, fused bias+ReLU) run in BSV hardware
+  via SXU_LOAD_MXU_RESULT → VPU for single-K-tile shapes; multi-K-tile
+  cases fall back to numpy epilogue.
 - General movement kernels and arbitrary mixed MXU+VPU programs are still not
   supported.

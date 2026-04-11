@@ -148,14 +148,17 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] Batched GEMM
 - [x] Deep-K tiled GEMM
 - [x] Wide-N tiled GEMM
+- [x] Multi-WMMA lowering (multi-tile GEMM through WMMA path)
+- [x] Bias epilogue (row-broadcast and full-tensor, hardware-backed for single-K-tile)
+- [x] ReLU epilogue (hardware-backed for single-K-tile)
+- [x] Fused bias+ReLU epilogue (hardware-backed via SXU_LOAD_MXU_RESULT → VPU)
 - [ ] M/N/K tail handling
 - [ ] Better unsupported shape diagnostics
-- [ ] Bias epilogue
-- [ ] ReLU epilogue
 - [ ] Add/mul epilogue
 - [ ] Non-int8 operand policy
 - [ ] Accumulation overflow tests
 - [ ] Multi-output tile scheduling cleanup
+- [ ] Hardware epilogue for multi-K-tile GEMM (currently falls back to numpy)
 
 ### Dtypes: 25-50 iterations
 
@@ -289,19 +292,24 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations (updated 2026-04-11)
+## Recommended Next Iterations (updated 2026-04-10)
 
-Current state: 399 tests, 50 iterations completed in this batch.
+Current state: 340 tests, multi-WMMA + hardware epilogue batch completed.
+
+Completed in this batch:
+1. ~~GEMM + bias add epilogue~~ — done, hardware-backed
+2. ~~GEMM + ReLU epilogue~~ — done, hardware-backed
+3. ~~Multi-WMMA lowering~~ — done, all tiled GEMM shapes go through WMMA path
+4. SXU_LOAD_MXU_RESULT instruction — new BSV hardware for MXU→VRF transfer
 
 Highest-value next work:
-1. GEMM + bias add epilogue (detect 4-param fused kernel: act @ weight + bias)
-2. GEMM + ReLU epilogue (detect 3-param GEMM with ReLU fused)
-3. Fused kernel detection improvements (tinygrad fuses many 2-op chains)
-4. Column-wise SUM via VPU (use XLU TRANSPOSE + VPU_SUM_REDUCE instead of host numpy)
-5. Movement ops: RESHAPE as no-copy, PERMUTE via XLU
-6. XLU transpose hardware backing for col-wise reductions
-7. Broader tinygrad upstream test coverage
-8. Multi-output kernel support
+1. Hardware epilogue for multi-K-tile GEMM (currently numpy fallback)
+2. Column-wise SUM via VPU (use XLU TRANSPOSE + VPU_SUM_REDUCE instead of host numpy)
+3. Movement ops: RESHAPE as no-copy, PERMUTE via XLU
+4. XLU transpose hardware backing for col-wise reductions
+5. Broader tinygrad upstream test coverage
+6. Multi-output kernel support
+7. Fused kernel detection improvements (tinygrad fuses many 2-op chains)
 
 ## Old Recommended Next Iterations
 
