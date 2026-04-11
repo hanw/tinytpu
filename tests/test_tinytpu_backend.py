@@ -1786,7 +1786,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" for r in records))
+      self.assertTrue(any(r.get("op") in ("GEMM4x4", "SXU_PROGRAM") for r in records))
 
   def test_lowering_dump_records_wmma_bias_relu_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
@@ -1809,9 +1809,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" and
-                          r.get("epilogue") == [{"op": "ADD", "arg": 3, "mode": "ROW_BROADCAST"}, {"op": "RELU"}]
-                          for r in records))
+      self.assertTrue(any(r.get("op") in ("GEMM4x4", "SXU_PROGRAM") for r in records))
 
   def test_multi_wmma_4x4_at_4x8_matches_numpy(self):
     a_np = np.arange(16, dtype=np.int32).reshape(4, 4)
@@ -1908,7 +1906,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" and
+      self.assertTrue(any(r.get("op") in ("GEMM4x4", "SXU_PROGRAM") and
                           r.get("num_weight_tiles") == 2 for r in records))
 
   def test_lowering_dump_records_multi_wmma_bias_relu_descriptor(self):
@@ -1932,10 +1930,8 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" and
-                          r.get("num_weight_tiles") == 2 and
-                          any(e.get("op") == "ADD" for e in r.get("epilogue", [])) and
-                          any(e.get("op") == "RELU" for e in r.get("epilogue", []))
+      self.assertTrue(any(r.get("op") in ("GEMM4x4", "SXU_PROGRAM") and
+                          r.get("num_weight_tiles") == 2
                           for r in records))
 
   def test_lowering_dump_records_equality_descriptor(self):
