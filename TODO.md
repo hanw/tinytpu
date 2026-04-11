@@ -97,11 +97,11 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] `NOT`
 - [x] `SHL`
 - [x] `SHR`
-- [ ] `MOD`
-- [ ] `IDIV`
+- [x] `MOD` (via DIV+MUL+SUB bundle)
+- [x] `IDIV` (via VPU_DIV, truncation semantics)
 - [ ] `RECIP`
 - [ ] `TRUNC`
-- [ ] Basic `CAST`
+- [x] Basic `CAST` (int32↔bool)
 - [ ] Basic `BITCAST`
 - [ ] Basic `COPY`
 
