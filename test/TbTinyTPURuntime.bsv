@@ -14,6 +14,12 @@
 //         vregSrc  = cond
 //         vregSrc2 = lhs/true value
 //         mxuWBase = rhs/false value register index
+//       For SXU_BROADCAST_SCALAR:
+//         vregSrc  = source tile register
+//         vregSrc2 packs row/col selector (row in upper bits, col in lower)
+//       For SXU_BROADCAST_ROW / SXU_BROADCAST_COL:
+//         vregSrc  = source tile register
+//         vregSrc2 = selected row / column index
 //   3 flag
 //       OUTPUT_MXU: 1 = emit getMxuResult line after HALT
 //   4

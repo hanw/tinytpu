@@ -38,6 +38,9 @@ _SXU = {
     "LOAD_MXU_RESULT":        6,
     "HALT":                   7,
     "DISPATCH_SELECT":        8,
+    "BROADCAST_SCALAR":       9,
+    "BROADCAST_ROW":          10,
+    "BROADCAST_COL":          11,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -256,6 +259,44 @@ def assemble(text: str) -> str:
                                   vregDst=vd, vregSrc=vcond,
                                   vregSrc2=vtrue, mxuWBase=vfalse))
 
+            elif kw == "BROADCAST_SCALAR":
+                rest = line[len("BROADCAST_SCALAR"):].strip()
+                m = re.fullmatch(r"(v\d+)\s*=\s*(v\d+)\[(\d+),\s*(\d+)\]", rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "BROADCAST_SCALAR syntax: BROADCAST_SCALAR vD = vS[row,col]")
+                vd = _parse_vreg(m.group(1))
+                vs = _parse_vreg(m.group(2))
+                row = int(m.group(3))
+                col = int(m.group(4))
+                sel = (row << 2) | col
+                out.append(_instr(_SXU["BROADCAST_SCALAR"],
+                                  vregDst=vd, vregSrc=vs, vregSrc2=sel))
+
+            elif kw == "BROADCAST_ROW":
+                rest = line[len("BROADCAST_ROW"):].strip()
+                m = re.fullmatch(r"(v\d+)\s*=\s*ROW\((v\d+),\s*row=(\d+)\)", rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "BROADCAST_ROW syntax: BROADCAST_ROW vD = ROW(vS, row=N)")
+                vd = _parse_vreg(m.group(1))
+                vs = _parse_vreg(m.group(2))
+                row = int(m.group(3))
+                out.append(_instr(_SXU["BROADCAST_ROW"],
+                                  vregDst=vd, vregSrc=vs, vregSrc2=row))
+
+            elif kw == "BROADCAST_COL":
+                rest = line[len("BROADCAST_COL"):].strip()
+                m = re.fullmatch(r"(v\d+)\s*=\s*COL\((v\d+),\s*col=(\d+)\)", rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "BROADCAST_COL syntax: BROADCAST_COL vD = COL(vS, col=N)")
+                vd = _parse_vreg(m.group(1))
+                vs = _parse_vreg(m.group(2))
+                col = int(m.group(3))
+                out.append(_instr(_SXU["BROADCAST_COL"],
+                                  vregDst=vd, vregSrc=vs, vregSrc2=col))
+
             elif kw == "MXU":
                 # MXU WMEM[W], AMEM[A], tiles=N
                 rest = line[len("MXU"):].strip()
@@ -388,6 +429,17 @@ def disassemble(wire: str) -> str:
                 elif opc == _SXU["DISPATCH_SELECT"]:
                     out.append(
                         f"SELECT v{vregDst} = SELECT(v{vregSrc}, v{vregSrc2}, v{mxuWBase})")
+
+                elif opc == _SXU["BROADCAST_SCALAR"]:
+                    row = (vregSrc2 >> 2) & 0x3
+                    col = vregSrc2 & 0x3
+                    out.append(f"BROADCAST_SCALAR v{vregDst} = v{vregSrc}[{row},{col}]")
+
+                elif opc == _SXU["BROADCAST_ROW"]:
+                    out.append(f"BROADCAST_ROW v{vregDst} = ROW(v{vregSrc}, row={vregSrc2})")
+
+                elif opc == _SXU["BROADCAST_COL"]:
+                    out.append(f"BROADCAST_COL v{vregDst} = COL(v{vregSrc}, col={vregSrc2})")
 
                 elif opc == _SXU["DISPATCH_MXU"]:
                     out.append(

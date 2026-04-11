@@ -112,6 +112,21 @@ def test_select():
     assert wire[0] == "2 8 0 4 0 0 1 2 0 0"
 
 
+def test_broadcast_scalar():
+    wire = wire_lines(assemble("BROADCAST_SCALAR v4 = v1[2,3]\nHALT\nEND\n"))
+    assert wire[0] == "2 9 0 4 1 0 11 0 0 0"
+
+
+def test_broadcast_row():
+    wire = wire_lines(assemble("BROADCAST_ROW v3 = ROW(v1, row=2)\nHALT\nEND\n"))
+    assert wire[0] == "2 10 0 3 1 0 2 0 0 0"
+
+
+def test_broadcast_col():
+    wire = wire_lines(assemble("BROADCAST_COL v5 = COL(v2, col=1)\nHALT\nEND\n"))
+    assert wire[0] == "2 11 0 5 2 0 1 0 0 0"
+
+
 def test_mxu():
     wire = wire_lines(assemble("MXU WMEM[0], AMEM[1], tiles=2\nHALT\nEND\n"))
     # DISPATCH_MXU opc=4, mxuWBase=0, mxuABase=1, mxuTLen=2
@@ -213,6 +228,21 @@ def test_disassemble_broadcast_with_lane():
 def test_disassemble_select():
     tasm = disassemble("2 8 0 4 0 0 1 2 0 0\n4\n")
     assert "SELECT v4 = SELECT(v0, v1, v2)" in tasm
+
+
+def test_disassemble_broadcast_scalar():
+    tasm = disassemble("2 9 0 4 1 0 11 0 0 0\n4\n")
+    assert "BROADCAST_SCALAR v4 = v1[2,3]" in tasm
+
+
+def test_disassemble_broadcast_row():
+    tasm = disassemble("2 10 0 3 1 0 2 0 0 0\n4\n")
+    assert "BROADCAST_ROW v3 = ROW(v1, row=2)" in tasm
+
+
+def test_disassemble_broadcast_col():
+    tasm = disassemble("2 11 0 5 2 0 1 0 0 0\n4\n")
+    assert "BROADCAST_COL v5 = COL(v2, col=1)" in tasm
 
 
 def test_disassemble_mxu():

@@ -17,7 +17,10 @@ typedef enum {
    SXU_WAIT_MXU,
    SXU_LOAD_MXU_RESULT,
    SXU_HALT,
-   SXU_DISPATCH_SELECT
+   SXU_DISPATCH_SELECT,
+   SXU_BROADCAST_SCALAR,
+   SXU_BROADCAST_ROW,
+   SXU_BROADCAST_COL
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -45,6 +48,8 @@ endinterface
 typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_STORE, SXU_EXEC_VPU, SXU_EXEC_VPU_COLLECT,
                SXU_EXEC_XLU_BROADCAST, SXU_EXEC_XLU_COLLECT,
+               SXU_EXEC_XLU_BROADCAST_SCALAR, SXU_EXEC_XLU_BROADCAST_ROW,
+               SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
                SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
@@ -98,6 +103,9 @@ module mkScalarUnit#(
          SXU_DISPATCH_VPU: pc_state <= SXU_EXEC_VPU;
          SXU_DISPATCH_XLU_BROADCAST: pc_state <= SXU_EXEC_XLU_BROADCAST;
          SXU_DISPATCH_SELECT: pc_state <= SXU_EXEC_SELECT_COPY;
+         SXU_BROADCAST_SCALAR: pc_state <= SXU_EXEC_XLU_BROADCAST_SCALAR;
+         SXU_BROADCAST_ROW: pc_state <= SXU_EXEC_XLU_BROADCAST_ROW;
+         SXU_BROADCAST_COL: pc_state <= SXU_EXEC_XLU_BROADCAST_COL;
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
@@ -175,6 +183,38 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=XLU ev=BROADCAST src_lane=%0d", cycle, srcLane);
 `endif
       xlu.executeBroadcast(src, srcLane);
+      pc_state <= SXU_EXEC_XLU_COLLECT;
+   endrule
+
+   rule do_xlu_broadcast_scalar (pc_state == SXU_EXEC_XLU_BROADCAST_SCALAR);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      UInt#(4) sel = curInstr.vregSrc2;
+      UInt#(TLog#(sublanes)) srcRow = truncate(sel >> valueOf(TLog#(lanes)));
+      UInt#(TLog#(lanes)) srcCol = truncate(sel);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=BROADCAST_SCALAR pc=%0d src=v%0d row=%0d col=%0d", cycle, pc, curInstr.vregSrc, srcRow, srcCol);
+`endif
+      xlu.executeBroadcastScalar(src, srcRow, srcCol);
+      pc_state <= SXU_EXEC_XLU_COLLECT;
+   endrule
+
+   rule do_xlu_broadcast_row (pc_state == SXU_EXEC_XLU_BROADCAST_ROW);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      UInt#(TLog#(sublanes)) srcRow = truncate(curInstr.vregSrc2);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=BROADCAST_ROW pc=%0d src=v%0d row=%0d", cycle, pc, curInstr.vregSrc, srcRow);
+`endif
+      xlu.executeBroadcastRow(src, srcRow);
+      pc_state <= SXU_EXEC_XLU_COLLECT;
+   endrule
+
+   rule do_xlu_broadcast_col (pc_state == SXU_EXEC_XLU_BROADCAST_COL);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      UInt#(TLog#(lanes)) srcCol = truncate(curInstr.vregSrc2);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=BROADCAST_COL pc=%0d src=v%0d col=%0d", cycle, pc, curInstr.vregSrc, srcCol);
+`endif
+      xlu.executeBroadcastCol(src, srcCol);
       pc_state <= SXU_EXEC_XLU_COLLECT;
    endrule
 

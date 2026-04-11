@@ -80,7 +80,7 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
   - [x] `x < scalar`
   - [x] `x != scalar`
 - [x] Scalar broadcasting
-  - [ ] Add VPU_BROADCAST BSV instruction (broadcast lane 0 to all lanes+sublanes)
+  - [x] Add explicit SXU/XLU broadcast opcodes (scalar/row/col)
   - [x] Migrate scalar broadcast binary ops to SXU_PROGRAM (via VMEM-level broadcast)
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
@@ -140,7 +140,8 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [ ] `CAT`
 - [ ] `INDEX` with simple affine patterns
 - [ ] Gather-like indexing
-- [ ] XLU-backed broadcast/permutation paths
+- [x] XLU-backed broadcast primitives (scalar/row/col)
+- [ ] XLU-backed permutation paths
 - [ ] Multi-tile movement kernels
 
 ### GEMM and Matmul Expansion: 25-50 iterations

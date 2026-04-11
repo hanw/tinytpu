@@ -1833,7 +1833,7 @@ class TestTinyTPUBackend(unittest.TestCase):
       )
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
-      self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("num_output_tiles") == 4 for r in records), records)
+      self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("primitive") == "BROADCAST_ROW" and any(instr.startswith("2 10 ") for instr in r.get("instructions", [])) for r in records), records)
 
   def test_lowering_dump_records_minimum_scalar_const_as_sxu_program(self):
     with tempfile.TemporaryDirectory() as td:

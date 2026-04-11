@@ -26,6 +26,25 @@ interface XLU_IFC#(numeric type sublanes, numeric type lanes);
       UInt#(TLog#(lanes)) srcLane
    );
 
+   // Scalar broadcast: output[r][c] = src[srcRow][srcCol]
+   method Action executeBroadcastScalar(
+      Vector#(sublanes, Vector#(lanes, Int#(32))) src,
+      UInt#(TLog#(sublanes)) srcRow,
+      UInt#(TLog#(lanes)) srcCol
+   );
+
+   // Row broadcast: output[r][c] = src[srcRow][c]
+   method Action executeBroadcastRow(
+      Vector#(sublanes, Vector#(lanes, Int#(32))) src,
+      UInt#(TLog#(sublanes)) srcRow
+   );
+
+   // Col broadcast: output[r][c] = src[r][srcCol]
+   method Action executeBroadcastCol(
+      Vector#(sublanes, Vector#(lanes, Int#(32))) src,
+      UInt#(TLog#(lanes)) srcCol
+   );
+
    // XOR-swap butterfly permutation.
    // ctrl[k][i] = True means lane i swaps with lane (i XOR 2^k) at stage k.
    method Action executePermute(
@@ -77,6 +96,33 @@ function Vector#(lanes, t) lane_broadcast(
 ) provisos(Log#(lanes, logLanes));
    t val = v[srcLane];
    return replicate(val);
+endfunction
+
+function Vector#(sublanes, Vector#(lanes, t)) tile_broadcast_scalar(
+   Vector#(sublanes, Vector#(lanes, t)) src,
+   UInt#(TLog#(sublanes)) srcRow,
+   UInt#(TLog#(lanes)) srcCol
+);
+   t val = src[srcRow][srcCol];
+   return replicate(replicate(val));
+endfunction
+
+function Vector#(sublanes, Vector#(lanes, t)) tile_broadcast_row(
+   Vector#(sublanes, Vector#(lanes, t)) src,
+   UInt#(TLog#(sublanes)) srcRow
+);
+   Vector#(lanes, t) row = src[srcRow];
+   return replicate(row);
+endfunction
+
+function Vector#(sublanes, Vector#(lanes, t)) tile_broadcast_col(
+   Vector#(sublanes, Vector#(lanes, t)) src,
+   UInt#(TLog#(lanes)) srcCol
+);
+   Vector#(sublanes, Vector#(lanes, t)) res = newVector;
+   for (Integer r = 0; r < valueOf(sublanes); r = r + 1)
+      res[r] = replicate(src[r][srcCol]);
+   return res;
 endfunction
 
 // XOR-swap butterfly permutation for one lane row.
@@ -149,6 +195,28 @@ module mkXLU(XLU_IFC#(sublanes, lanes))
       for (Integer s = 0; s < valueOf(sublanes); s = s + 1)
          res[s] = lane_broadcast(src[s], srcLane);
       resultReg <= res;
+   endmethod
+
+   method Action executeBroadcastScalar(
+      Vector#(sublanes, Vector#(lanes, Int#(32))) src,
+      UInt#(TLog#(sublanes)) srcRow,
+      UInt#(TLog#(lanes)) srcCol
+   );
+      resultReg <= tile_broadcast_scalar(src, srcRow, srcCol);
+   endmethod
+
+   method Action executeBroadcastRow(
+      Vector#(sublanes, Vector#(lanes, Int#(32))) src,
+      UInt#(TLog#(sublanes)) srcRow
+   );
+      resultReg <= tile_broadcast_row(src, srcRow);
+   endmethod
+
+   method Action executeBroadcastCol(
+      Vector#(sublanes, Vector#(lanes, Int#(32))) src,
+      UInt#(TLog#(lanes)) srcCol
+   );
+      resultReg <= tile_broadcast_col(src, srcCol);
    endmethod
 
    method Action executePermute(

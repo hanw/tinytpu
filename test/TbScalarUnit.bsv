@@ -25,8 +25,8 @@ module mkTbScalarUnit();
    ActivationSRAM_IFC#(16, 4) asram <- mkActivationSRAM;
    Controller_IFC#(4, 4, 16)  ctrl  <- mkController(arr, wsram, asram);
 
-   // progDepth=16: room for VPU smoke, XLU broadcast, and SELECT.
-   SXU_IFC#(16, 16, 8, 4, 4) sxu <- mkScalarUnit(vmem, vrf, vpu, xlu, ctrl);
+   // progDepth=24: room for VPU smoke, legacy broadcast, SELECT, and explicit broadcasts.
+   SXU_IFC#(24, 16, 8, 4, 4) sxu <- mkScalarUnit(vmem, vrf, vpu, xlu, ctrl);
 
    Reg#(UInt#(8)) cycle  <- mkReg(0);
    Reg#(UInt#(8)) passed <- mkReg(0);
@@ -86,75 +86,115 @@ module mkTbScalarUnit();
       $display("Cycle %0d: VMEM[7] = [5,6,7,8]", cycle);
    endrule
 
+   // VMEM[9]: full tile
+   // [ [1,2,3,4], [5,6,7,8], [9,10,11,12], [13,14,15,16] ]
+   rule preload_vmem9 (cycle == 6);
+      Vector#(4, Vector#(4, Int#(32))) tFull = replicate(replicate(0));
+      tFull[0][0]=1;  tFull[0][1]=2;  tFull[0][2]=3;  tFull[0][3]=4;
+      tFull[1][0]=5;  tFull[1][1]=6;  tFull[1][2]=7;  tFull[1][3]=8;
+      tFull[2][0]=9;  tFull[2][1]=10; tFull[2][2]=11; tFull[2][3]=12;
+      tFull[3][0]=13; tFull[3][1]=14; tFull[3][2]=15; tFull[3][3]=16;
+      vmem.write(9, tFull);
+      $display("Cycle %0d: VMEM[9] = full 4x4 tile", cycle);
+   endrule
+
    // Load program: one instruction per cycle
    // Program:
    // LOAD 0→v0, LOAD 1→v1, ADD v0 v1→v2, STORE v2→2,
    // LOAD 3→v3, XLU_BROADCAST lane1 of v3→v4, STORE v4→4,
    // LOAD 5→v5, LOAD 6→v6, LOAD 7→v7, SELECT(cond=v5,lhs=v6,rhs=v7)→v0, STORE v0→8, HALT
-   rule load_instr0 (cycle == 6);
+   rule load_instr0 (cycle == 7);
       sxu.loadInstr(0, SxuInstr { op: SXU_LOAD_VREG,    vmemAddr:0, vregDst:0, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr1 (cycle == 7);
+   rule load_instr1 (cycle == 8);
       sxu.loadInstr(1, SxuInstr { op: SXU_LOAD_VREG,    vmemAddr:1, vregDst:1, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr2 (cycle == 8);
+   rule load_instr2 (cycle == 9);
       sxu.loadInstr(2, SxuInstr { op: SXU_DISPATCH_VPU, vmemAddr:0, vregDst:2, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:1, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr3 (cycle == 9);
+   rule load_instr3 (cycle == 10);
       sxu.loadInstr(3, SxuInstr { op: SXU_STORE_VREG,   vmemAddr:2, vregDst:0, vregSrc:2, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr4 (cycle == 10);
+   rule load_instr4 (cycle == 11);
       sxu.loadInstr(4, SxuInstr { op: SXU_LOAD_VREG,    vmemAddr:3, vregDst:3, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr5 (cycle == 11);
+   rule load_instr5 (cycle == 12);
       sxu.loadInstr(5, SxuInstr { op: SXU_DISPATCH_XLU_BROADCAST, vmemAddr:0, vregDst:4, vregSrc:3, vpuOp:VPU_ADD, vregSrc2:1, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr6 (cycle == 12);
+   rule load_instr6 (cycle == 13);
       sxu.loadInstr(6, SxuInstr { op: SXU_STORE_VREG,   vmemAddr:4, vregDst:0, vregSrc:4, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr7 (cycle == 13);
+   rule load_instr7 (cycle == 14);
       sxu.loadInstr(7, SxuInstr { op: SXU_LOAD_VREG,    vmemAddr:5, vregDst:5, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr8 (cycle == 14);
+   rule load_instr8 (cycle == 15);
       sxu.loadInstr(8, SxuInstr { op: SXU_LOAD_VREG,    vmemAddr:6, vregDst:6, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr9 (cycle == 15);
+   rule load_instr9 (cycle == 16);
       sxu.loadInstr(9, SxuInstr { op: SXU_LOAD_VREG,    vmemAddr:7, vregDst:7, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr10 (cycle == 16);
+   rule load_instr10 (cycle == 17);
       sxu.loadInstr(10, SxuInstr { op: SXU_DISPATCH_SELECT, vmemAddr:0, vregDst:0, vregSrc:5, vpuOp:VPU_ADD, vregSrc2:6, mxuWBase:7, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr11 (cycle == 17);
+   rule load_instr11 (cycle == 18);
       sxu.loadInstr(11, SxuInstr { op: SXU_STORE_VREG,   vmemAddr:8, vregDst:0, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule load_instr12 (cycle == 18);
-      sxu.loadInstr(12, SxuInstr { op: SXU_HALT,         vmemAddr:0, vregDst:0, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
-      $display("Cycle %0d: program loaded (13 instrs)", cycle);
+   rule load_instr12 (cycle == 19);
+      sxu.loadInstr(12, SxuInstr { op: SXU_LOAD_VREG,    vmemAddr:9, vregDst:1, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
    endrule
 
-   rule start_sxu (cycle == 19);
-      sxu.start(13);
+   rule load_instr13 (cycle == 20);
+      sxu.loadInstr(13, SxuInstr { op: SXU_BROADCAST_SCALAR, vmemAddr:0, vregDst:2, vregSrc:1, vpuOp:VPU_ADD, vregSrc2:6, mxuWBase:0, mxuABase:0, mxuTLen:0 });
+   endrule
+
+   rule load_instr14 (cycle == 21);
+      sxu.loadInstr(14, SxuInstr { op: SXU_STORE_VREG,   vmemAddr:10, vregDst:0, vregSrc:2, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
+   endrule
+
+   rule load_instr15 (cycle == 22);
+      sxu.loadInstr(15, SxuInstr { op: SXU_BROADCAST_ROW, vmemAddr:0, vregDst:3, vregSrc:1, vpuOp:VPU_ADD, vregSrc2:2, mxuWBase:0, mxuABase:0, mxuTLen:0 });
+   endrule
+
+   rule load_instr16 (cycle == 23);
+      sxu.loadInstr(16, SxuInstr { op: SXU_STORE_VREG,   vmemAddr:11, vregDst:0, vregSrc:3, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
+   endrule
+
+   rule load_instr17 (cycle == 24);
+      sxu.loadInstr(17, SxuInstr { op: SXU_BROADCAST_COL, vmemAddr:0, vregDst:4, vregSrc:1, vpuOp:VPU_ADD, vregSrc2:1, mxuWBase:0, mxuABase:0, mxuTLen:0 });
+   endrule
+
+   rule load_instr18 (cycle == 25);
+      sxu.loadInstr(18, SxuInstr { op: SXU_STORE_VREG,   vmemAddr:12, vregDst:0, vregSrc:4, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
+   endrule
+
+   rule load_instr19 (cycle == 26);
+      sxu.loadInstr(19, SxuInstr { op: SXU_HALT,         vmemAddr:0, vregDst:0, vregSrc:0, vpuOp:VPU_ADD, vregSrc2:0, mxuWBase:0, mxuABase:0, mxuTLen:0 });
+      $display("Cycle %0d: program loaded (20 instrs)", cycle);
+   endrule
+
+   rule start_sxu (cycle == 27);
+      sxu.start(20);
       $display("Cycle %0d: SXU started", cycle);
    endrule
 
-   rule wait_sxu (cycle > 19 && !sxu.isDone);
+   rule wait_sxu (cycle > 27 && !sxu.isDone);
       $display("Cycle %0d: SXU running...", cycle);
    endrule
 
    // Issue VMEM reads once SXU halts
-   Reg#(UInt#(2)) readPhase <- mkReg(0);
+   Reg#(UInt#(3)) readPhase <- mkReg(0);
 
    rule issue_read_sum (sxu.isDone && readPhase == 0);
       vmem.readReq(2);
@@ -203,6 +243,57 @@ module mkTbScalarUnit();
       end else begin
          $display("Cycle %0d: FAIL VMEM[8] row0=[%0d,%0d,%0d,%0d]",
             cycle, t[0][0], t[0][1], t[0][2], t[0][3]);
+         failed <= failed + 1;
+      end
+      vmem.readReq(10);
+      $display("Cycle %0d: issued readReq VMEM[10]", cycle);
+      readPhase <= 4;
+   endrule
+
+   rule check_vmem10 (readPhase == 4);
+      let t = vmem.readResp;
+      Bool ok = (t[0][0] == 7 && t[0][1] == 7 && t[0][2] == 7 && t[0][3] == 7 &&
+                 t[3][0] == 7 && t[3][1] == 7 && t[3][2] == 7 && t[3][3] == 7);
+      if (ok) begin
+         $display("Cycle %0d: PASS SXU scalar broadcast program", cycle);
+         passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VMEM[10] row0=[%0d,%0d,%0d,%0d] row3=[%0d,%0d,%0d,%0d]",
+            cycle, t[0][0], t[0][1], t[0][2], t[0][3], t[3][0], t[3][1], t[3][2], t[3][3]);
+         failed <= failed + 1;
+      end
+      vmem.readReq(11);
+      $display("Cycle %0d: issued readReq VMEM[11]", cycle);
+      readPhase <= 5;
+   endrule
+
+   rule check_vmem11 (readPhase == 5);
+      let t = vmem.readResp;
+      Bool ok = (t[0][0] == 9 && t[0][1] == 10 && t[0][2] == 11 && t[0][3] == 12 &&
+                 t[3][0] == 9 && t[3][1] == 10 && t[3][2] == 11 && t[3][3] == 12);
+      if (ok) begin
+         $display("Cycle %0d: PASS SXU row broadcast program", cycle);
+         passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VMEM[11] row0=[%0d,%0d,%0d,%0d] row3=[%0d,%0d,%0d,%0d]",
+            cycle, t[0][0], t[0][1], t[0][2], t[0][3], t[3][0], t[3][1], t[3][2], t[3][3]);
+         failed <= failed + 1;
+      end
+      vmem.readReq(12);
+      $display("Cycle %0d: issued readReq VMEM[12]", cycle);
+      readPhase <= 6;
+   endrule
+
+   rule check_vmem12 (readPhase == 6);
+      let t = vmem.readResp;
+      Bool ok = (t[0][0] == 2 && t[0][1] == 2 && t[0][2] == 2 && t[0][3] == 2 &&
+                 t[3][0] == 14 && t[3][1] == 14 && t[3][2] == 14 && t[3][3] == 14);
+      if (ok) begin
+         $display("Cycle %0d: PASS SXU col broadcast program", cycle);
+         passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VMEM[12] row0=[%0d,%0d,%0d,%0d] row3=[%0d,%0d,%0d,%0d]",
+            cycle, t[0][0], t[0][1], t[0][2], t[0][3], t[3][0], t[3][1], t[3][2], t[3][3]);
          failed <= failed + 1;
       end
       $display("Results: %0d passed, %0d failed", passed + (ok ? 1 : 0), failed + (ok ? 0 : 1));

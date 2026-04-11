@@ -93,6 +93,14 @@ def _instr_asm(instr: BundleInstr) -> str:
         return "HALT"
     if op == 8:
         return f"SELECT v{instr.vreg_dst} = SELECT(v{instr.vreg_src}, v{instr.vreg_src2}, v{instr.mxu_w_base})"
+    if op == 9:
+        row = (instr.vreg_src2 >> 2) & 0x3
+        col = instr.vreg_src2 & 0x3
+        return f"BROADCAST_SCALAR v{instr.vreg_dst} = v{instr.vreg_src}[{row},{col}]"
+    if op == 10:
+        return f"BROADCAST_ROW v{instr.vreg_dst} = ROW(v{instr.vreg_src}, row={instr.vreg_src2})"
+    if op == 11:
+        return f"BROADCAST_COL v{instr.vreg_dst} = COL(v{instr.vreg_src}, col={instr.vreg_src2})"
     return f"OP{op}"
 
 
@@ -103,6 +111,7 @@ def _instr_units(instr: BundleInstr) -> str:
         4: "SXU→MXU",  5: "SXU·stall",
         6: "SXU·MXU",  7: "SXU",
         8: "SXU·VPU",
+        9: "SXU·XLU", 10: "SXU·XLU", 11: "SXU·XLU",
     }.get(instr.opcode, "SXU")
 
 
