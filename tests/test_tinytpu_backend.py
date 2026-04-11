@@ -734,6 +734,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a + b)
 
+  def test_add5_4x8_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
+    result = (Tensor(data, device="TINYTPU") + 5).numpy()
+    np.testing.assert_array_equal(result, data + 5)
+
+  def test_neg_4x8_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
+  def test_neg_8x4_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(8, 4)
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
   def test_rowsum_3x8_matches_reference(self):
     data = (np.arange(24, dtype=np.int32) - 12).reshape(3, 8)
     result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
