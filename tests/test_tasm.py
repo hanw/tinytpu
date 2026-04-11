@@ -331,3 +331,46 @@ def test_gemm_bundle_roundtrips_through_tasm():
     a = np.array([1, 2, 3, 4], dtype=np.int8)
     wire = _build_gemm_bundle(w, a)
     assert assemble(disassemble(wire)) == wire
+
+
+def test_where_bundle_roundtrips_through_tasm():
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_vpu_where_bundle
+    cond = np.array([1, 0, 1, 0] + [0] * 12, dtype=np.int32)
+    lhs  = np.arange(16, dtype=np.int32)
+    rhs  = -np.arange(16, dtype=np.int32)
+    wire = _build_vpu_where_bundle(cond, lhs, rhs, 4)
+    assert assemble(disassemble(wire)) == wire
+
+
+def test_program_bundle_roundtrips_through_tasm():
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_vpu_program_bundle, _VPU_OPS
+    # abs = SUB(zeros, input) then MAX(input, neg_input)
+    inp = np.array([-1, 2, -3, 4] + [0] * 12, dtype=np.int32)
+    zeros = np.zeros(16, dtype=np.int32)
+    steps = [
+        {"op": _VPU_OPS["SUB"], "lhs": 1, "rhs": 0, "dst": 2},
+        {"op": _VPU_OPS["MAX"], "lhs": 0, "rhs": 2, "dst": 3},
+    ]
+    wire = _build_vpu_program_bundle([inp, zeros], 4, steps, 3)
+    assert assemble(disassemble(wire)) == wire
+
+
+def test_disassemble_program_bundle_readable():
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_vpu_program_bundle, _VPU_OPS
+    inp = np.array([-1, 2, -3, 4] + [0] * 12, dtype=np.int32)
+    zeros = np.zeros(16, dtype=np.int32)
+    steps = [
+        {"op": _VPU_OPS["SUB"], "lhs": 1, "rhs": 0, "dst": 2},
+        {"op": _VPU_OPS["MAX"], "lhs": 0, "rhs": 2, "dst": 3},
+    ]
+    wire = _build_vpu_program_bundle([inp, zeros], 4, steps, 3)
+    tasm = disassemble(wire)
+    assert "VPU   v2 = SUB(v1, v0)" in tasm
+    assert "VPU   v3 = MAX(v0, v2)" in tasm
+    assert "STORE VMEM[2], v3" in tasm
