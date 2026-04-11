@@ -759,6 +759,28 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_relu_then_mul_scalar_matches_reference(self):
+    """relu -> mul scalar: realize between steps to prevent fusion."""
+    data = np.arange(-4, 4, dtype=np.int32)
+    r1 = Tensor(data, device="TINYTPU").relu().realize()
+    result = (r1 * 2).numpy()
+    np.testing.assert_array_equal(result, np.maximum(data, 0) * 2)
+
+  def test_abs_then_sum_axis1_matches_reference(self):
+    """abs on 4x4 then rowsum: realize abs first."""
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    abs_t = Tensor(data, device="TINYTPU").abs().realize()
+    result = abs_t.sum(axis=1).numpy()
+    expected = np.abs(data).sum(axis=1)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_neg_then_max_scalar_matches_reference(self):
+    """neg -> maximum(0): realize neg first."""
+    data = np.arange(-4, 4, dtype=np.int32)
+    neg_t = (-Tensor(data, device="TINYTPU")).realize()
+    result = neg_t.maximum(0).numpy()
+    np.testing.assert_array_equal(result, np.maximum(-data, 0))
+
   def test_where_all_true_matches_reference(self):
     cond = np.ones(16, dtype=np.bool_)
     lhs = np.arange(16, dtype=np.int32)
