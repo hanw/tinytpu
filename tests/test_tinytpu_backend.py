@@ -856,6 +856,37 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = np.array([x - 7 * math.trunc(x / 7) for x in range(3, 27)], dtype=np.int32).reshape(3, 8)
     np.testing.assert_array_equal(result, expected)
 
+  def test_random_3x4_rowsum_matches_reference(self):
+    rng = np.random.default_rng(123)
+    data = rng.integers(-100, 100, size=(3, 4), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=1))
+
+  def test_random_4x4_colmin_matches_reference(self):
+    rng = np.random.default_rng(456)
+    data = rng.integers(-100, 100, size=(4, 4), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=0))
+
+  def test_random_4x8_colmax_matches_reference(self):
+    rng = np.random.default_rng(789)
+    data = rng.integers(-100, 100, size=(4, 8), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=0))
+
+  def test_random_8x4_rowmax_matches_reference(self):
+    rng = np.random.default_rng(321)
+    data = rng.integers(-100, 100, size=(8, 4), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=1))
+
+  def test_random_gemm_4x4_matches_reference(self):
+    rng = np.random.default_rng(42)
+    a = rng.integers(-8, 8, size=(2, 4), dtype=np.int32)
+    w = rng.integers(-8, 8, size=(4, 4), dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") @ Tensor(w, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a @ w)
+
   def test_random_2d_add_matches_reference(self):
     rng = np.random.default_rng(42)
     a = rng.integers(-50, 50, size=(4, 4), dtype=np.int32)
