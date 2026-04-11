@@ -673,6 +673,41 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1))
 
+  def test_neg_full_tile_matches_reference(self):
+    data = np.arange(16, dtype=np.int32) - 8
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
+  def test_neg_2d_3x4_matches_reference(self):
+    data = np.arange(12, dtype=np.int32).reshape(3, 4) - 6
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
+  def test_neg_2d_4x4_matches_reference(self):
+    data = np.arange(16, dtype=np.int32).reshape(4, 4) - 8
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
+  def test_neg_multi_tile_matches_reference(self):
+    data = np.arange(32, dtype=np.int32) - 16
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
+  def test_mul_scalar_2d_matches_reference(self):
+    data = np.arange(12, dtype=np.int32).reshape(3, 4)
+    result = (Tensor(data, device="TINYTPU") * 3).numpy()
+    np.testing.assert_array_equal(result, data * 3)
+
+  def test_add_scalar_2d_matches_reference(self):
+    data = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = (Tensor(data, device="TINYTPU") + 7).numpy()
+    np.testing.assert_array_equal(result, data + 7)
+
+  def test_sub_scalar_2d_matches_reference(self):
+    data = np.arange(12, dtype=np.int32).reshape(3, 4)
+    result = (Tensor(data, device="TINYTPU") - 2).numpy()
+    np.testing.assert_array_equal(result, data - 2)
+
   def test_abs_matches_reference(self):
     result = Tensor([-1, 2, -3, 4], dtype="int32", device="TINYTPU").abs().numpy()
     np.testing.assert_array_equal(result, np.array([1, 2, 3, 4], dtype=np.int32))
