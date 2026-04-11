@@ -759,6 +759,35 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_shl_2d_4x8_matches_reference(self):
+    data = np.arange(32, dtype=np.int32).reshape(4, 8)
+    result = (Tensor(data, device="TINYTPU") << 2).numpy()
+    np.testing.assert_array_equal(result, data << 2)
+
+  def test_shr_2d_4x8_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) * 4).reshape(4, 8)
+    result = (Tensor(data, device="TINYTPU") >> 2).numpy()
+    np.testing.assert_array_equal(result, data >> 2)
+
+  def test_not_2d_4x4_matches_reference(self):
+    data = np.tile([True, False, True, True], 4).reshape(4, 4)
+    result = (~Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, ~data)
+
+  def test_idiv_2d_4x8_matches_reference(self):
+    import math
+    data = (np.arange(1, 33, dtype=np.int32)).reshape(4, 8)
+    result = (Tensor(data, device="TINYTPU") // 3).numpy()
+    expected = np.array([math.trunc(x / 3) for x in range(1, 33)], dtype=np.int32).reshape(4, 8)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_mod_2d_3x8_matches_reference(self):
+    import math
+    data = np.arange(3, 27, dtype=np.int32).reshape(3, 8)
+    result = (Tensor(data, device="TINYTPU") % 7).numpy()
+    expected = np.array([x - 7 * math.trunc(x / 7) for x in range(3, 27)], dtype=np.int32).reshape(3, 8)
+    np.testing.assert_array_equal(result, expected)
+
   def test_random_2d_add_matches_reference(self):
     rng = np.random.default_rng(42)
     a = rng.integers(-50, 50, size=(4, 4), dtype=np.int32)
