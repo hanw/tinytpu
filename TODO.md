@@ -289,7 +289,21 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations
+## Recommended Next Iterations (updated 2026-04-11)
+
+Current state: 399 tests, 50 iterations completed in this batch.
+
+Highest-value next work:
+1. GEMM + bias add epilogue (detect 4-param fused kernel: act @ weight + bias)
+2. GEMM + ReLU epilogue (detect 3-param GEMM with ReLU fused)
+3. Fused kernel detection improvements (tinygrad fuses many 2-op chains)
+4. Column-wise SUM via VPU (use XLU TRANSPOSE + VPU_SUM_REDUCE instead of host numpy)
+5. Movement ops: RESHAPE as no-copy, PERMUTE via XLU
+6. XLU transpose hardware backing for col-wise reductions
+7. Broader tinygrad upstream test coverage
+8. Multi-output kernel support
+
+## Old Recommended Next Iterations
 
 1. Add multi-tile elementwise loop for `ADD` using the plan in `doc/tinytpu_multitile_add.md`.
 2. Add multiple VMEM output tile support in the runtime protocol.
