@@ -79,9 +79,9 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
   - [x] `minimum(x, scalar)`
   - [x] `x < scalar`
   - [x] `x != scalar`
-- [ ] Scalar broadcasting
+- [x] Scalar broadcasting
   - [ ] Add VPU_BROADCAST BSV instruction (broadcast lane 0 to all lanes+sublanes)
-  - [ ] Migrate scalar broadcast binary ops to SXU_PROGRAM
+  - [x] Migrate scalar broadcast binary ops to SXU_PROGRAM (via VMEM-level broadcast)
 - [ ] Size-1 axis broadcasting
 - [ ] Arbitrary shapes with `numel <= 16`
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
@@ -221,8 +221,8 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [x] Migrate bool-typed ops (AND/OR/XOR/NOT on bool tensors) to SXU_PROGRAM
 - [x] Migrate WHERE (ternary select) to SXU_PROGRAM
 - [x] Migrate multi-step VPU_PROGRAM patterns (abs, clip, MOD, CMPEQ) to SXU_PROGRAM
-- [ ] Migrate scalar reductions (SUM/MAX/MIN to scalar) to SXU_PROGRAM
-- [ ] Migrate row-wise reduce (VPU_ROWSUM) to SXU_PROGRAM
+- [x] Migrate scalar reductions (SUM/MAX/MIN to scalar) to SXU_PROGRAM
+- [ ] Migrate row-wise reduce (VPU_ROWSUM) to SXU_PROGRAM (needs axis detection to avoid colreduce)
 - [ ] Migrate row-broadcast binary (VPU_ROWBC_BINARY) to SXU_PROGRAM
 - [ ] Emit host fallbacks (HOST_*) directly from renderer without analyze_tinytpu_uops
 - [ ] Delete analyze_tinytpu_uops, old bundle builders, old _exec_* methods
