@@ -223,10 +223,10 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [x] Migrate multi-step VPU_PROGRAM patterns (abs, clip, MOD, CMPEQ) to SXU_PROGRAM
 - [x] Migrate scalar reductions (SUM/MAX/MIN to scalar) to SXU_PROGRAM
 - [ ] Migrate row-wise reduce (VPU_ROWSUM) to SXU_PROGRAM (needs axis detection to avoid colreduce)
-- [ ] Migrate row-broadcast binary (VPU_ROWBC_BINARY) to SXU_PROGRAM
+- [x] Migrate row-broadcast binary (VPU_ROWBC_BINARY) to SXU_PROGRAM
 - [ ] Emit host fallbacks (HOST_*) directly from renderer without analyze_tinytpu_uops
 - [x] Delete dead analyze blocks, _exec_vpu_where/unary, _build_vpu_where, _render_wmma_descriptor
-- [ ] Delete remaining analyze_tinytpu_uops (556 lines left — handles scalar-const DIV/MIN/MOD)
+- [ ] Delete remaining analyze_tinytpu_uops (now limited to scalar-const DIV/MOD)
 - [ ] Run selected upstream tinygrad tests on `TINYTPU`
 - [ ] Add skipped/xfail manifest for unsupported tinyspec areas
 - [ ] Track coverage by tinyspec op category

@@ -1811,6 +1811,49 @@ class TestTinyTPUBackend(unittest.TestCase):
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
       self.assertTrue(any(r.get("op") in ("GEMM4x4", "SXU_PROGRAM") for r in records))
 
+  def test_lowering_dump_records_row_broadcast_bias_as_sxu_program(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          import numpy as np
+          from tinygrad import Tensor
+          a = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          b = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          bias = Tensor(np.array([[1, 2, 3, 4]], dtype=np.int32), dtype="int32", device="TINYTPU")
+          out = (a @ b).realize()
+          print((out + bias).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("num_output_tiles") == 4 for r in records), records)
+
+  def test_lowering_dump_records_minimum_scalar_const_as_sxu_program(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print(Tensor([1, 5, 3, 10], dtype="int32", device="TINYTPU").minimum(5).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("num_output_tiles") == 1 for r in records), records)
+
   def test_multi_wmma_4x4_at_4x8_matches_numpy(self):
     a_np = np.arange(16, dtype=np.int32).reshape(4, 4)
     w_np = np.arange(32, dtype=np.int32).reshape(4, 8)
