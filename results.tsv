@@ -144,3 +144,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-11	96c1d95	1	VPU_NOT BSV opcode	VPU_NOT hardware instruction (opcode 26) with testbench	make test-vpu: 20/20; pytest: 340 passed	none	migrate scalar-const ops to SXU_PROGRAM
 2026-04-11	1f341a7	1	scalar-const + bool SXU_PROGRAM migration	scalar-const binary ops and bool AND/OR/XOR/NOT via SXU_PROGRAM	pytest: 340 passed	scalar-const and bool marked done	migrate WHERE to SXU_PROGRAM
 2026-04-11	f026837	1	WHERE SXU_PROGRAM migration	WHERE ternary select via 4-instruction MUL/SUB/MUL/ADD SXU_PROGRAM	pytest: 340 passed	WHERE marked done	migrate multi-step VPU_PROGRAM patterns
+2026-04-11	faeb937	1	abs/clip/MOD/CMPEQ SXU_PROGRAM	abs clip MOD CMPEQ patterns via multi-step SXU_PROGRAM	pytest: 340 passed	multi-step patterns marked done	migrate reductions to SXU_PROGRAM
