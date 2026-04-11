@@ -713,6 +713,26 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
     np.testing.assert_array_equal(result, data.sum(axis=1))
 
+  def test_rowmax_2x4_matches_reference(self):
+    data = np.array([[1, -2, 3, -4], [5, 6, -7, 8]], dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=1))
+
+  def test_rowmax_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=1))
+
+  def test_rowmin_2x4_matches_reference(self):
+    data = np.array([[1, -2, 3, -4], [5, 6, -7, 8]], dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=1))
+
+  def test_rowmin_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=1))
+
   def test_bool_to_int32_cast_matches_reference(self):
     result = Tensor([True, False, True, False], device="TINYTPU").cast("int32").numpy()
     np.testing.assert_array_equal(result, np.array([1, 0, 1, 0], dtype=np.int32))
