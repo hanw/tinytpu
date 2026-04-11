@@ -673,6 +673,44 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor([True, False, True, False], device="TINYTPU").cast("int32").numpy()
     np.testing.assert_array_equal(result, np.array([1, 0, 1, 0], dtype=np.int32))
 
+  def test_int32_to_bool_cast_matches_reference(self):
+    result = Tensor([0, 1, 2, -1], dtype="int32", device="TINYTPU").cast("bool").numpy()
+    np.testing.assert_array_equal(result, np.array([False, True, True, True]))
+
+  def test_int32_to_bool_cast_multi_tile_matches_reference(self):
+    data = list(range(-8, 24))
+    result = Tensor(data, dtype="int32", device="TINYTPU").cast("bool").numpy()
+    expected = np.array(data, dtype=np.int32) != 0
+    np.testing.assert_array_equal(result, expected)
+
+  def test_scalar_broadcast_mul_matches_reference(self):
+    result = (Tensor([2], dtype="int32", device="TINYTPU") * Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([2, 4, 6, 8], dtype=np.int32))
+
+  def test_scalar_broadcast_mul_reverse_matches_reference(self):
+    result = (Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU") * Tensor([3], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([3, 6, 9, 12], dtype=np.int32))
+
+  def test_scalar_broadcast_sub_matches_reference(self):
+    result = (Tensor([10], dtype="int32", device="TINYTPU") - Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([9, 8, 7, 6], dtype=np.int32))
+
+  def test_scalar_broadcast_max_matches_reference(self):
+    result = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").maximum(
+      Tensor([3], dtype="int32", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_array_equal(result, np.array([3, 3, 3, 4], dtype=np.int32))
+
+  def test_scalar_broadcast_add_multi_tile_matches_reference(self):
+    data = list(range(1, 33))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") + Tensor([10], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) + 10)
+
+  def test_scalar_broadcast_mul_multi_tile_matches_reference(self):
+    data = list(range(1, 33))
+    result = (Tensor(data, dtype="int32", device="TINYTPU") * Tensor([2], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) * 2)
+
   def test_scalar_broadcast_add_matches_reference(self):
     result = (Tensor([1], dtype="int32", device="TINYTPU") + Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, np.array([2, 3, 4, 5], dtype=np.int32))
