@@ -15,6 +15,7 @@ typedef enum {
    SXU_DISPATCH_XLU_BROADCAST,
    SXU_DISPATCH_MXU,
    SXU_WAIT_MXU,
+   SXU_LOAD_MXU_RESULT,
    SXU_HALT
 } SxuOpCode deriving (Bits, Eq, FShow);
 
@@ -43,7 +44,7 @@ endinterface
 typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_STORE, SXU_EXEC_VPU, SXU_EXEC_VPU_COLLECT,
                SXU_EXEC_XLU_BROADCAST, SXU_EXEC_XLU_COLLECT,
-               SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_HALTED }
+               SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
 module mkScalarUnit#(
@@ -95,6 +96,7 @@ module mkScalarUnit#(
          SXU_DISPATCH_XLU_BROADCAST: pc_state <= SXU_EXEC_XLU_BROADCAST;
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
+         SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -179,6 +181,18 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=XLU ev=RESULT", cycle);
 `endif
       vrf.write(truncate(curInstr.vregDst), xlu.result);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // LOAD_MXU_RESULT: copy ctrl.results (1 row of cols Int#(32)) into row 0 of vregDst
+   rule do_load_mxu_result (pc_state == SXU_EXEC_LOAD_MXU_RESULT);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=LOAD_MXU_RESULT pc=%0d dst=v%0d", cycle, pc, curInstr.vregDst);
+`endif
+      Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
+      v[0] = ctrl.results;
+      vrf.write(truncate(curInstr.vregDst), v);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

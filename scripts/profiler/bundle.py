@@ -10,7 +10,8 @@ SXU_OP_NAMES = {
   3: "SXU_DISPATCH_XLU_BROADCAST",
   4: "SXU_DISPATCH_MXU",
   5: "SXU_WAIT_MXU",
-  6: "SXU_HALT",
+  6: "SXU_LOAD_MXU_RESULT",
+  7: "SXU_HALT",
 }
 
 VPU_OP_NAMES = {
@@ -155,7 +156,7 @@ def make_vpu_binary_bundle(lhs:Sequence[int], rhs:Sequence[int], vpu_op:int, num
       BundleInstr(0, 1, 1, 0, 0, 0, 0, 0, 0),
       BundleInstr(2, 0, 2, 0, int(vpu_op), 1, 0, 0, 0),
       BundleInstr(1, 2, 0, 2, 0, 0, 0, 0, 0),
-      BundleInstr(6, 0, 0, 0, 0, 0, 0, 0, 0),
+      BundleInstr(7, 0, 0, 0, 0, 0, 0, 0, 0),
     ],
     output_vmem_addr=2,
   )
