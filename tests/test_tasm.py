@@ -273,3 +273,61 @@ def test_roundtrip_abs():
     )
     wire = assemble(src)
     assert assemble(disassemble(wire)) == wire
+
+
+# ---------------------------------------------------------------------------
+# _tasm helpers integration tests (ops_tinytpu internal helpers)
+# ---------------------------------------------------------------------------
+
+def test_tasm_helpers_import():
+    """Verify _tasm helpers exist and are importable."""
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import (
+        _load, _store, _vpu, _halt, _output_vmem, _end, _bundle,
+    )
+    assert _load(3, 5)   == "2 0 5 3 0 0 0 0 0 0"
+    assert _store(4, 7)  == "2 1 4 0 7 0 0 0 0 0"
+    assert _halt()       == "2 6 0 0 0 0 0 0 0 0"
+    assert _output_vmem(2) == "6 2"
+    assert _end()        == "4"
+
+
+def test_tasm_helpers_vpu_binary():
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _vpu, _VPU_OPS
+    # ADD: vd=2, va=0, op=ADD(0), vb=1
+    assert _vpu(2, 0, _VPU_OPS["ADD"], 1) == "2 2 0 2 0 0 1 0 0 0"
+    # RELU (unary, vb=0): vd=1, va=0, op=RELU(2)
+    assert _vpu(1, 0, _VPU_OPS.get("RELU", 2)) == "2 2 0 1 0 2 0 0 0 0"
+    # SUB: vd=3, va=1, op=SUB(7), vb=0
+    assert _vpu(3, 1, _VPU_OPS["SUB"], 0) == "2 2 0 3 1 7 0 0 0 0"
+
+
+def test_binary_bundle_roundtrips_through_tasm():
+    """_build_vpu_binary_bundle output must survive assemble(disassemble(wire))."""
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_vpu_binary_bundle, _VPU_OPS
+    lhs = np.array([1, 2, 3, 4] + [0] * 12, dtype=np.int32)
+    rhs = np.array([10, 20, 30, 40] + [0] * 12, dtype=np.int32)
+    wire = _build_vpu_binary_bundle(lhs, rhs, 4, _VPU_OPS["ADD"])
+    assert assemble(disassemble(wire)) == wire
+
+
+def test_unary_bundle_roundtrips_through_tasm():
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_vpu_unary_bundle
+    src = np.array([-1, 2, -3, 4] + [0] * 12, dtype=np.int32)
+    wire = _build_vpu_unary_bundle(src, 4, 2)  # RELU
+    assert assemble(disassemble(wire)) == wire
+
+
+def test_gemm_bundle_roundtrips_through_tasm():
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_gemm_bundle
+    w = np.eye(4, dtype=np.int8)
+    a = np.array([1, 2, 3, 4], dtype=np.int8)
+    wire = _build_gemm_bundle(w, a)
+    assert assemble(disassemble(wire)) == wire
