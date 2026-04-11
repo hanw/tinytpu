@@ -759,6 +759,38 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_zeros_4x4_add_matches_reference(self):
+    z = np.zeros((4, 4), dtype=np.int32)
+    result = (Tensor(z, device="TINYTPU") + Tensor(z, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, z)
+
+  def test_sum_zeros_4x4_matches_reference(self):
+    z = np.zeros((4, 4), dtype=np.int32)
+    result = Tensor(z, dtype="int32", device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, 0)
+
+  def test_max_zeros_matches_reference(self):
+    z = np.zeros((4, 4), dtype=np.int32)
+    result = Tensor(z, dtype="int32", device="TINYTPU").max().numpy()
+    np.testing.assert_array_equal(result, 0)
+
+  def test_neg_zeros_matches_reference(self):
+    z = np.zeros(16, dtype=np.int32)
+    result = (-Tensor(z, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, z)
+
+  def test_abs_zeros_4x4_matches_reference(self):
+    z = np.zeros((4, 4), dtype=np.int32)
+    result = Tensor(z, device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, z)
+
+  def test_large_values_add_matches_reference(self):
+    # int32 arithmetic with large values (no overflow)
+    a = np.array([100000, -100000, 50000, -50000], dtype=np.int32)
+    b = np.array([200000, 200000, -50000, 50000], dtype=np.int32)
+    result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a + b)
+
   def test_abs_3x5_matches_reference(self):
     data = (np.arange(15, dtype=np.int32) - 7).reshape(3, 5)
     result = Tensor(data, device="TINYTPU").abs().numpy()
