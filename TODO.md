@@ -198,9 +198,31 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 
 ### Tinygrad Backend Integration Quality: 40-80 iterations
 
+#### Shrink ops_tinytpu.py (~2335 → target <1200 lines)
+
+Current bloat sources:
+- `analyze_tinytpu_uops` (~800 lines): old UOp-counting renderer, mostly
+  superseded by WMMA path. Delete dead paths, merge remaining VPU detection
+  into structural matchers.
+- Bundle builders (~400 lines): `_build_vpu_binary_bundle`,
+  `_build_vpu_where_bundle`, `_build_full_gemm_bundle`, etc. Unify into a
+  single generic bundle builder with a template pattern.
+- `_exec_*` methods (~400 lines): every op has the same chunk loop
+  (`for chunk_start in range(0, num_elems, _TILE_ELEMS)`). Extract a shared
+  `_run_tiled_vpu` helper.
+- Duplicate output parsing: `_parse_vmem_output`, `_parse_multi_vmem_output`,
+  `_parse_sim_output` share the same structure.
+
+Cleanup plan:
+- [ ] Unify chunk loop across all VPU _exec_* methods into shared helper
+- [ ] Merge `_parse_vmem_output` / `_parse_multi_vmem_output` / `_parse_sim_output`
+- [ ] Unify `_build_vpu_binary_bundle` / `_build_vpu_unary_bundle` / `_build_vpu_where_bundle` into generic bundle builder
+- [ ] Delete dead code paths in `analyze_tinytpu_uops` that WMMA now handles
+- [ ] Table-driven VPU opcode lowering (replace per-op if/elif in renderer)
 - [ ] Replace brittle UOp-count matching with structural pattern matching
+- [ ] Collapse `_build_gemm_bundle` (unused since full GEMM path) and `_build_gemm_epilogue_bundle` (unused since full GEMM path)
+- [ ] Remove `_run_gemm_vec` / `_run_gemm_epilogue_vec` (dead code after single-bundle GEMM)
 - [ ] Build reusable lowering IR for TinyTPU bundles
-- [ ] Table-driven VPU opcode lowering
 - [ ] Shape-aware lowering helpers
 - [ ] Dtype-aware lowering helpers
 - [ ] Better diagnostics with selected lowering candidate
