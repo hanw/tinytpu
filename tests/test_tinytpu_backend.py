@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _run_gemm_vec, _tiling_failure_note
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -2115,30 +2115,28 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "invalid vmem_result integer 'bad'"):
       _parse_vmem_output("vmem_result 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 bad\nstatus ok\n")
 
-  def test_run_gemm_rejects_sim_error_line(self):
+  def test_run_bundle_rejects_sim_error_line(self):
     with tempfile.TemporaryDirectory() as td:
       sim = Path(td) / "fake_sim.py"
       sim.write_text(textwrap.dedent("""\
         #!/usr/bin/env python3
         print("ERROR: injected failure")
-        print("mxu_result 1 2 3 4")
         print("status ok")
       """), encoding="utf-8")
       sim.chmod(sim.stat().st_mode | stat.S_IEXEC)
       with self.assertRaisesRegex(RuntimeError, "simulator reported failure: ERROR: injected failure"):
-        _run_gemm_vec(str(sim), np.eye(4, dtype=np.int8), np.arange(4, dtype=np.int8))
+        _run_bundle(str(sim), "4\n")
 
-  def test_run_gemm_requires_ok_status(self):
+  def test_run_bundle_requires_ok_status(self):
     with tempfile.TemporaryDirectory() as td:
       sim = Path(td) / "fake_sim.py"
       sim.write_text(textwrap.dedent("""\
         #!/usr/bin/env python3
-        print("mxu_result 1 2 3 4")
         print("status busy")
       """), encoding="utf-8")
       sim.chmod(sim.stat().st_mode | stat.S_IEXEC)
       with self.assertRaisesRegex(RuntimeError, "simulator did not report `status ok`"):
-        _run_gemm_vec(str(sim), np.eye(4, dtype=np.int8), np.arange(4, dtype=np.int8))
+        _run_bundle(str(sim), "4\n")
 
 
 if __name__ == "__main__":

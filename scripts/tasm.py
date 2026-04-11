@@ -35,7 +35,8 @@ _SXU = {
     "DISPATCH_XLU_BROADCAST": 3,
     "DISPATCH_MXU":           4,
     "WAIT_MXU":               5,
-    "HALT":                   6,
+    "LOAD_MXU_RESULT":        6,
+    "HALT":                   7,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -59,6 +60,14 @@ _VPU = {
     "AND":        15,
     "OR":         16,
     "XOR":        17,
+    "FADD":       18,
+    "FMUL":       19,
+    "FSUB":       20,
+    "FMAX":       21,
+    "FCMPLT":     22,
+    "FRECIP":     23,
+    "I2F":        24,
+    "F2I":        25,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
@@ -244,6 +253,10 @@ def assemble(text: str) -> str:
             elif kw == "WAIT_MXU":
                 out.append(_instr(_SXU["WAIT_MXU"]))
 
+            elif kw == "LOAD_MXU_RESULT":
+                dst = _parse_vreg(tokens[1])
+                out.append(_instr(_SXU["LOAD_MXU_RESULT"], vregDst=dst))
+
             elif kw == "HALT":
                 out.append(_instr(_SXU["HALT"]))
 
@@ -355,6 +368,9 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["WAIT_MXU"]:
                     out.append("WAIT_MXU")
+
+                elif opc == _SXU["LOAD_MXU_RESULT"]:
+                    out.append(f"LOAD_MXU_RESULT v{vregDst}")
 
                 elif opc == _SXU["HALT"]:
                     out.append("HALT")

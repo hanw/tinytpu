@@ -119,7 +119,7 @@ def test_wait_mxu():
 
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
-    assert wire[0] == "2 6 0 0 0 0 0 0 0 0"
+    assert wire[0] == "2 7 0 0 0 0 0 0 0 0"
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +287,7 @@ def test_tasm_helpers_import():
     )
     assert _load(3, 5)   == "2 0 5 3 0 0 0 0 0 0"
     assert _store(4, 7)  == "2 1 4 0 7 0 0 0 0 0"
-    assert _halt()       == "2 6 0 0 0 0 0 0 0 0"
+    assert _halt()       == "2 7 0 0 0 0 0 0 0 0"
     assert _output_vmem(2) == "6 2"
     assert _end()        == "4"
 
@@ -326,10 +326,10 @@ def test_unary_bundle_roundtrips_through_tasm():
 def test_gemm_bundle_roundtrips_through_tasm():
     import numpy as np
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
-    from tinygrad.runtime.ops_tinytpu import _build_gemm_bundle
+    from tinygrad.runtime.ops_tinytpu import _build_full_gemm_bundle
     w = np.eye(4, dtype=np.int8)
-    a = np.array([1, 2, 3, 4], dtype=np.int8)
-    wire = _build_gemm_bundle(w, a)
+    a = np.array([[1, 2, 3, 4]], dtype=np.int8)
+    wire = _build_full_gemm_bundle(a, w, num_vecs=1, num_k_tiles=1, num_weight_tiles=1)
     assert assemble(disassemble(wire)) == wire
 
 
@@ -449,11 +449,11 @@ def test_disassemble_vmem_negative():
 
 def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
-    # All 18 ops present
-    assert len(_VPU) == 18
-    # Contiguous from 0 to 17
+    # All 26 ops present (18 int + 8 float)
+    assert len(_VPU) == 26
+    # Contiguous from 0 to 25
     codes = sorted(_VPU.values())
-    assert codes == list(range(18))
+    assert codes == list(range(26))
 
 
 def test_assemble_error_bad_vreg():
