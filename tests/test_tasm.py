@@ -374,3 +374,46 @@ def test_disassemble_program_bundle_readable():
     assert "VPU   v2 = SUB(v1, v0)" in tasm
     assert "VPU   v3 = MAX(v0, v2)" in tasm
     assert "STORE VMEM[2], v3" in tasm
+
+
+def test_vpu_opcode_table_matches_hardware():
+    """VPU opcodes in tasm.py must match BSV VpuOp enum order."""
+    from scripts.tasm import _VPU as TASM_VPU
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _VPU_OPS as BACKEND_VPU
+    # Check the ops that both tables share
+    shared = {"ADD": 0, "MUL": 1, "MAX": 3, "SUB": 7, "CMPEQ": 8, "MAX_REDUCE": 9,
+              "MIN": 12, "MIN_REDUCE": 13, "DIV": 14}
+    for op, code in shared.items():
+        assert TASM_VPU[op] == code, f"TASM {op}={TASM_VPU[op]} != {code}"
+        assert BACKEND_VPU[op] == code, f"BACKEND {op}={BACKEND_VPU[op]} != {code}"
+
+
+def test_disassemble_where_bundle():
+    """WHERE bundle disassembly should contain the 4-step MUL/SUB/MUL/ADD sequence."""
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_vpu_where_bundle
+    cond = np.array([1, 0, 1, 0] + [0] * 12, dtype=np.int32)
+    lhs  = np.arange(16, dtype=np.int32)
+    rhs  = -np.arange(16, dtype=np.int32)
+    tasm = disassemble(_build_vpu_where_bundle(cond, lhs, rhs, 4))
+    assert "VPU   v4 = MUL(v0, v1)" in tasm   # cond * lhs
+    assert "VPU   v5 = SUB(v3, v0)" in tasm   # 1 - cond
+    assert "VPU   v6 = MUL(v5, v2)" in tasm   # (1-cond) * rhs
+    assert "VPU   v7 = ADD(v4, v6)" in tasm   # result
+    assert "OUTPUT_VMEM VMEM[4]" in tasm
+
+
+def test_broadcast_instruction_in_bundle():
+    """BROADCAST instruction in a VPU binary bundle (lhs_broadcast=True)."""
+    import numpy as np
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
+    from tinygrad.runtime.ops_tinytpu import _build_vpu_binary_bundle, _VPU_OPS
+    lhs = np.array([7] + [0] * 15, dtype=np.int32)
+    rhs = np.arange(16, dtype=np.int32)
+    wire = _build_vpu_binary_bundle(lhs, rhs, 4, _VPU_OPS["ADD"], lhs_broadcast=True)
+    tasm = disassemble(wire)
+    assert "BROADCAST v0" in tasm
+    # Round-trip
+    assert assemble(tasm) == wire
