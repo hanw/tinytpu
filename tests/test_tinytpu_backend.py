@@ -772,6 +772,28 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1))
 
+  def test_rowsum_8x4_matches_reference(self):
+    """Row-wise sum for 8 rows (two 4-row hardware tiles)."""
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(8, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=1))
+
+  def test_rowmax_8x4_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(8, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=1))
+
+  def test_rowmin_8x4_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(8, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=1))
+
+  def test_rowsum_5x4_matches_reference(self):
+    """Odd row count: tile boundary at row 4, one 1-row partial tile."""
+    data = (np.arange(20, dtype=np.int32) - 10).reshape(5, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=1))
+
   def test_bool_to_int32_cast_matches_reference(self):
     result = Tensor([True, False, True, False], device="TINYTPU").cast("int32").numpy()
     np.testing.assert_array_equal(result, np.array([1, 0, 1, 0], dtype=np.int32))
