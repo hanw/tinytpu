@@ -669,6 +669,30 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor([-5, 0, 3, 10], dtype="int32", device="TINYTPU").clip(0, 5).numpy()
     np.testing.assert_array_equal(result, np.array([0, 0, 3, 5], dtype=np.int32))
 
+  def test_clip_full_tile_matches_reference(self):
+    data = list(range(-8, 8))
+    result = Tensor(data, dtype="int32", device="TINYTPU").clip(-3, 3).numpy()
+    np.testing.assert_array_equal(result, np.clip(np.array(data, dtype=np.int32), -3, 3))
+
+  def test_clip_multi_tile_matches_reference(self):
+    data = list(range(-10, 22))
+    result = Tensor(data, dtype="int32", device="TINYTPU").clip(0, 5).numpy()
+    np.testing.assert_array_equal(result, np.clip(np.array(data, dtype=np.int32), 0, 5))
+
+  def test_fused_add_relu_full_tile_matches_reference(self):
+    a = list(range(-8, 8))
+    b = list(range(0, 16))
+    result = (Tensor(a, dtype="int32", device="TINYTPU") + Tensor(b, dtype="int32", device="TINYTPU")).relu().numpy()
+    expected = np.maximum(np.array(a, dtype=np.int32) + np.array(b, dtype=np.int32), 0)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_fused_add_relu_multi_tile_matches_reference(self):
+    a = list(range(-8, 24))
+    b = list(range(0, 32))
+    result = (Tensor(a, dtype="int32", device="TINYTPU") + Tensor(b, dtype="int32", device="TINYTPU")).relu().numpy()
+    expected = np.maximum(np.array(a, dtype=np.int32) + np.array(b, dtype=np.int32), 0)
+    np.testing.assert_array_equal(result, expected)
+
   def test_bool_to_int32_cast_matches_reference(self):
     result = Tensor([True, False, True, False], device="TINYTPU").cast("int32").numpy()
     np.testing.assert_array_equal(result, np.array([1, 0, 1, 0], dtype=np.int32))
