@@ -734,6 +734,42 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a + b)
 
+  def test_colsum_keepdim_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0, keepdim=True).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=0, keepdims=True))
+
+  def test_rowmax_keepdim_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=1, keepdim=True).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=1, keepdims=True))
+
+  def test_colmin_keepdim_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0, keepdim=True).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=0, keepdims=True))
+
+  def test_relu_2d_8x4_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(8, 4)
+    result = Tensor(data, device="TINYTPU").relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(data, 0))
+
+  def test_abs_2d_4x8_matches_reference(self):
+    data = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
+    result = Tensor(data, device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.abs(data))
+
+  def test_clip_2d_4x4_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, device="TINYTPU").clip(-3, 3).numpy()
+    np.testing.assert_array_equal(result, np.clip(data, -3, 3))
+
+  def test_fused_add_relu_2d_4x4_matches_reference(self):
+    a = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    b = np.full((4, 4), 5, dtype=np.int32)
+    result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(a + b, 0))
+
   def test_gemm_4x4_identity_matches_reference(self):
     a = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
     w = np.eye(4, dtype=np.int32)
