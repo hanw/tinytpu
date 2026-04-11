@@ -634,6 +634,45 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = np.array([x - 3 * math.trunc(x / 3) for x in data], dtype=np.int32)
     np.testing.assert_array_equal(result, expected)
 
+  def test_idiv_tensor_tensor_matches_reference(self):
+    import math
+    a = np.array([10, 21, 35, 42], dtype=np.int32)
+    b = np.array([3, 7, 5, 6], dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") // Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    expected = np.array([math.trunc(x / y) for x, y in zip(a, b)], dtype=np.int32)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_idiv_tensor_tensor_multi_tile_matches_reference(self):
+    import math
+    a = np.arange(3, 35, dtype=np.int32)
+    b = np.arange(2, 34, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") // Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    expected = np.array([math.trunc(x / y) for x, y in zip(a, b)], dtype=np.int32)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_mod_tensor_tensor_matches_reference(self):
+    import math
+    a = np.array([10, 21, 35, 42], dtype=np.int32)
+    b = np.array([3, 7, 5, 6], dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") % Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    expected = np.array([x - y * math.trunc(x / y) for x, y in zip(a, b)], dtype=np.int32)
+    np.testing.assert_array_equal(result, expected)
+
+  def test_rowsum_keepdim_matches_reference(self):
+    data = np.arange(8, dtype=np.int32).reshape(2, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1, keepdim=True).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=1, keepdims=True))
+
+  def test_rowmax_3x4_matches_reference(self):
+    data = (np.arange(12, dtype=np.int32) - 6).reshape(3, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=1))
+
+  def test_rowmin_3x4_matches_reference(self):
+    data = (np.arange(12, dtype=np.int32) - 6).reshape(3, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=1))
+
   def test_abs_matches_reference(self):
     result = Tensor([-1, 2, -3, 4], dtype="int32", device="TINYTPU").abs().numpy()
     np.testing.assert_array_equal(result, np.array([1, 2, 3, 4], dtype=np.int32))
