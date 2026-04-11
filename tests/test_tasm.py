@@ -417,3 +417,55 @@ def test_broadcast_instruction_in_bundle():
     assert "BROADCAST v0" in tasm
     # Round-trip
     assert assemble(tasm) == wire
+
+
+def test_mxu_instruction():
+    wire = wire_lines(assemble("MXU WMEM[0], AMEM[1], tiles=3\nHALT\nEND\n"))
+    assert wire[0] == "2 4 0 0 0 0 0 0 1 3"
+
+
+def test_wait_mxu_instruction():
+    wire = wire_lines(assemble("WAIT_MXU\nHALT\nEND\n"))
+    assert wire[0] == "2 5 0 0 0 0 0 0 0 0"
+
+
+def test_output_mxu_directive():
+    wire = wire_lines(assemble("HALT\nOUTPUT_MXU\nEND\n"))
+    assert "3 1" in wire
+    assert "4" in wire
+
+
+def test_wmem_and_amem_declarations():
+    src = "WMEM[2] = 1 0 0 0  0 1 0 0  0 0 1 0  0 0 0 1\nAMEM[3] = 5 -2 7 0\nEND\n"
+    wire = wire_lines(assemble(src))
+    assert wire[0].startswith("0 2 ")
+    assert wire[1].startswith("1 3 5 -2 7 0")
+
+
+def test_disassemble_vmem_negative():
+    tasm = disassemble("5 0 -1 -2 -3 -4 0 0 0 0 0 0 0 0 0 0 0 0\n4\n")
+    assert "VMEM[0] = -1 -2 -3 -4" in tasm
+
+
+def test_vpu_ops_cover_full_range():
+    from scripts.tasm import _VPU
+    # All 18 ops present
+    assert len(_VPU) == 18
+    # Contiguous from 0 to 17
+    codes = sorted(_VPU.values())
+    assert codes == list(range(18))
+
+
+def test_assemble_error_bad_vreg():
+    with pytest.raises(SyntaxError, match="expected vector register"):
+        assemble("LOAD x0, VMEM[0]\nHALT\nEND\n")
+
+
+def test_assemble_error_bad_vmem():
+    with pytest.raises(SyntaxError, match="expected VMEM"):
+        assemble("LOAD v0, WMEM[0]\nHALT\nEND\n")
+
+
+def test_assemble_error_unknown_mnemonic():
+    with pytest.raises(SyntaxError, match="unknown mnemonic"):
+        assemble("JUMP v0\nHALT\nEND\n")
