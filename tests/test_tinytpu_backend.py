@@ -1858,6 +1858,18 @@ class TestTinyTPUBackend(unittest.TestCase):
               Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np @ w_np + b_np)
 
+  def test_multi_wmma_4x4_at_4x8_relu_matches_numpy(self):
+    a_np = np.arange(16, dtype=np.int32).reshape(4, 4) - 5
+    w_np = np.arange(32, dtype=np.int32).reshape(4, 8) - 10
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(a_np @ w_np, 0))
+
+  def test_multi_wmma_8x8_at_8x8_relu_matches_numpy(self):
+    a_np = np.arange(64, dtype=np.int32).reshape(8, 8) - 21
+    w_np = np.arange(64, dtype=np.int32).reshape(8, 8) - 21
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(a_np @ w_np, 0))
+
   def test_lowering_dump_records_multi_wmma_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
       dump = Path(td) / "lowering.jsonl"
