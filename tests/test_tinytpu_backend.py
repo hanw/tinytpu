@@ -5,6 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tinygrad"))
 os.environ["TINYTPU_SIM"] = str(REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe")
+os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
@@ -482,6 +483,16 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (~Tensor(a, device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, ~a)
 
+  def test_bitwise_not_int32_matches_reference(self):
+    a_np = np.array([1, 2, 3, 4], dtype=np.int32)
+    result = (~Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, ~a_np)
+
+  def test_bitwise_not_int32_multi_tile_matches_reference(self):
+    a_np = np.arange(32, dtype=np.int32)
+    result = (~Tensor(a_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, ~a_np)
+
   def test_minimum_matches_reference(self):
     result = Tensor([1, 5, 3], dtype="int32", device="TINYTPU").minimum(
       Tensor([4, 2, 6], dtype="int32", device="TINYTPU")
@@ -566,21 +577,49 @@ class TestTinyTPUBackend(unittest.TestCase):
                           Tensor(rhs_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, np.where(cond_np, lhs_np, rhs_np))
 
-  def test_fused_add_relu_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      (Tensor([-3, 1, -1, 5], dtype="int32", device="TINYTPU") + Tensor([1, 1, 1, 1], dtype="int32", device="TINYTPU")).relu().numpy()
+  def test_fused_add_relu_matches_reference(self):
+    result = (Tensor([-3, 1, -1, 5], dtype="int32", device="TINYTPU") + Tensor([1, 1, 1, 1], dtype="int32", device="TINYTPU")).relu().numpy()
+    np.testing.assert_array_equal(result, np.array([0, 2, 0, 6], dtype=np.int32))
 
-  def test_idiv_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      (Tensor([10, 20, 30, 40], dtype="int32", device="TINYTPU") // 3).numpy()
+  def test_idiv_scalar_matches_reference(self):
+    result = (Tensor([10, 20, 30, 40], dtype="int32", device="TINYTPU") // 3).numpy()
+    np.testing.assert_array_equal(result, np.array([3, 6, 10, 13], dtype=np.int32))
 
-  def test_mod_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      (Tensor([10, 20, 30, 40], dtype="int32", device="TINYTPU") % 3).numpy()
+  def test_idiv_negative_matches_reference(self):
+    result = (Tensor([-10, -9, 9, 10], dtype="int32", device="TINYTPU") // 3).numpy()
+    np.testing.assert_array_equal(result, np.array([-3, -3, 3, 3], dtype=np.int32))
 
-  def test_abs_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([-1, 2, -3, 4], dtype="int32", device="TINYTPU").abs().numpy()
+  def test_mod_scalar_matches_reference(self):
+    result = (Tensor([10, 20, 30, 40], dtype="int32", device="TINYTPU") % 3).numpy()
+    np.testing.assert_array_equal(result, np.array([1, 2, 0, 1], dtype=np.int32))
+
+  def test_mod_negative_matches_reference(self):
+    result = (Tensor([-10, -9, 9, 10], dtype="int32", device="TINYTPU") % 3).numpy()
+    np.testing.assert_array_equal(result, np.array([-1, 0, 0, 1], dtype=np.int32))
+
+  def test_abs_matches_reference(self):
+    result = Tensor([-1, 2, -3, 4], dtype="int32", device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.array([1, 2, 3, 4], dtype=np.int32))
+
+  def test_abs_full_tile_matches_reference(self):
+    data = list(range(-8, 8))
+    result = Tensor(data, dtype="int32", device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.abs(np.array(data, dtype=np.int32)))
+
+  def test_abs_multi_tile_matches_reference(self):
+    data = list(range(-16, 16))
+    result = Tensor(data, dtype="int32", device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.abs(np.array(data, dtype=np.int32)))
+
+  def test_abs_all_positive_matches_reference(self):
+    data = list(range(0, 16))
+    result = Tensor(data, dtype="int32", device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.array(data, dtype=np.int32))
+
+  def test_abs_all_negative_matches_reference(self):
+    data = list(range(-16, 0))
+    result = Tensor(data, dtype="int32", device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.abs(np.array(data, dtype=np.int32)))
 
   def test_minimum_int_reports_correct_not_max(self):
     """Regression: minimum(a,b) previously misidentified as MAX."""
@@ -589,9 +628,29 @@ class TestTinyTPUBackend(unittest.TestCase):
     ).numpy()
     np.testing.assert_array_equal(result, np.array([1, 2, 3], dtype=np.int32))
 
-  def test_clip_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([-5, 0, 3, 10], dtype="int32", device="TINYTPU").clip(0, 5).numpy()
+  def test_clip_matches_reference(self):
+    result = Tensor([-5, 0, 3, 10], dtype="int32", device="TINYTPU").clip(0, 5).numpy()
+    np.testing.assert_array_equal(result, np.array([0, 0, 3, 5], dtype=np.int32))
+
+  def test_bool_to_int32_cast_matches_reference(self):
+    result = Tensor([True, False, True, False], device="TINYTPU").cast("int32").numpy()
+    np.testing.assert_array_equal(result, np.array([1, 0, 1, 0], dtype=np.int32))
+
+  def test_scalar_broadcast_add_matches_reference(self):
+    result = (Tensor([1], dtype="int32", device="TINYTPU") + Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([2, 3, 4, 5], dtype=np.int32))
+
+  def test_scalar_broadcast_add_reverse_matches_reference(self):
+    result = (Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU") + Tensor([1], dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.array([2, 3, 4, 5], dtype=np.int32))
+
+  def test_trunc_float32_matches_reference(self):
+    result = Tensor([1.2, -1.7, 0.0, 3.9], dtype="float32", device="TINYTPU").trunc().numpy()
+    np.testing.assert_allclose(result, np.array([1.0, -1.0, 0.0, 3.0], dtype=np.float32))
+
+  def test_reciprocal_float32_matches_reference(self):
+    result = Tensor([1.0, 2.0, -4.0, 0.5], dtype="float32", device="TINYTPU").reciprocal().numpy()
+    np.testing.assert_allclose(result, np.array([1.0, 0.5, -0.25, 2.0], dtype=np.float32))
 
   def test_permute_reports_movement_lowering_gap(self):
     with self.assertRaisesRegex(NotImplementedError, "General VMEM<->VReg movement kernels are not lowered yet"):
@@ -603,6 +662,9 @@ class TestTinyTPUBackend(unittest.TestCase):
 
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
+    self.assertEqual(_VPU_OPS["AND"], 15)
+    self.assertEqual(_VPU_OPS["OR"], 16)
+    self.assertEqual(_VPU_OPS["XOR"], 17)
     self.assertEqual(_VPU_BOOL_OPS, {_VPU_OPS["CMPLT"], _VPU_OPS["CMPNE"], _VPU_OPS["CMPEQ"]})
 
   def test_lowering_dump_records_scalar_descriptor(self):
@@ -642,6 +704,120 @@ class TestTinyTPUBackend(unittest.TestCase):
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
       self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["CMPEQ"] for r in records))
+
+  def test_lowering_dump_records_div_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((Tensor([10, 20, 30], dtype="int32", device="TINYTPU") // 3).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["DIV"] and r.get("rhs_const") == 3 for r in records))
+
+  def test_lowering_dump_records_mod_program_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((Tensor([10, 20, 30], dtype="int32", device="TINYTPU") % 3).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_PROGRAM" and any(step.get("op") == _VPU_OPS["DIV"] for step in r.get("steps", [])) for r in records))
+
+  def test_lowering_dump_records_native_bool_and_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((Tensor([True, False, True], device="TINYTPU") & Tensor([True, True, False], device="TINYTPU")).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["AND"] and r.get("bool_out") for r in records))
+
+  def test_lowering_dump_records_bool_not_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((~Tensor([True, False, True], device="TINYTPU")).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("rhs_const") == 1 and r.get("bool_in") for r in records))
+
+  def test_lowering_dump_records_int32_not_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((~Tensor([1, 2, 3], dtype="int32", device="TINYTPU")).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["XOR"] and r.get("rhs_const") == -1 for r in records))
+
+  def test_lowering_dump_records_scalar_broadcast_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          from tinygrad import Tensor
+          print((Tensor([1], dtype="int32", device="TINYTPU") + Tensor([1, 2, 3], dtype="int32", device="TINYTPU")).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("lhs_broadcast") for r in records))
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):
