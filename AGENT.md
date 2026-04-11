@@ -97,7 +97,7 @@ When a workload hits an unsupported op, dtype, or shape:
 1. Record it in `TODO.md` under the appropriate coverage area with a concrete description.
 2. Decide whether the fix belongs in **software** (tinygrad backend lowering) or **hardware** (BSV):
    - **Software first**: if the behavior can be expressed with existing SXU/VPU/MXU/XLU instructions, lower it in `ops_tinytpu.py`. Examples: new elementwise op via existing VPU opcodes, host fallback for unsupported dtypes, shape remapping.
-   - **Hardware needed**: if no existing instruction sequence can express the behavior, or if a software workaround would be unreasonably slow. Examples: new VPU opcode, new SXU instruction, wider data paths. In this case, note the required BSV change in `TODO.md`.
+   - **Hardware needed**: if no existing instruction sequence can express the behavior, or if a software workaround would be unreasonably slow. Examples: new VPU opcode, new SXU instruction, wider data paths. In this case, note the required BSV change in `TODO.md` and **ask the user before implementing** — do not expand the microarchitecture (new opcodes, new functional units, wider data paths, new SRAMs) without explicit approval.
 3. If the unsupported feature blocks a real model (not just a synthetic test), prioritize it higher.
 4. Do not silently skip unsupported features — always emit a clear diagnostic via the `UNSUPPORTED` descriptor path so the gap is visible.
 
