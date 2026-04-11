@@ -215,12 +215,12 @@ def test_disassemble_vmem_tile():
 
 
 def test_disassemble_output_vmem():
-    tasm = disassemble("2 6 0 0 0 0 0 0 0 0\n6 3\n4\n")
+    tasm = disassemble("2 7 0 0 0 0 0 0 0 0\n6 3\n4\n")
     assert "OUTPUT_VMEM VMEM[3]" in tasm
 
 
 def test_disassemble_output_mxu():
-    tasm = disassemble("2 6 0 0 0 0 0 0 0 0\n3 1\n4\n")
+    tasm = disassemble("2 7 0 0 0 0 0 0 0 0\n3 1\n4\n")
     assert "OUTPUT_MXU" in tasm
 
 
