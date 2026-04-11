@@ -149,3 +149,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-11	09a5978	1	data-path ALU + SUB/CMPEQ/clip fixes	SUB tensor-tensor, CMPEQ RANGE, clip const detection via SXU_PROGRAM	pytest: 340 passed; SXU_PROGRAM 143/263 (54%)	none	MIN decomposition, scalar broadcast
 2026-04-11	4195857	1	reverse SUB + ALU refactor	scalar-const reverse SUB, data-path ALU in multistep renderer	pytest: 340 passed; SXU_PROGRAM 146/263 (55%)	none	MIN decomposition, fused add+relu, scalar broadcast
 2026-04-11	2ce9812	1	tensor-tensor MIN via SXU_PROGRAM	MIN XOR+MAX decomposition detected and emitted as VPU_MIN	pytest: 340 passed	none	scalar-const MIN, fused add+relu, scalar broadcast
+2026-04-11	4c7b394	1	fused add+relu SXU_PROGRAM	fused add+relu via ADD+RELU SXU_PROGRAM	pytest: 340 passed; SXU_PROGRAM 157/263 (59%)	none	scalar broadcast, scalar-const MIN/MOD, reductions
