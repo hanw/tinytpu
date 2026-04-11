@@ -7,9 +7,10 @@ SXU_OP_NAMES = {
   0: "SXU_LOAD_VREG",
   1: "SXU_STORE_VREG",
   2: "SXU_DISPATCH_VPU",
-  3: "SXU_DISPATCH_MXU",
-  4: "SXU_WAIT_MXU",
-  5: "SXU_HALT",
+  3: "SXU_DISPATCH_XLU_BROADCAST",
+  4: "SXU_DISPATCH_MXU",
+  5: "SXU_WAIT_MXU",
+  6: "SXU_HALT",
 }
 
 VPU_OP_NAMES = {
@@ -22,6 +23,15 @@ VPU_OP_NAMES = {
   6: "VPU_CMPNE",
   7: "VPU_SUB",
   8: "VPU_CMPEQ",
+  9: "VPU_MAX_REDUCE",
+  10: "VPU_SHL",
+  11: "VPU_SHR",
+  12: "VPU_MIN",
+  13: "VPU_MIN_REDUCE",
+  14: "VPU_DIV",
+  15: "VPU_AND",
+  16: "VPU_OR",
+  17: "VPU_XOR",
 }
 
 
@@ -145,7 +155,7 @@ def make_vpu_binary_bundle(lhs:Sequence[int], rhs:Sequence[int], vpu_op:int, num
       BundleInstr(0, 1, 1, 0, 0, 0, 0, 0, 0),
       BundleInstr(2, 0, 2, 0, int(vpu_op), 1, 0, 0, 0),
       BundleInstr(1, 2, 0, 2, 0, 0, 0, 0, 0),
-      BundleInstr(5, 0, 0, 0, 0, 0, 0, 0, 0),
+      BundleInstr(6, 0, 0, 0, 0, 0, 0, 0, 0),
     ],
     output_vmem_addr=2,
   )

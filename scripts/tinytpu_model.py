@@ -1,10 +1,11 @@
 """
 tinytpu_model.py — TinyTPU-compatible model primitives
 
-TinyTPU's tinygrad backend does not yet lower fused multi-op kernels
-(e.g. GEMM+bias or GEMM+ReLU as a single kernel).  These primitives
-force eager evaluation between every operation with .realize() so that
-each step maps to exactly one supported TinyTPU kernel.
+TinyTPU's tinygrad backend now lowers the single-WMMA 4x4 GEMM path with
+optional fused bias-add and ReLU epilogues. These primitives still force
+eager evaluation between every operation because that remains the most
+robust path for larger or differently-shaped kernels that do not map to a
+single TinyTPU WMMA tile.
 
 Usage:
     from scripts.tinytpu_model import linear, relu, mlp_forward, conv1x1
@@ -18,7 +19,11 @@ import numpy as np
 
 
 def linear(x: Tensor, W: Tensor, bias: Tensor | None = None) -> Tensor:
-    """Linear layer: y = x @ W [+ bias].  Forces realize between GEMM and bias-add."""
+    """Linear layer: y = x @ W [+ bias].
+
+    Uses explicit realizes to keep behavior predictable even when the input
+    shape does not map to TinyTPU's fused single-WMMA path.
+    """
     out = (x @ W).realize()
     if bias is not None:
         out = (out + bias).realize()
@@ -26,7 +31,7 @@ def linear(x: Tensor, W: Tensor, bias: Tensor | None = None) -> Tensor:
 
 
 def relu(x: Tensor) -> Tensor:
-    """ReLU: max(0, x).  Forces realize so it runs as a separate VPU kernel."""
+    """ReLU: max(0, x).  Forces realize so it runs as a separate kernel."""
     return x.relu().realize()
 
 
@@ -73,9 +78,8 @@ def mlp_forward(x: Tensor, weights: list[np.ndarray],
 def linear_relu(x: Tensor, W: Tensor, bias: Tensor | None = None) -> Tensor:
     """Linear layer followed by ReLU: relu(x @ W [+ bias]).
 
-    Forces realize after each step so tinygrad does not fuse the three
-    operations (GEMM + bias-add + ReLU) into a single 4-param kernel that
-    the TinyTPU backend cannot yet lower.
+    Forces realize after each step so execution remains stable for shapes
+    beyond the fused single-WMMA GEMM(+bias)(+ReLU) path.
     """
     return relu(linear(x, W, bias))
 
@@ -92,12 +96,9 @@ def conv1x1(x: Tensor, W: Tensor) -> Tensor:
 # Known fusion limitation
 # ---------------------------------------------------------------------------
 # Tinygrad's lazy evaluation fuses adjacent operations into single kernels.
-# The TinyTPU backend recognizes a growing set of kernel shapes, but some
-# multi-op fusions are not yet detected:
-#
-#   NOT YET SUPPORTED (use .realize() to split):
-#     (x @ W + b).relu()       -- GEMM + bias + ReLU fused into 4-param kernel
-#     (x @ W).relu()           -- GEMM + ReLU fused (unfused batch>1 case)
+# TinyTPU now recognizes the single-WMMA 4x4 GEMM path with optional fused
+# bias-add and ReLU epilogues, but explicit realizes are still the safest
+# route for larger or differently-shaped kernels:
 #
 #   SUPPORTED via explicit realize chain:
 #     h = (x @ W).realize()

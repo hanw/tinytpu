@@ -32,6 +32,36 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np @ w_np)
 
+  def test_fused_gemm_bias_matches_numpy(self):
+    a_np = np.arange(16, dtype=np.int32).reshape(4, 4)
+    w_np = np.arange(16, dtype=np.int32).reshape(4, 4)
+    b_np = np.array([1, 2, 3, 4], dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @
+              Tensor(w_np, dtype="int32", device="TINYTPU") +
+              Tensor(b_np, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np + b_np)
+
+  def test_fused_gemm_relu_matches_numpy(self):
+    a_np = np.array([[1, -2, 3, -4],
+                     [5, -6, 7, -8],
+                     [1, 1, 1, 1],
+                     [-2, -2, -2, -2]], dtype=np.int32)
+    w_np = np.array([[1, 2, -3, 4],
+                     [5, -6, 7, -8],
+                     [9, 10, -11, 12],
+                     [13, -14, 15, -16]], dtype=np.int32)
+    result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(a_np @ w_np, 0))
+
+  def test_fused_gemm_bias_relu_matches_numpy(self):
+    a_np = np.arange(16, dtype=np.int32).reshape(4, 4) - 6
+    w_np = np.arange(16, dtype=np.int32).reshape(4, 4) - 5
+    b_np = np.array([1, -20, 3, -40], dtype=np.int32)
+    result = ((Tensor(a_np, dtype="int32", device="TINYTPU") @
+               Tensor(w_np, dtype="int32", device="TINYTPU")) +
+              Tensor(b_np, dtype="int32", device="TINYTPU")).relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(a_np @ w_np + b_np, 0))
+
   def test_multi_row_wide_output_gemm_matches_numpy(self):
     a_np = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.int32)
     w_np = np.arange(32, dtype=np.int32).reshape(4, 8)
@@ -1735,6 +1765,53 @@ class TestTinyTPUBackend(unittest.TestCase):
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
       self.assertTrue(any(r.get("op") == "VPU_BINARY" and r.get("vpu_op") == _VPU_OPS["ADD"] and r.get("rhs_const") == 1 for r in records))
+
+  def test_lowering_dump_records_wmma_gemm_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          import numpy as np
+          from tinygrad import Tensor
+          a = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          b = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          print((a @ b).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" for r in records))
+
+  def test_lowering_dump_records_wmma_bias_relu_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          import numpy as np
+          from tinygrad import Tensor
+          a = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          b = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          bias = Tensor(np.array([1, 2, 3, 4], dtype=np.int32), dtype="int32", device="TINYTPU")
+          print(((a @ b) + bias).relu().numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" and
+                          r.get("epilogue") == [{"op": "ADD", "arg": 3, "mode": "ROW_BROADCAST"}, {"op": "RELU"}]
+                          for r in records))
 
   def test_lowering_dump_records_equality_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
