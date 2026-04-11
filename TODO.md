@@ -213,19 +213,17 @@ Current bloat sources:
 - Duplicate output parsing: `_parse_vmem_output`, `_parse_multi_vmem_output`,
   `_parse_sim_output` share the same structure.
 
-Cleanup plan:
-- [ ] Unify chunk loop across all VPU _exec_* methods into shared helper
-- [ ] Merge `_parse_vmem_output` / `_parse_multi_vmem_output` / `_parse_sim_output`
-- [ ] Unify `_build_vpu_binary_bundle` / `_build_vpu_unary_bundle` / `_build_vpu_where_bundle` into generic bundle builder
-- [ ] Delete dead code paths in `analyze_tinytpu_uops` that WMMA now handles
-- [ ] Table-driven VPU opcode lowering (replace per-op if/elif in renderer)
-- [ ] Replace brittle UOp-count matching with structural pattern matching
-- [ ] Collapse `_build_gemm_bundle` (unused since full GEMM path) and `_build_gemm_epilogue_bundle` (unused since full GEMM path)
-- [ ] Remove `_run_gemm_vec` / `_run_gemm_epilogue_vec` (dead code after single-bundle GEMM)
-- [ ] Build reusable lowering IR for TinyTPU bundles
-- [ ] Shape-aware lowering helpers
-- [ ] Dtype-aware lowering helpers
-- [ ] Better diagnostics with selected lowering candidate
+Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
+- [x] Add VPU_NOT hardware opcode (BSV + testbench + Python table)
+- [ ] Migrate scalar-const binary ops (x+c, x*c, NEG, NOT) to SXU_PROGRAM
+- [ ] Migrate bool-typed ops (AND/OR/XOR/NOT on bool tensors) to SXU_PROGRAM
+- [ ] Migrate WHERE (ternary select) to SXU_PROGRAM
+- [ ] Migrate multi-step VPU_PROGRAM patterns (abs, clip, MOD) to SXU_PROGRAM
+- [ ] Migrate scalar reductions (SUM/MAX/MIN to scalar) to SXU_PROGRAM
+- [ ] Migrate row-wise reduce (VPU_ROWSUM) to SXU_PROGRAM
+- [ ] Migrate row-broadcast binary (VPU_ROWBC_BINARY) to SXU_PROGRAM
+- [ ] Emit host fallbacks (HOST_*) directly from renderer without analyze_tinytpu_uops
+- [ ] Delete analyze_tinytpu_uops, old bundle builders, old _exec_* methods
 - [ ] Run selected upstream tinygrad tests on `TINYTPU`
 - [ ] Add skipped/xfail manifest for unsupported tinyspec areas
 - [ ] Track coverage by tinyspec op category
