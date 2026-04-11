@@ -20,7 +20,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from scripts.tinytpu_model import linear, relu, mlp_forward
+from scripts.tinytpu_model import linear, relu, linear_relu, mlp_forward
 
 
 def _np_mlp(x, weights, biases=None, use_relu=True):
@@ -205,6 +205,52 @@ class TestE2EMLP(unittest.TestCase):
         Ws = [rng.integers(-2, 2, (4, 4), dtype=np.int32) for _ in range(3)]
         out = mlp_forward(Tensor(x, device="TINYTPU"), Ws, use_relu=False).numpy()
         self._check(out, _np_mlp(x, Ws, use_relu=False), "3-layer no-relu 4x4")
+
+
+    # ── linear_relu convenience wrapper ──────────────────────────────────
+
+    def test_linear_relu_1x4_no_bias(self):
+        x = np.array([[-1, 2, -3, 4]], dtype=np.int32)
+        W = np.eye(4, dtype=np.int32)
+        out = linear_relu(Tensor(x, device="TINYTPU"), Tensor(W, device="TINYTPU")).numpy()
+        self._check(out, np.maximum(x @ W, 0), "linear_relu 1x4 no bias")
+
+    def test_linear_relu_4x4_with_bias(self):
+        rng = np.random.default_rng(111)
+        x = rng.integers(-2, 2, (4, 4), dtype=np.int32)
+        W = rng.integers(-2, 2, (4, 4), dtype=np.int32)
+        b = rng.integers(-3, 3, (1, 4), dtype=np.int32)
+        out = linear_relu(Tensor(x, device="TINYTPU"), Tensor(W, device="TINYTPU"),
+                          Tensor(b, device="TINYTPU")).numpy()
+        self._check(out, np.maximum(x @ W + b, 0), "linear_relu+bias 4x4")
+
+    def test_gemm_then_bias_then_relu_via_realize(self):
+        """Step-by-step (x@W+b).relu() using explicit .realize() calls."""
+        rng = np.random.default_rng(222)
+        x = rng.integers(-2, 2, (4, 4), dtype=np.int32)
+        W = rng.integers(-2, 2, (4, 4), dtype=np.int32)
+        b = rng.integers(-3, 3, (1, 4), dtype=np.int32)
+        h1 = (Tensor(x, device="TINYTPU") @ Tensor(W, device="TINYTPU")).realize()
+        h2 = (h1 + Tensor(b, device="TINYTPU")).realize()
+        out = h2.relu().numpy()
+        self._check(out, np.maximum(x @ W + b, 0), "step-by-step GEMM+bias+relu")
+
+    def test_mlp_using_linear_relu_helper(self):
+        """4-layer MLP built with linear_relu() convenience wrapper."""
+        rng = np.random.default_rng(333)
+        x  = rng.integers(-2, 2, (4, 4), dtype=np.int32)
+        Ws = [rng.integers(-2, 2, (4, 4), dtype=np.int32) for _ in range(4)]
+        bs = [rng.integers(-3, 3, (1, 4), dtype=np.int32) for _ in range(4)]
+        h = Tensor(x, device="TINYTPU")
+        for W, b in zip(Ws[:-1], bs[:-1]):
+            h = linear_relu(h, Tensor(W, device="TINYTPU"), Tensor(b, device="TINYTPU"))
+        out = linear(h, Tensor(Ws[-1], device="TINYTPU"), Tensor(bs[-1], device="TINYTPU")).numpy()
+        # Reference
+        ref = x.copy()
+        for W, b in zip(Ws[:-1], bs[:-1]):
+            ref = np.maximum(ref @ W + b, 0)
+        ref = ref @ Ws[-1] + bs[-1]
+        self._check(out, ref, "4-layer MLP via linear_relu helper")
 
 
 if __name__ == "__main__":

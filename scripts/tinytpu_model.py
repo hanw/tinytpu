@@ -70,9 +70,39 @@ def mlp_forward(x: Tensor, weights: list[np.ndarray],
     return h
 
 
+def linear_relu(x: Tensor, W: Tensor, bias: Tensor | None = None) -> Tensor:
+    """Linear layer followed by ReLU: relu(x @ W [+ bias]).
+
+    Forces realize after each step so tinygrad does not fuse the three
+    operations (GEMM + bias-add + ReLU) into a single 4-param kernel that
+    the TinyTPU backend cannot yet lower.
+    """
+    return relu(linear(x, W, bias))
+
+
 def conv1x1(x: Tensor, W: Tensor) -> Tensor:
     """
     1x1 convolution as a matrix multiply (batch, C_in) @ (C_in, C_out).
     Equivalent to a linear layer without bias.
     """
     return (x @ W).realize()
+
+
+# ---------------------------------------------------------------------------
+# Known fusion limitation
+# ---------------------------------------------------------------------------
+# Tinygrad's lazy evaluation fuses adjacent operations into single kernels.
+# The TinyTPU backend recognizes a growing set of kernel shapes, but some
+# multi-op fusions are not yet detected:
+#
+#   NOT YET SUPPORTED (use .realize() to split):
+#     (x @ W + b).relu()       -- GEMM + bias + ReLU fused into 4-param kernel
+#     (x @ W).relu()           -- GEMM + ReLU fused (unfused batch>1 case)
+#
+#   SUPPORTED via explicit realize chain:
+#     h = (x @ W).realize()
+#     h = (h + b).realize()    -- VPU_ROWBC_BINARY
+#     h = h.relu().realize()   -- VPU_UNARY RELU
+#
+# Use linear(), linear_relu(), and mlp_forward() from this module to get
+# correct results without worrying about fusion.
