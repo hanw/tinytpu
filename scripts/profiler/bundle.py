@@ -33,6 +33,14 @@ VPU_OP_NAMES = {
   15: "VPU_AND",
   16: "VPU_OR",
   17: "VPU_XOR",
+  18: "VPU_FADD",
+  19: "VPU_FMUL",
+  20: "VPU_FSUB",
+  21: "VPU_FMAX",
+  22: "VPU_FCMPLT",
+  23: "VPU_FRECIP",
+  24: "VPU_I2F",
+  25: "VPU_F2I",
 }
 
 
