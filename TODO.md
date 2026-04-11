@@ -46,8 +46,13 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] Clip (MIN+MAX program) full-tile and multi-tile
 - [x] Fused add+relu full-tile and multi-tile
 - [x] Tensor-tensor IDIV and MOD
-- [x] Row-wise sum/max/min for Nx4 tensors (VPU_ROWSUM, arbitrary N)
+- [x] Row-wise sum/max/min for NxM tensors (VPU_ROWSUM for M=4, HOST_ROWREDUCE for other M)
+- [x] Column-wise sum/max/min for NxM tensors (HOST_COLREDUCE)
 - [x] Fix stale WAIT_MXU opcode in VPU-only test bundles
+- [x] 2D tensor ops: all VPU binary/unary ops for arbitrary 2D shapes
+- [x] Grouped scalar-const lowering for 2D/large tensors (NEG, x*c, x+c)
+- [x] _tasm helper functions + bundle builders rewritten in readable assembly style
+- [x] TASM bundle roundtrip tests for all bundle builders
 
 ## Coverage Estimate by Area
 
@@ -80,7 +85,7 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
 - [x] Multi-tile elementwise loops for `numel > 16`
   - [x] Multi-tile AND/OR/XOR/NOT for bool tensors
-- [ ] Mixed VPU op chains without host round trips
+- [x] Mixed VPU op chains without host round trips (via VPU_PROGRAM path)
 - [ ] Output shape preservation for scalar, vector, and small matrix cases
 
 ### More Elementwise Ops: 35-70 iterations
@@ -110,8 +115,8 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] 4-element int32 sum to scalar
 - [x] Full-tile int32 sum to scalar
 - [x] Multi-tile int32 sum to scalar
-- [x] Row-wise sum/max/min over Nx4 tensor (VPU_ROWSUM, arbitrary N)
-- [ ] Column-wise sum over a 4x4 VMEM tile (requires XLU transpose)
+- [x] Row-wise sum/max/min over NxM tensor (VPU_ROWSUM for M=4, HOST_ROWREDUCE otherwise)
+- [x] Column-wise sum/max/min over NxM tensor (HOST_COLREDUCE)
 - [ ] Full-tile sum
 - [x] `MAX` reduction (4-elem, full-tile, multi-tile via VPU_MAX_REDUCE)
 - [x] `MIN` reduction (4-elem, full-tile, multi-tile via VPU_MIN_REDUCE)
