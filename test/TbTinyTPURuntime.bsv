@@ -53,18 +53,20 @@ typedef enum {
 (* synthesize *)
 module mkTbTinyTPURuntime();
 
-   TensorCore_IFC#(4, 4, 16) tc <- mkTensorCore;
+   TensorCore_IFC#(4, 4, 32) tc <- mkTensorCore;
 
    Reg#(TsimState) state  <- mkReg(TSIM_OPEN);
-   Reg#(UInt#(4))  pc     <- mkReg(0);      // instruction counter
+   Reg#(UInt#(8))  pc     <- mkReg(0);      // instruction counter
    Reg#(Bool)      outMxu <- mkReg(False);
-   Reg#(Bool)      outVmem <- mkReg(False);
-   Reg#(UInt#(4))  outVmemAddr <- mkReg(0);
+   // Support up to 32 OUTPUT_VMEM addresses
+   Reg#(UInt#(5))  outVmemCount <- mkReg(0);
+   Vector#(32, Reg#(UInt#(8))) outVmemAddrs <- replicateM(mkReg(0));
+   Reg#(UInt#(5))  outVmemIdx <- mkReg(0);   // current output index during TSIM_OUTPUT
    Reg#(UInt#(16)) cycle  <- mkReg(0);
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 5000) begin
+      if (cycle > 50000) begin
          $display("FAIL: timeout");
          $finish(1);
       end
@@ -215,11 +217,11 @@ module mkTbTinyTPURuntime();
       state <= TSIM_READ_TYPE;
    endrule
 
-   // Record 6: OUTPUT_VMEM — addr to emit after HALT
+   // Record 6: OUTPUT_VMEM — addr to emit after HALT (accumulates)
    rule do_output_vmem (state == TSIM_OUTPUT_VMEM);
       Int#(32) addr <- tinytpu_bundle_read_int();
-      outVmem <= True;
-      outVmemAddr <= unpack(truncate(pack(addr)));
+      outVmemAddrs[outVmemCount] <= unpack(truncate(pack(addr)));
+      outVmemCount <= outVmemCount + 1;
       state <= TSIM_READ_TYPE;
    endrule
 
@@ -235,46 +237,28 @@ module mkTbTinyTPURuntime();
    endrule
 
    // Print results, finish simulation
-   function Action print_status();
-      action
-         $display("cycles %0d", cycle);
-         $display("status ok");
-         $finish(0);
-      endaction
-   endfunction
 
-   function Action print_vmem();
-      action
-         Vector#(4, Vector#(4, Int#(32))) tile = tc.peekVmemTile(outVmemAddr);
-         $display("vmem_result %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",
-                  tile[0][0], tile[0][1], tile[0][2], tile[0][3],
-                  tile[1][0], tile[1][1], tile[1][2], tile[1][3],
-                  tile[2][0], tile[2][1], tile[2][2], tile[2][3],
-                  tile[3][0], tile[3][1], tile[3][2], tile[3][3]);
-      endaction
-   endfunction
-
-   rule do_output_vmem_only (state == TSIM_OUTPUT && outVmem && !outMxu);
-      print_vmem();
-      print_status();
-   endrule
-
-   rule do_output_mxu_only (state == TSIM_OUTPUT && outMxu && !outVmem);
+   // Emit MXU result first if requested
+   rule do_emit_mxu (state == TSIM_OUTPUT && outMxu);
       Vector#(4, Int#(32)) res = tc.getMxuResult;
       $display("mxu_result %0d %0d %0d %0d",
                res[0], res[1], res[2], res[3]);
-      print_status();
+      outMxu <= False;
    endrule
 
-   rule do_output_both (state == TSIM_OUTPUT && outMxu && outVmem);
-      Vector#(4, Int#(32)) res = tc.getMxuResult;
-      $display("mxu_result %0d %0d %0d %0d",
-               res[0], res[1], res[2], res[3]);
-      print_vmem();
-      print_status();
+   // Emit VMEM results sequentially
+   rule do_output_vmem_seq (state == TSIM_OUTPUT && !outMxu && outVmemIdx < outVmemCount);
+      Vector#(4, Vector#(4, Int#(32))) tile = tc.peekVmemTile(truncate(outVmemAddrs[outVmemIdx]));
+      $display("vmem_result %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",
+               tile[0][0], tile[0][1], tile[0][2], tile[0][3],
+               tile[1][0], tile[1][1], tile[1][2], tile[1][3],
+               tile[2][0], tile[2][1], tile[2][2], tile[2][3],
+               tile[3][0], tile[3][1], tile[3][2], tile[3][3]);
+      outVmemIdx <= outVmemIdx + 1;
    endrule
 
-   rule do_output_status_only (state == TSIM_OUTPUT && !outMxu && !outVmem);
+   // Finish after all outputs emitted
+   rule do_output_done (state == TSIM_OUTPUT && !outMxu && outVmemIdx >= outVmemCount);
       $display("cycles %0d", cycle);
       $display("status ok");
       $finish(0);

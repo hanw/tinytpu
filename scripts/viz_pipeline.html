@@ -478,8 +478,14 @@ class Timeline {
     this.dragStartX  = 0;
     this.dragStartVS = 0;
 
+    this._abortCtrl = new AbortController();
     this._bindEvents();
     this._bindResize();
+  }
+
+  destroy() {
+    this._abortCtrl.abort();
+    if (this._resizeObs) this._resizeObs.disconnect();
   }
 
   // CSS dimensions of the canvas (after DPR correction)
@@ -493,7 +499,8 @@ class Timeline {
 
   // ── resize ──────────────────────────────────────────────────────────
   _bindResize() {
-    new ResizeObserver(() => this._resize()).observe(this.canvas.parentElement);
+    this._resizeObs = new ResizeObserver(() => this._resize());
+    this._resizeObs.observe(this.canvas.parentElement);
   }
   _resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -510,6 +517,7 @@ class Timeline {
   // ── events ──────────────────────────────────────────────────────────
   _bindEvents() {
     const c = this.canvas;
+    const sig = { signal: this._abortCtrl.signal };
 
     // Zoom via scroll wheel
     c.addEventListener("wheel", e => {
@@ -519,7 +527,7 @@ class Timeline {
       this.pixPerCycle = Math.min(240, Math.max(3.5, this.pixPerCycle * f));
       this.viewStart   = pivot - (e.offsetX - this.L) / this.pixPerCycle;
       this._clamp(); this.render(); this._updateZoomLabel();
-    }, { passive: false });
+    }, { passive: false, ...sig });
 
     // Pan via drag
     c.addEventListener("mousedown", e => {
@@ -528,17 +536,17 @@ class Timeline {
       this.dragStartX  = e.offsetX;
       this.dragStartVS = this.viewStart;
       c.style.cursor   = "grabbing";
-    });
+    }, sig);
     c.addEventListener("mousemove", e => {
       if (this.dragging) {
         this.viewStart = this.dragStartVS - (e.offsetX - this.dragStartX) / this.pixPerCycle;
         this._clamp(); this.render();
       }
       this._hover(e.offsetX, e.offsetY);
-    });
+    }, sig);
     const stopDrag = () => { this.dragging = false; this.canvas.style.cursor = "crosshair"; };
-    c.addEventListener("mouseup",    stopDrag);
-    c.addEventListener("mouseleave", () => { stopDrag(); this._clearHover(); });
+    c.addEventListener("mouseup",    stopDrag, sig);
+    c.addEventListener("mouseleave", () => { stopDrag(); this._clearHover(); }, sig);
 
     // Keyboard shortcuts
     window.addEventListener("keydown", e => {
@@ -548,7 +556,7 @@ class Timeline {
       if (e.key==="ArrowLeft")  { this.viewStart -= 2; this._clamp(); this.render(); }
       if (e.key==="ArrowRight") { this.viewStart += 2; this._clamp(); this.render(); }
       if (e.key==="r" || e.key==="R") this.fitView();
-    });
+    }, sig);
   }
 
   _zoom(factor) {
@@ -1013,12 +1021,18 @@ function rawFromPerfettoJSON(json) {
 // ═══════════════════════════════════════════════════════════════════════════
 let tl = null;
 
-function boot(rawEvents) {
+function boot(rawEvents, fromFile) {
+  if (tl) { tl.destroy(); tl = null; }
   const blocks = coalesce(rawEvents);
   const stats  = computeStats(rawEvents);
 
   renderStatsBar(stats);
-  renderProgListing();
+  if (fromFile) {
+    document.getElementById("prog-list").innerHTML =
+      '<div class="prog-instr"><span class="prog-asm" style="color:var(--text-dim)">Loaded from trace JSON (' + blocks.length + ' blocks, ' + stats.totalCycles + ' cycles)</span></div>';
+  } else {
+    renderProgListing();
+  }
   renderLegend(blocks);
 
   const canvas = document.getElementById("canvas");
@@ -1051,7 +1065,7 @@ document.getElementById("file-input").addEventListener("change", e => {
   reader.onload = ev => {
     try {
       const json = JSON.parse(ev.target.result);
-      boot(rawFromPerfettoJSON(json));
+      boot(rawFromPerfettoJSON(json), true);
     } catch(err) {
       alert("Could not parse trace.json: " + err.message);
     }

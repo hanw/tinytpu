@@ -22,7 +22,7 @@ interface TensorCore_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Action loadActivationTile(UInt#(TLog#(depth)) addr,
                                     Vector#(rows, Int#(8)) data);
    // Load one SXU microprogram instruction
-   method Action loadProgram(UInt#(4) pc, TCInstr instr);
+   method Action loadProgram(UInt#(8) pc, TCInstr instr);
    // Pre-load/read unified VMEM tiles for VPU/XLU programs.
    method Action loadVmemTile(UInt#(TLog#(depth)) addr,
                               Vector#(rows, Vector#(cols, Int#(32))) data);
@@ -30,7 +30,7 @@ interface TensorCore_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Vector#(rows, Vector#(cols, Int#(32))) getVmemResult;
    method Vector#(rows, Vector#(cols, Int#(32))) peekVmemTile(UInt#(TLog#(depth)) addr);
    // Start SXU execution
-   method Action start(UInt#(4) len);
+   method Action start(UInt#(8) len);
    method Bool isDone;
    // MXU result vector (valid after isDone)
    method Vector#(cols, Int#(32)) getMxuResult;
@@ -65,7 +65,7 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
    XLU_IFC#(rows, rows)            xlu  <- mkXLU;
 
    // Scalar Unit drives everything
-   SXU_IFC#(16, depth, 16, rows, rows) sxu <-
+   SXU_IFC#(256, depth, 16, rows, rows) sxu <-
       mkScalarUnit(vmem, vrf, vpu, xlu, ctrl);
 
    method Action loadWeightTile(UInt#(TLog#(depth)) addr,
@@ -78,8 +78,8 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
       asram.write(addr, data);
    endmethod
 
-   method Action loadProgram(UInt#(4) pc, TCInstr instr);
-      sxu.loadInstr(extend(pc), instr);
+   method Action loadProgram(UInt#(8) pc, TCInstr instr);
+      sxu.loadInstr(truncate(pc), instr);
    endmethod
 
    method Action loadVmemTile(UInt#(TLog#(depth)) addr,
@@ -99,8 +99,8 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
       return vmem.peek(addr);
    endmethod
 
-   method Action start(UInt#(4) len);
-      sxu.start(extend(len));
+   method Action start(UInt#(8) len);
+      sxu.start(truncate(len));
    endmethod
 
    method Bool isDone = sxu.isDone;
