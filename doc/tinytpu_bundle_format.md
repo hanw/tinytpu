@@ -1,7 +1,13 @@
-# TinyTPU Bundle Format
+# TinyTPU Bundle Format (wire format)
 
-The runtime testbench reads one numeric record per line from `TINYTPU_BUNDLE`.
-Comments and blank lines are ignored by the Python tooling.
+> **See also:** `doc/tinytpu_asm.md` — the TASM human-readable assembly language
+> that compiles to this wire format via `scripts/tasm.py`.
+
+The BSV testbench (`TbTinyTPURuntime.bsv`) reads integers one at a time via
+the `tinytpu_bundle_read_int()` BDPI C function from the file pointed to by
+`$TINYTPU_BUNDLE`.  The format is whitespace-delimited integers; `#` comment
+lines are skipped.  Line breaks have no semantic meaning — only the integer
+sequence matters.
 
 | Record | Fields | Meaning |
 | --- | --- | --- |
