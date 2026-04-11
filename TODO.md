@@ -11,7 +11,9 @@ tested, committed behavior per iteration.
 
 Current coverage is still a small slice of the full spec, but it now includes
 real TinyTPU execution for GEMM, core int32 VPU binary ops, ReLU, equality and
-comparison bool outputs, scalar constants, and a simple reduction.
+comparison bool outputs, scalar constants, simple reductions, row-wise
+sum/max/min, abs, clip, fused add+relu, IDIV, MOD, scalar broadcasting,
+int32/bool casts, and the TASM bundle assembler/disassembler.
 
 ## Current Progress
 
@@ -37,6 +39,15 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [x] Signed VPU test coverage
 - [x] Runtime output validation for MXU and VMEM result lines
 - [x] Remove generated `bdpi/tinytpu_io.o` from git tracking
+- [x] TASM bundle assembler and disassembler (`scripts/tasm.py`, `doc/tinytpu_asm.md`)
+- [x] Full-tile and multi-tile abs, IDIV, MOD coverage
+- [x] Scalar broadcast (size-1 tensor) for MUL, SUB, MAX, multi-tile ADD/MUL
+- [x] int32→bool and bool→int32 cast coverage
+- [x] Clip (MIN+MAX program) full-tile and multi-tile
+- [x] Fused add+relu full-tile and multi-tile
+- [x] Tensor-tensor IDIV and MOD
+- [x] Row-wise sum/max/min for Nx4 tensors (VPU_ROWSUM, arbitrary N)
+- [x] Fix stale WAIT_MXU opcode in VPU-only test bundles
 
 ## Coverage Estimate by Area
 
@@ -99,8 +110,8 @@ comparison bool outputs, scalar constants, and a simple reduction.
 - [x] 4-element int32 sum to scalar
 - [x] Full-tile int32 sum to scalar
 - [x] Multi-tile int32 sum to scalar
-- [ ] Row-wise sum over a 4x4 VMEM tile
-- [ ] Column-wise sum over a 4x4 VMEM tile
+- [x] Row-wise sum/max/min over Nx4 tensor (VPU_ROWSUM, arbitrary N)
+- [ ] Column-wise sum over a 4x4 VMEM tile (requires XLU transpose)
 - [ ] Full-tile sum
 - [x] `MAX` reduction (4-elem, full-tile, multi-tile via VPU_MAX_REDUCE)
 - [x] `MIN` reduction (4-elem, full-tile, multi-tile via VPU_MIN_REDUCE)

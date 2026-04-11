@@ -130,3 +130,12 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-10	0c56fc3	1	Signed minimum	Minimum with negative values on both sides	pytest backend: 104 passed (sim-backed)	none	Negative min const
 2026-04-10	f3b0c0b	1	Negative min const	minimum(x, -2)	pytest backend: 105 passed (sim-backed)	none	Diagnostic tests
 2026-04-10	bb86956	1	Diagnostic tests	IDIV/MOD/ABS unsupported + minimum regression	pytest backend: 109 passed (sim-backed)	none	Fused clamp or CAST lowering
+2026-04-11	e1796ef	1	tests: fix stale WAIT_MXU opcode	VPU-only bundles end with HALT not WAIT_MXU	pytest: 193 passed	none	IDIV/MOD/abs multi-tile coverage
+2026-04-11	68f8ccb	1	full-tile and multi-tile abs tests	abs works for all numel via VPU_PROGRAM tile loop	pytest: 197 passed	none	IDIV/MOD multi-tile coverage
+2026-04-11	8ecc187	1	full-tile and multi-tile IDIV/MOD tests	truncation semantics documented	pytest: 203 passed	none	scalar broadcast coverage
+2026-04-11	a8ff56b	1	scalar broadcast and cast coverage	MUL/SUB/MAX size-1 broadcast; int32<->bool cast	pytest: 211 passed	none	clip/fused coverage
+2026-04-11	7f4aeb1	1	clip and fused add+relu multi-tile	16-elem and 32-elem coverage	pytest: 215 passed	none	row-wise sum
+2026-04-11	bf4ef32	1	row-wise sum via VPU_SUM_REDUCE	VPU_ROWSUM: nrows x 4 -> nrows sums	pytest: 219 passed	marked row-wise sum done	row-wise max/min
+2026-04-11	27da240	1	row-wise max and min reductions	discriminate sum/max/min by UOp body; VPU_MAX/MIN_REDUCE	pytest: 223 passed	none	tensor-tensor IDIV/MOD; keepdim
+2026-04-11	91b9178	1	tensor-tensor IDIV/MOD; rowsum keepdim; rowmax/min 3x4	all shape counts for row reductions	pytest: 229 passed	none	vpu_rowsum multi-tile rows
+2026-04-11	40d41db	1	vpu_rowsum arbitrary nrows via 4-row tile chunking	5x4 and 8x4 sum/max/min	pytest: 233 passed	TODO updated	column-wise sum or movement ops
