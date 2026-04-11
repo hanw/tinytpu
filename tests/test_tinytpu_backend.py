@@ -734,6 +734,24 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a + b)
 
+  def test_gemm_4x4_identity_matches_reference(self):
+    a = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    w = np.eye(4, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") @ Tensor(w, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a @ w)
+
+  def test_gemm_2x4_times_4x4_matches_reference(self):
+    a = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.int32)
+    w = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") @ Tensor(w, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a @ w)
+
+  def test_gemm_1x4_times_4x8_matches_reference(self):
+    a = np.array([[1, 2, 3, 4]], dtype=np.int32)
+    w = np.arange(32, dtype=np.int32).reshape(4, 8)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") @ Tensor(w, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a @ w)
+
   def test_neg_2d_8x4_matches_reference(self):
     data = np.arange(32, dtype=np.int32).reshape(8, 4) - 16
     result = (-Tensor(data, device="TINYTPU")).numpy()
