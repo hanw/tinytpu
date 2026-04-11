@@ -106,6 +106,12 @@ def test_broadcast_explicit_lane():
     assert wire[0] == "2 3 0 1 1 0 3 0 0 0"
 
 
+def test_select():
+    wire = wire_lines(assemble("SELECT v4 = SELECT(v0, v1, v2)\nHALT\nEND\n"))
+    # DISPATCH_SELECT opc=8, vregDst=4, vregSrc=0(cond), vregSrc2=1(lhs), mxuWBase=2(rhs)
+    assert wire[0] == "2 8 0 4 0 0 1 2 0 0"
+
+
 def test_mxu():
     wire = wire_lines(assemble("MXU WMEM[0], AMEM[1], tiles=2\nHALT\nEND\n"))
     # DISPATCH_MXU opc=4, mxuWBase=0, mxuABase=1, mxuTLen=2
@@ -202,6 +208,11 @@ def test_disassemble_broadcast_no_lane():
 def test_disassemble_broadcast_with_lane():
     tasm = disassemble("2 3 0 1 1 0 3 0 0 0\n4\n")
     assert "BROADCAST v1, lane=3" in tasm
+
+
+def test_disassemble_select():
+    tasm = disassemble("2 8 0 4 0 0 1 2 0 0\n4\n")
+    assert "SELECT v4 = SELECT(v0, v1, v2)" in tasm
 
 
 def test_disassemble_mxu():

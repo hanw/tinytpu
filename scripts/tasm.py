@@ -37,6 +37,7 @@ _SXU = {
     "WAIT_MXU":               5,
     "LOAD_MXU_RESULT":        6,
     "HALT":                   7,
+    "DISPATCH_SELECT":        8,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -68,11 +69,14 @@ _VPU = {
     "FRECIP":     23,
     "I2F":        24,
     "F2I":        25,
+    "NOT":        26,
+    "SELECT":     27,
+    "COPY":       28,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
 # Ops that take a single source register (src2 slot is unused by hardware)
-_VPU_UNARY = {"RELU", "SUM_REDUCE", "MAX_REDUCE", "MIN_REDUCE"}
+_VPU_UNARY = {"RELU", "SUM_REDUCE", "MAX_REDUCE", "MIN_REDUCE", "NOT", "COPY"}
 
 # VMEM/WMEM/AMEM tile geometry
 _VMEM_ELEMS = 16   # 4×4 Int32
@@ -232,6 +236,26 @@ def assemble(text: str) -> str:
                 out.append(_instr(_SXU["DISPATCH_XLU_BROADCAST"],
                                   vregDst=vn, vregSrc=vn, vregSrc2=lane))
 
+            elif kw == "SELECT":
+                # SELECT vD = SELECT(vCond, vTrue, vFalse)
+                rest = line[len("SELECT"):].strip()
+                m = re.fullmatch(r"(v\d+)\s*=\s*SELECT\(([^)]+)\)", rest,
+                                 re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "SELECT syntax: SELECT vD = SELECT(vCond, vTrue, vFalse)")
+                vd = _parse_vreg(m.group(1))
+                args = [a.strip() for a in m.group(2).split(",")]
+                if len(args) != 3:
+                    raise SyntaxError(
+                        "SELECT syntax: SELECT vD = SELECT(vCond, vTrue, vFalse)")
+                vcond = _parse_vreg(args[0])
+                vtrue = _parse_vreg(args[1])
+                vfalse = _parse_vreg(args[2])
+                out.append(_instr(_SXU["DISPATCH_SELECT"],
+                                  vregDst=vd, vregSrc=vcond,
+                                  vregSrc2=vtrue, mxuWBase=vfalse))
+
             elif kw == "MXU":
                 # MXU WMEM[W], AMEM[A], tiles=N
                 rest = line[len("MXU"):].strip()
@@ -360,6 +384,10 @@ def disassemble(wire: str) -> str:
                 elif opc == _SXU["DISPATCH_XLU_BROADCAST"]:
                     lane_sfx = f", lane={vregSrc2}" if vregSrc2 != 0 else ""
                     out.append(f"BROADCAST v{vregSrc}{lane_sfx}")
+
+                elif opc == _SXU["DISPATCH_SELECT"]:
+                    out.append(
+                        f"SELECT v{vregDst} = SELECT(v{vregSrc}, v{vregSrc2}, v{mxuWBase})")
 
                 elif opc == _SXU["DISPATCH_MXU"]:
                     out.append(

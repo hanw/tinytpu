@@ -12,6 +12,7 @@ SXU_OP_NAMES = {
   5: "SXU_WAIT_MXU",
   6: "SXU_LOAD_MXU_RESULT",
   7: "SXU_HALT",
+  8: "SXU_DISPATCH_SELECT",
 }
 
 VPU_OP_NAMES = {
@@ -41,6 +42,9 @@ VPU_OP_NAMES = {
   23: "VPU_FRECIP",
   24: "VPU_I2F",
   25: "VPU_F2I",
+  26: "VPU_NOT",
+  27: "VPU_SELECT",
+  28: "VPU_COPY",
 }
 
 

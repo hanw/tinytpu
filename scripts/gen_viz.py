@@ -88,7 +88,11 @@ def _instr_asm(instr: BundleInstr) -> str:
     if op == 5:
         return "WAIT_MXU"
     if op == 6:
+        return f"LOAD_MXU_RESULT v{instr.vreg_dst}"
+    if op == 7:
         return "HALT"
+    if op == 8:
+        return f"SELECT v{instr.vreg_dst} = SELECT(v{instr.vreg_src}, v{instr.vreg_src2}, v{instr.mxu_w_base})"
     return f"OP{op}"
 
 
@@ -97,7 +101,8 @@ def _instr_units(instr: BundleInstr) -> str:
         0: "SXU·VMEM", 1: "SXU·VMEM",
         2: "SXU·VPU",  3: "SXU·XLU",
         4: "SXU→MXU",  5: "SXU·stall",
-        6: "SXU",
+        6: "SXU·MXU",  7: "SXU",
+        8: "SXU·VPU",
     }.get(instr.opcode, "SXU")
 
 

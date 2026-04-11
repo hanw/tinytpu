@@ -10,6 +10,10 @@
 //       ACT_TILE: SRAM addr + 4 Int8 activations
 //   2 opcode vmemAddr vregDst vregSrc vpuOp vregSrc2 mxuWBase mxuABase mxuTLen
 //       INSTR: SxuOpCode (packed int) + all SxuInstr fields
+//       For SXU_DISPATCH_SELECT:
+//         vregSrc  = cond
+//         vregSrc2 = lhs/true value
+//         mxuWBase = rhs/false value register index
 //   3 flag
 //       OUTPUT_MXU: 1 = emit getMxuResult line after HALT
 //   4
@@ -156,6 +160,8 @@ module mkTbTinyTPURuntime();
 
    // Record 2: INSTR — SxuOpCode (int) + 8 SxuInstr field values
    // Fields in order: opcode vmemAddr vregDst vregSrc vpuOp vregSrc2 mxuWBase mxuABase mxuTLen
+   // Legacy instructions use the existing meanings.
+   // SXU_DISPATCH_SELECT reuses mxuWBase as rhs/false-source register index.
    rule do_instr (state == TSIM_INSTR);
       Int#(32) opc      <- tinytpu_bundle_read_int();
       Int#(32) vmemAddr <- tinytpu_bundle_read_int();

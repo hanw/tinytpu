@@ -16,7 +16,8 @@ typedef enum {
    SXU_DISPATCH_MXU,
    SXU_WAIT_MXU,
    SXU_LOAD_MXU_RESULT,
-   SXU_HALT
+   SXU_HALT,
+   SXU_DISPATCH_SELECT
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -26,7 +27,7 @@ typedef struct {
    UInt#(4)  vregSrc;    // Source vreg index (STORE: source to write; VPU: src1)
    VpuOp     vpuOp;      // VPU operation (for DISPATCH_VPU)
    UInt#(4)  vregSrc2;   // Second source vreg (for VPU src2)
-   UInt#(8)  mxuWBase;   // MXU weight base addr
+   UInt#(8)  mxuWBase;   // MXU weight base addr; SELECT uses low bits as rhs vreg
    UInt#(8)  mxuABase;   // MXU activation base addr
    UInt#(8)  mxuTLen;    // MXU tile length
 } SxuInstr deriving (Bits, Eq);
@@ -44,6 +45,7 @@ endinterface
 typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_STORE, SXU_EXEC_VPU, SXU_EXEC_VPU_COLLECT,
                SXU_EXEC_XLU_BROADCAST, SXU_EXEC_XLU_COLLECT,
+               SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
                SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -65,6 +67,7 @@ module mkScalarUnit#(
       Add#(0, sublanes, lanes),          // square vregs (XLU requirement)
       Add#(a__, TLog#(vmDepth), 8),      // vmemAddr/mxu*:UInt#(8) truncates to TLog#(vmDepth)
       Add#(b__, TLog#(numRegs), 4),      // vregDst/vregSrc:UInt#(4) truncates to TLog#(numRegs)
+      Add#(d__, TLog#(numRegs), 8),      // mxuWBase can be reused as a register source for SELECT
       Add#(c__, TLog#(lanes), 4),        // vregSrc2 carries XLU broadcast lane selector
       Add#(logd_, TLog#(vmDepth), 32)    // needed by Controller
    );
@@ -94,6 +97,7 @@ module mkScalarUnit#(
          SXU_STORE_VREG:   pc_state <= SXU_EXEC_STORE;
          SXU_DISPATCH_VPU: pc_state <= SXU_EXEC_VPU;
          SXU_DISPATCH_XLU_BROADCAST: pc_state <= SXU_EXEC_XLU_BROADCAST;
+         SXU_DISPATCH_SELECT: pc_state <= SXU_EXEC_SELECT_COPY;
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
@@ -183,6 +187,35 @@ module mkScalarUnit#(
       vrf.write(truncate(curInstr.vregDst), xlu.result);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_SELECT step 1: copy rhs into the VPU result register.
+   // Uses:
+   //   vregSrc  = condition tile register
+   //   vregSrc2 = lhs/true tile register
+   //   mxuWBase low bits = rhs/false tile register
+   rule do_select_copy (pc_state == SXU_EXEC_SELECT_COPY);
+      let rhs = vrf.read(truncate(curInstr.mxuWBase));
+      let zeros = replicate(replicate(0));
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_SELECT_COPY pc=%0d rhs=v%0d", cycle, pc, truncate(curInstr.mxuWBase));
+      $display("TRACE cycle=%0d unit=VPU ev=EXEC op=%0d", cycle, pack(VPU_COPY));
+`endif
+      vpu.execute(VPU_COPY, rhs, zeros);
+      pc_state <= SXU_EXEC_SELECT;
+   endrule
+
+   // DISPATCH_SELECT step 2: run native VPU_SELECT using copied rhs as the
+   // implicit false path held in VPU resultReg.
+   rule do_select (pc_state == SXU_EXEC_SELECT);
+      let cond = vrf.read(truncate(curInstr.vregSrc));
+      let lhs  = vrf.read(truncate(curInstr.vregSrc2));
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_SELECT pc=%0d cond=v%0d lhs=v%0d", cycle, pc, curInstr.vregSrc, curInstr.vregSrc2);
+      $display("TRACE cycle=%0d unit=VPU ev=EXEC op=%0d", cycle, pack(VPU_SELECT));
+`endif
+      vpu.execute(VPU_SELECT, cond, lhs);
+      pc_state <= SXU_EXEC_VPU_COLLECT;
    endrule
 
    // LOAD_MXU_RESULT: copy ctrl.results (1 row of cols Int#(32)) into row 0 of vregDst
