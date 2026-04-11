@@ -1911,6 +1911,33 @@ class TestTinyTPUBackend(unittest.TestCase):
       self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" and
                           r.get("num_weight_tiles") == 2 for r in records))
 
+  def test_lowering_dump_records_multi_wmma_bias_relu_descriptor(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          import numpy as np
+          from tinygrad import Tensor
+          a = Tensor(np.arange(16, dtype=np.int32).reshape(4, 4), dtype="int32", device="TINYTPU")
+          b = Tensor(np.arange(32, dtype=np.int32).reshape(4, 8), dtype="int32", device="TINYTPU")
+          bias = Tensor(np.arange(8, dtype=np.int32), dtype="int32", device="TINYTPU")
+          print(((a @ b) + bias).relu().numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "GEMM4x4" and r.get("lowering") == "WMMA" and
+                          r.get("num_weight_tiles") == 2 and
+                          any(e.get("op") == "ADD" for e in r.get("epilogue", [])) and
+                          any(e.get("op") == "RELU" for e in r.get("epilogue", []))
+                          for r in records))
+
   def test_lowering_dump_records_equality_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
       dump = Path(td) / "lowering.jsonl"
