@@ -759,6 +759,44 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_random_2d_add_matches_reference(self):
+    rng = np.random.default_rng(42)
+    a = rng.integers(-50, 50, size=(4, 4), dtype=np.int32)
+    b = rng.integers(-50, 50, size=(4, 4), dtype=np.int32)
+    result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a + b)
+
+  def test_random_2d_mul_matches_reference(self):
+    rng = np.random.default_rng(7)
+    a = rng.integers(-10, 10, size=(3, 4), dtype=np.int32)
+    b = rng.integers(-10, 10, size=(3, 4), dtype=np.int32)
+    result = (Tensor(a, device="TINYTPU") * Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a * b)
+
+  def test_random_rowsum_matches_reference(self):
+    rng = np.random.default_rng(99)
+    data = rng.integers(-100, 100, size=(8, 4), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=1))
+
+  def test_random_colsum_matches_reference(self):
+    rng = np.random.default_rng(13)
+    data = rng.integers(-100, 100, size=(4, 8), dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=0))
+
+  def test_random_neg_matches_reference(self):
+    rng = np.random.default_rng(55)
+    data = rng.integers(-1000, 1000, size=(4, 4), dtype=np.int32)
+    result = (-Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, -data)
+
+  def test_random_scalar_add_matches_reference(self):
+    rng = np.random.default_rng(77)
+    data = rng.integers(-500, 500, size=(3, 4), dtype=np.int32)
+    result = (Tensor(data, device="TINYTPU") + 42).numpy()
+    np.testing.assert_array_equal(result, data + 42)
+
   def test_fused_add_relu_4x8_matches_reference(self):
     a = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
     b = np.full((4, 8), 3, dtype=np.int32)
