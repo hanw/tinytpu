@@ -759,6 +759,30 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=1, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.min(axis=1, keepdims=True))
 
+  def test_add_4x8_tensor_tensor_neg_values_matches_reference(self):
+    a = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
+    b = (np.arange(32, dtype=np.int32) + 1).reshape(4, 8)
+    result = (Tensor(a, device="TINYTPU") + Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a + b)
+
+  def test_mul_3x5_tensor_tensor_matches_reference(self):
+    a = (np.arange(15, dtype=np.int32) - 7).reshape(3, 5)
+    b = (np.arange(15, dtype=np.int32) + 1).reshape(3, 5)
+    result = (Tensor(a, device="TINYTPU") * Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a * b)
+
+  def test_sub_4x8_tensor_tensor_matches_reference(self):
+    a = (np.arange(32, dtype=np.int32)).reshape(4, 8)
+    b = np.full((4, 8), 5, dtype=np.int32)
+    result = (Tensor(a, device="TINYTPU") - Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a - b)
+
+  def test_max_3x8_tensor_tensor_matches_reference(self):
+    a = (np.arange(24, dtype=np.int32) - 12).reshape(3, 8)
+    b = np.zeros((3, 8), dtype=np.int32)
+    result = Tensor(a, device="TINYTPU").maximum(Tensor(b, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, np.maximum(a, b))
+
   def test_random_where_3x4_matches_reference(self):
     rng = np.random.default_rng(11)
     cond = rng.integers(0, 2, size=(3, 4), dtype=np.bool_)
