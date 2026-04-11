@@ -96,13 +96,27 @@ The target architecture for `ops_tinytpu.py` is a **UOp-walking renderer** that
 emits SXU instructions directly from the tinygrad UOp graph — one SXU/VPU
 instruction per UOp, like how CStyleLanguage emits one line of C per UOp.
 
-When a UOp has no corresponding SXU/VPU instruction, **enrich the SXU
-instruction set** to close the gap rather than adding pattern-matching
-workarounds in software. The ISA should be shaped by what tinygrad emits.
-Examples:
-- UOp `CONST` → may need an `SXU_LOAD_IMM` instruction to load a constant into a vreg lane
-- UOp `INDEX` → may need address arithmetic in the SXU
-- UOp `RANGE/END` → may need loop support in the SXU
+When a UOp has no corresponding SXU/VPU instruction, **add a hardware
+primitive** rather than writing complex UOp-graph pattern matching in
+software. Prefer a new VPU opcode or SXU instruction over a multi-hundred-
+line graph walker that reverse-engineers tinygrad's decomposition.
+
+Concrete priority order:
+1. **Add a hardware primitive** (new VPU opcode, new SXU instruction) that
+   maps 1:1 to the tinygrad UOp. This is always preferred.
+2. **Emit a short SXU microprogram** (2–4 existing instructions) when the
+   pattern is simple and stable (e.g. WHERE via COPY+SELECT).
+3. **Use pattern matching as a last resort** only when the tinygrad
+   decomposition is too complex for a single hardware primitive and no
+   short microprogram exists. Document why and plan the hardware fix.
+
+Examples of hardware-first decisions:
+- `VPU_SELECT` replaced a 4-instruction MUL/SUB/MUL/ADD WHERE sequence
+- `VPU_NOT` replaced XOR-with-all-ones constant tile loading
+- `VPU_MIN` is preferred over detecting XOR+MAX decomposition in software
+- Remaining `analyze_tinytpu_uops` patterns (scalar-const DIV truncation,
+  MOD via DIV+MUL+SUB) should be resolved by adding `VPU_TRUNC_DIV` and
+  `VPU_MOD` hardware opcodes, not by more graph walking
 
 Propose ISA additions in `TODO.md` and get user approval before implementing
 (per the microarchitecture rule below). The goal is a 1:1 UOp→instruction
