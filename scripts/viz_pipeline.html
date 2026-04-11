@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<!--
+  TinyTPU Pipeline Visualizer
+  ===========================
+  Self-contained HTML timeline viewer for TinyTPU VLIW-style execution.
+
+  Shows four functional-unit rows (SXU / MXU / VPU / VMEM) on a cycle-accurate
+  Gantt chart.  Embedded test case traces a program that exercises all four units:
+
+    PC 0  LOAD  v0, VMEM[0]           – load input A
+    PC 1  LOAD  v1, VMEM[1]           – load input B
+    PC 2  VPU   v2 = ADD(v0, v1)      – elementwise add
+    PC 3  VPU   v3 = RELU(v2)         – activation
+    PC 4  MXU   WMEM[0], AMEM[1], N=1 – async GEMM dispatch
+    PC 5  WAIT_MXU                    – SXU stalls 7 cycles; MXU runs in parallel
+    PC 6  STORE VMEM[4], v3           – writeback
+    PC 7  HALT
+
+  Key VLIW story: MXU (LOAD_W → STREAM_A → DRAIN) runs while SXU is in
+  WAIT_MXU stall — the dashed region highlights this overlap.
+
+  Controls
+  ────────
+  Scroll wheel   zoom in / out (centered on cursor)
+  Click-drag     pan left / right
+  + / -          zoom (centered on timeline midpoint)
+  ← / →          pan by 2 cycles
+  R              fit to window
+  [Load JSON]    ingest a trace.json from profile_tpu.py --trace-out
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TinyTPU Pipeline Visualizer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d0d1e;
+  --bg-mid:    #11112a;
+  --bg-panel:  #090916;
+  --border:    #252545;
+  --text:      #d8d8f0;
+  --text-dim:  #6060a0;
+  --accent:    #7070d0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.header {
+  background: var(--bg-mid);
+  border-bottom: 1px solid var(--border);
+  padding: 9px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.header-title { font-size: 14px; font-weight: 600; color: #9090e0; letter-spacing: .3px; }
+.header-sub   { font-size: 11px; color: var(--text-dim); }
+.header-sep   { flex: 1; }
+
+.btn {
+  background: #1e1e40;
+  color: #b0b0e0;
+  border: 1px solid #3a3a70;
+  border-radius: 4px;
+  padding: 4px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .12s;
+  user-select: none;
+}
+.btn:hover  { background: #2a2a58; }
+.btn:active { background: #1a1a38; }
+
+.zoom-hint { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; min-width: 72px; }
+
+/* ── Stats bar ───────────────────────────────────────────────────────────── */
+.stats-bar {
+  background: #0b0b1c;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.stat { display: flex; align-items: center; gap: 6px; }
+.stat-lbl { color: var(--text-dim); font-size: 11px; }
+.stat-val { color: #d8d8ff; font-weight: 500; font-variant-numeric: tabular-nums; font-size: 12px; }
+.stat-val.warn { color: #e06060; }
+.util-bar { width: 52px; height: 7px; background: #1e1e3e; border-radius: 3px; overflow: hidden; }
+.util-fill { height: 100%; border-radius: 3px; }
+
+/* ── Program listing ─────────────────────────────────────────────────────── */
+.prog-panel {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 7px 14px;
+  flex-shrink: 0;
+  display: flex;
+  gap: 0;
+  align-items: flex-start;
+}
+.prog-title {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  min-width: 68px;
+  margin-top: 2px;
+}
+.prog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+}
+.prog-instr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  transition: background .1s;
+}
+.prog-instr.active { background: #2a2a50; }
+.prog-instr:hover  { background: #1e1e3e; cursor: default; }
+.prog-pc   { color: var(--text-dim); min-width: 36px; }
+.prog-asm  { color: #c0c0f0; }
+.prog-unit { font-size: 10px; color: var(--text-dim); margin-left: auto; }
+.prog-cycles { font-size: 10px; color: var(--text-dim); min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Timeline area ────────────────────────────────────────────────────────── */
+.timeline-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+canvas {
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+.tip {
+  position: absolute;
+  background: #14142e;
+  border: 1px solid #3a3a70;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 20;
+  max-width: 280px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.6);
+  display: none;
+}
+.tip-title { font-weight: 600; color: #b0b0ff; margin-bottom: 5px; font-size: 13px; }
+.tip-row   { display: flex; justify-content: space-between; gap: 14px; line-height: 1.7; color: #8888b0; }
+.tip-row span:last-child { color: #e0e0ff; font-variant-numeric: tabular-nums; }
+.tip-row.warn span { color: #ff8080; }
+.tip-asm { font-family: monospace; color: #90ffb0 !important; }
+
+/* ── Legend ──────────────────────────────────────────────────────────────── */
+.legend {
+  background: #0b0b1c;
+  border-top: 1px solid var(--border);
+  padding: 5px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.leg-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9090b0; }
+.leg-sw   { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+.leg-sw.stall {
+  background: repeating-linear-gradient(
+    45deg, #E74C3C66, #E74C3C66 3px, #E74C3C 3px, #E74C3C 6px
+  ) !important;
+}
+</style>
+</head>
+
+<body>
+<!-- ── Header ───────────────────────────────────────────────────────────── -->
+<div class="header">
+  <span class="header-title">TinyTPU Pipeline Visualizer</span>
+  <span class="header-sub">VLIW execution timeline · cycle-accurate</span>
+  <div class="header-sep"></div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <button class="btn" id="btn-zout">−</button>
+    <button class="btn" id="btn-zin">+</button>
+    <button class="btn" id="btn-reset">Fit</button>
+    <span class="zoom-hint" id="zoom-label">zoom: 1×</span>
+  </div>
+  <button class="btn" id="btn-load">Load trace.json</button>
+  <input type="file" id="file-input" accept=".json" style="display:none">
+</div>
+
+<!-- ── Stats bar ────────────────────────────────────────────────────────── -->
+<div class="stats-bar" id="stats-bar"></div>
+
+<!-- ── Program listing ──────────────────────────────────────────────────── -->
+<div class="prog-panel">
+  <div class="prog-title">Program</div>
+  <div class="prog-list" id="prog-list"></div>
+</div>
+
+<!-- ── Timeline ─────────────────────────────────────────────────────────── -->
+<div class="timeline-wrap" id="timeline-wrap">
+  <canvas id="canvas"></canvas>
+  <div class="tip" id="tip"></div>
+</div>
+
+<!-- ── Legend ───────────────────────────────────────────────────────────── -->
+<div class="legend" id="legend"></div>
+
+<script>
+"use strict";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST CASE — embedded trace for a representative TinyTPU program
+//
+// Hardware model assumptions (4×4 TensorCore):
+//   SXU instruction phases:
+//     LOAD:          FETCH(1) + LOAD_REQ(1) + LOAD_RESP(1) = 3 cycles
+//     VPU dispatch:  FETCH(1) + DISPATCH_VPU(1) + VPU_COLLECT(1) = 3 cycles
+//     MXU dispatch:  FETCH(1) + DISPATCH_MXU(1) = 2 cycles, then MXU runs async
+//     WAIT_MXU:      FETCH(1) + WAIT_MXU × N (stall until ctrl.isDone)
+//     STORE:         FETCH(1) + STORE(1) = 2 cycles
+//     HALT:          FETCH(1) → HALT = 1 cycle (final)
+//   MXU controller (rows=4, tileLen=1):
+//     LOAD_W: 4 cycles (one weight row per cycle)
+//     STREAM_A: tileLen + rows - 1 = 4 cycles
+//     DRAIN: 1 cycle
+//     Total: 9 cycles (overlapping with SXU stall)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PROGRAM = [
+  { pc:0, asm:"LOAD  v0, VMEM[0]",           units:"SXU·VMEM",  cyc:"3+2" },
+  { pc:1, asm:"LOAD  v1, VMEM[1]",           units:"SXU·VMEM",  cyc:"3+2" },
+  { pc:2, asm:"VPU   v2 = ADD(v0, v1)",      units:"SXU·VPU",   cyc:"3+2" },
+  { pc:3, asm:"VPU   v3 = RELU(v2)",         units:"SXU·VPU",   cyc:"3+2" },
+  { pc:4, asm:"MXU   WMEM[0], AMEM[1], N=1", units:"SXU→MXU",   cyc:"2+9·async" },
+  { pc:5, asm:"WAIT_MXU",                    units:"SXU·stall",  cyc:"1+7·stall" },
+  { pc:6, asm:"STORE VMEM[4], v3",           units:"SXU·VMEM",  cyc:"2+1" },
+  { pc:7, asm:"HALT",                        units:"SXU",        cyc:"1" },
+];
+
+// Raw trace events — one object per cycle a unit is active.
+// Matches the TRACE line format from profiler-design.md §4.
+// Coalescing is done at render time.
+const RAW_EVENTS = [
+  // ── SXU ──────────────────────────────────────────────────────────────
+  { cycle: 0,  unit:"SXU",  ev:"FETCH",        fields:{ pc:0 } },
+  { cycle: 1,  unit:"SXU",  ev:"LOAD_REQ",     fields:{ pc:0, addr:0 } },
+  { cycle: 2,  unit:"SXU",  ev:"LOAD_RESP",    fields:{ pc:0 } },
+  { cycle: 3,  unit:"SXU",  ev:"FETCH",        fields:{ pc:1 } },
+  { cycle: 4,  unit:"SXU",  ev:"LOAD_REQ",     fields:{ pc:1, addr:1 } },
+  { cycle: 5,  unit:"SXU",  ev:"LOAD_RESP",    fields:{ pc:1 } },
+  { cycle: 6,  unit:"SXU",  ev:"FETCH",        fields:{ pc:2 } },
+  { cycle: 7,  unit:"SXU",  ev:"DISPATCH_VPU", fields:{ pc:2, op:0 } },
+  { cycle: 8,  unit:"SXU",  ev:"VPU_COLLECT",  fields:{ pc:2 } },
+  { cycle: 9,  unit:"SXU",  ev:"FETCH",        fields:{ pc:3 } },
+  { cycle:10,  unit:"SXU",  ev:"DISPATCH_VPU", fields:{ pc:3, op:2 } },
+  { cycle:11,  unit:"SXU",  ev:"VPU_COLLECT",  fields:{ pc:3 } },
+  { cycle:12,  unit:"SXU",  ev:"FETCH",        fields:{ pc:4 } },
+  { cycle:13,  unit:"SXU",  ev:"DISPATCH_MXU", fields:{ pc:4 } },
+  { cycle:14,  unit:"SXU",  ev:"FETCH",        fields:{ pc:5 } },
+  // SXU stalls in WAIT_MXU for 7 cycles while MXU runs in parallel
+  { cycle:15,  unit:"SXU",  ev:"WAIT_MXU",     fields:{ pc:5 } },
+  { cycle:16,  unit:"SXU",  ev:"WAIT_MXU",     fields:{ pc:5 } },
+  { cycle:17,  unit:"SXU",  ev:"WAIT_MXU",     fields:{ pc:5 } },
+  { cycle:18,  unit:"SXU",  ev:"WAIT_MXU",     fields:{ pc:5 } },
+  { cycle:19,  unit:"SXU",  ev:"WAIT_MXU",     fields:{ pc:5 } },
+  { cycle:20,  unit:"SXU",  ev:"WAIT_MXU",     fields:{ pc:5 } },
+  { cycle:21,  unit:"SXU",  ev:"WAIT_MXU",     fields:{ pc:5 } },
+  { cycle:22,  unit:"SXU",  ev:"FETCH",        fields:{ pc:6 } },
+  { cycle:23,  unit:"SXU",  ev:"STORE",        fields:{ pc:6, addr:4 } },
+  { cycle:24,  unit:"SXU",  ev:"FETCH",        fields:{ pc:7 } },
+  { cycle:25,  unit:"SXU",  ev:"HALT",         fields:{ pc:7 } },
+
+  // ── VMEM ─────────────────────────────────────────────────────────────
+  { cycle: 1,  unit:"VMEM", ev:"READ_REQ",     fields:{ addr:0 } },
+  { cycle: 2,  unit:"VMEM", ev:"READ_RESP",    fields:{} },
+  { cycle: 4,  unit:"VMEM", ev:"READ_REQ",     fields:{ addr:1 } },
+  { cycle: 5,  unit:"VMEM", ev:"READ_RESP",    fields:{} },
+  { cycle:23,  unit:"VMEM", ev:"WRITE",        fields:{ addr:4 } },
+
+  // ── VPU ──────────────────────────────────────────────────────────────
+  { cycle: 7,  unit:"VPU",  ev:"EXEC",         fields:{ op:0 } },
+  { cycle: 8,  unit:"VPU",  ev:"RESULT",       fields:{} },
+  { cycle:10,  unit:"VPU",  ev:"EXEC",         fields:{ op:2 } },
+  { cycle:11,  unit:"VPU",  ev:"RESULT",       fields:{} },
+
+  // ── MXU ──────────────────────────────────────────────────────────────
+  // ctrl.start() fires at cycle 13 (same cycle as DISPATCH_MXU).
+  // LOAD_W: 4 rows × 1 cycle — weight rows skewed into systolic array
+  { cycle:13,  unit:"MXU",  ev:"LOAD_W",       fields:{ addr:0 } },
+  { cycle:14,  unit:"MXU",  ev:"LOAD_W",       fields:{ addr:1 } },
+  { cycle:15,  unit:"MXU",  ev:"LOAD_W",       fields:{ addr:2 } },
+  { cycle:16,  unit:"MXU",  ev:"LOAD_W",       fields:{ addr:3 } },
+  // STREAM_A: tileLen + rows − 1 = 1 + 4 − 1 = 4 cycles
+  { cycle:17,  unit:"MXU",  ev:"STREAM_A",     fields:{ cyc:0 } },
+  { cycle:18,  unit:"MXU",  ev:"STREAM_A",     fields:{ cyc:1 } },
+  { cycle:19,  unit:"MXU",  ev:"STREAM_A",     fields:{ cyc:2 } },
+  { cycle:20,  unit:"MXU",  ev:"STREAM_A",     fields:{ cyc:3 } },
+  // DRAIN: accumulator settle + latch
+  { cycle:21,  unit:"MXU",  ev:"DRAIN",        fields:{} },
+  // ctrl.isDone goes true at cycle 22; SXU WAIT_MXU advances
+];
+
+// ─── Lookup tables ────────────────────────────────────────────────────────
+const VPU_OP_NAMES = {
+  0:"ADD",  1:"MUL",  2:"RELU", 3:"MAX",  4:"SUM_REDUCE",
+  5:"CMPLT",6:"CMPNE",7:"SUB",  8:"CMPEQ",9:"MAX_REDUCE",
+  10:"SHL", 11:"SHR", 12:"MIN", 13:"MIN_REDUCE",14:"DIV",
+  15:"AND", 16:"OR",  17:"XOR",
+};
+
+// One colour per event type — chosen for legibility on dark background.
+const EV_COLOR = {
+  // SXU
+  FETCH:        "#4A90D9",
+  LOAD_REQ:     "#27AE60",
+  LOAD_RESP:    "#52C97F",
+  STORE:        "#E67E22",
+  DISPATCH_VPU: "#8E44AD",
+  VPU_COLLECT:  "#BA68C8",
+  DISPATCH_MXU: "#C0392B",
+  WAIT_MXU:     "#E74C3C",   // stall — rendered with hatching
+  HALT:         "#546E7A",
+  // MXU
+  LOAD_W:       "#F39C12",
+  STREAM_A:     "#1ABC9C",
+  DRAIN:        "#16A085",
+  // VPU
+  EXEC:         "#E91E63",
+  RESULT:       "#F48FB1",
+  // VMEM
+  READ_REQ:     "#2E7D32",
+  READ_RESP:    "#66BB6A",
+  WRITE:        "#FF5722",
+};
+const EV_COLOR_DEFAULT = "#404060";
+
+const UNITS = ["SXU","MXU","VPU","VMEM"];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COALESCE — merge consecutive same-event cycles into blocks
+// ═══════════════════════════════════════════════════════════════════════════
+function coalesce(rawEvents) {
+  const byUnit = {};
+  for (const u of UNITS) byUnit[u] = [];
+  for (const e of rawEvents) {
+    if (byUnit[e.unit]) byUnit[e.unit].push(e);
+  }
+
+  const blocks = [];
+  for (const u of UNITS) {
+    const evs = byUnit[u].slice().sort((a,b) => a.cycle - b.cycle);
+    let cur = null;
+    for (const e of evs) {
+      if (cur && cur.ev === e.ev && cur.endCycle + 1 === e.cycle) {
+        cur.endCycle = e.cycle;
+        cur.count++;
+        for (const [k,v] of Object.entries(e.fields)) {
+          if (!cur.allFields[k]) cur.allFields[k] = new Set();
+          cur.allFields[k].add(String(v));
+        }
+      } else {
+        if (cur) blocks.push(cur);
+        cur = {
+          unit: u, ev: e.ev,
+          startCycle: e.cycle, endCycle: e.cycle, count: 1,
+          fields: e.fields,
+          allFields: Object.fromEntries(
+            Object.entries(e.fields).map(([k,v]) => [k, new Set([String(v)])])
+          ),
+        };
+      }
+    }
+    if (cur) blocks.push(cur);
+  }
+  return blocks;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════════════════════════════════
+function computeStats(rawEvents) {
+  const totalCycles = Math.max(...rawEvents.map(e => e.cycle)) + 1;
+  const busy = {};
+  for (const u of UNITS) busy[u] = new Set();
+  for (const e of rawEvents) { if (busy[e.unit]) busy[e.unit].add(e.cycle); }
+
+  let bubbles = 0;
+  for (let c = 0; c < totalCycles; c++) {
+    if (!UNITS.some(u => busy[u].has(c))) bubbles++;
+  }
+  const stallCycles = rawEvents.filter(e => e.unit==="SXU" && e.ev==="WAIT_MXU").length;
+  const util = {};
+  for (const u of UNITS) util[u] = (busy[u].size / totalCycles * 100).toFixed(1);
+
+  return { totalCycles, busy, util, bubbles, stallCycles };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LABEL — short text to show inside a block
+// ═══════════════════════════════════════════════════════════════════════════
+function blockLabel(blk) {
+  let lbl = blk.ev;
+  if ((blk.ev === "DISPATCH_VPU" || blk.ev === "EXEC") && blk.allFields["op"]) {
+    const names = [...blk.allFields["op"]].map(o => VPU_OP_NAMES[+o] || o).join(",");
+    lbl = blk.ev === "EXEC" ? `EXEC(${names})` : `VPU(${names})`;
+  }
+  if (blk.count > 1) lbl += ` ×${blk.count}`;
+  return lbl;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COLOR HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function hexToRgb(hex) {
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+}
+function adjustBrightness(hex, delta) {
+  const [r,g,b] = hexToRgb(hex);
+  const cl = v => Math.max(0, Math.min(255, Math.round(v + delta*255)));
+  return `rgb(${cl(r)},${cl(g)},${cl(b)})`;
+}
+function textOnColor(hex) {
+  const [r,g,b] = hexToRgb(hex);
+  return (0.299*r + 0.587*g + 0.114*b) > 135 ? "rgba(0,0,0,.8)" : "rgba(255,255,255,.9)";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMELINE RENDERER
+// ═══════════════════════════════════════════════════════════════════════════
+class Timeline {
+  constructor({ canvas, tip, blocks, totalCycles, onHoverPC }) {
+    this.canvas = canvas;
+    this.ctx    = canvas.getContext("2d");
+    this.tip    = tip;
+    this.blocks = blocks;
+    this.totalCycles = totalCycles;
+    this.onHoverPC = onHoverPC;   // callback(pc | null)
+
+    // Layout constants (CSS pixels)
+    this.L = 82;          // left margin for unit labels
+    this.T = 46;          // top margin for ruler
+    this.ROW_H = 54;      // height of one unit row
+    this.PAD   = 7;       // vertical padding inside block
+
+    // View state
+    this.viewStart   = -0.5;
+    this.pixPerCycle = 30;
+    this.hovered     = null;
+    this.dragging    = false;
+    this.dragStartX  = 0;
+    this.dragStartVS = 0;
+
+    this._bindEvents();
+    this._bindResize();
+  }
+
+  // CSS dimensions of the canvas (after DPR correction)
+  get W() { return this.canvas.width  / (window.devicePixelRatio||1); }
+  get H() { return this.canvas.height / (window.devicePixelRatio||1); }
+  get viewEnd() { return this.viewStart + (this.W - this.L) / this.pixPerCycle; }
+
+  cx(cycle) { return this.L + (cycle - this.viewStart) * this.pixPerCycle; }
+  cy(ui)    { return this.T + ui * this.ROW_H; }
+  toCycle(x){ return (x - this.L) / this.pixPerCycle + this.viewStart; }
+
+  // ── resize ──────────────────────────────────────────────────────────
+  _bindResize() {
+    new ResizeObserver(() => this._resize()).observe(this.canvas.parentElement);
+  }
+  _resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const el  = this.canvas.parentElement;
+    const w   = el.clientWidth, h = el.clientHeight;
+    this.canvas.width  = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
+    this.canvas.style.width  = w + "px";
+    this.canvas.style.height = h + "px";
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.render();
+  }
+
+  // ── events ──────────────────────────────────────────────────────────
+  _bindEvents() {
+    const c = this.canvas;
+
+    // Zoom via scroll wheel
+    c.addEventListener("wheel", e => {
+      e.preventDefault();
+      const pivot = this.toCycle(e.offsetX);
+      const f     = e.deltaY < 0 ? 1.14 : 1/1.14;
+      this.pixPerCycle = Math.min(240, Math.max(3.5, this.pixPerCycle * f));
+      this.viewStart   = pivot - (e.offsetX - this.L) / this.pixPerCycle;
+      this._clamp(); this.render(); this._updateZoomLabel();
+    }, { passive: false });
+
+    // Pan via drag
+    c.addEventListener("mousedown", e => {
+      if (e.button !== 0) return;
+      this.dragging    = true;
+      this.dragStartX  = e.offsetX;
+      this.dragStartVS = this.viewStart;
+      c.style.cursor   = "grabbing";
+    });
+    c.addEventListener("mousemove", e => {
+      if (this.dragging) {
+        this.viewStart = this.dragStartVS - (e.offsetX - this.dragStartX) / this.pixPerCycle;
+        this._clamp(); this.render();
+      }
+      this._hover(e.offsetX, e.offsetY);
+    });
+    const stopDrag = () => { this.dragging = false; this.canvas.style.cursor = "crosshair"; };
+    c.addEventListener("mouseup",    stopDrag);
+    c.addEventListener("mouseleave", () => { stopDrag(); this._clearHover(); });
+
+    // Keyboard shortcuts
+    window.addEventListener("keydown", e => {
+      if (e.target.tagName === "INPUT") return;
+      if (e.key==="+" || e.key==="=") this._zoom(1.3);
+      if (e.key==="-" || e.key==="_") this._zoom(1/1.3);
+      if (e.key==="ArrowLeft")  { this.viewStart -= 2; this._clamp(); this.render(); }
+      if (e.key==="ArrowRight") { this.viewStart += 2; this._clamp(); this.render(); }
+      if (e.key==="r" || e.key==="R") this.fitView();
+    });
+  }
+
+  _zoom(factor) {
+    const mid = this.toCycle(this.L + (this.W - this.L) / 2);
+    this.pixPerCycle = Math.min(240, Math.max(3.5, this.pixPerCycle * factor));
+    this.viewStart   = mid - (this.W - this.L) / 2 / this.pixPerCycle;
+    this._clamp(); this.render(); this._updateZoomLabel();
+  }
+  _clamp() {
+    const vis = (this.W - this.L) / this.pixPerCycle;
+    this.viewStart = Math.max(-1, Math.min(this.totalCycles - vis * 0.15, this.viewStart));
+  }
+  fitView() {
+    this.viewStart   = -0.5;
+    this.pixPerCycle = (this.W - this.L) / (this.totalCycles + 1);
+    this.render(); this._updateZoomLabel();
+  }
+  _updateZoomLabel() {
+    const base = (this.W - this.L) / (this.totalCycles + 1);
+    document.getElementById("zoom-label").textContent =
+      `zoom: ${(this.pixPerCycle / base).toFixed(1)}×`;
+  }
+
+  // ── hover / tooltip ─────────────────────────────────────────────────
+  _hover(mx, my) {
+    if (this.dragging) return;
+    const hit = this._hitTest(mx, my);
+    if (hit !== this.hovered) {
+      this.hovered = hit;
+      this.render();
+      if (hit) {
+        this._showTip(mx, my, hit);
+        this.onHoverPC(hit.fields.pc ?? null);
+      } else {
+        this._clearHover();
+      }
+    } else if (hit) {
+      // Update tip position even if same block
+      this._showTip(mx, my, hit);
+    }
+  }
+  _clearHover() {
+    this.tip.style.display = "none";
+    this.onHoverPC(null);
+    if (this.hovered) { this.hovered = null; this.render(); }
+  }
+  _hitTest(mx, my) {
+    for (const blk of this.blocks) {
+      const ui = UNITS.indexOf(blk.unit);
+      if (ui < 0) continue;
+      const x0 = this.cx(blk.startCycle),   x1 = this.cx(blk.endCycle + 1);
+      const y0 = this.cy(ui) + this.PAD,     y1 = this.cy(ui) + this.ROW_H - this.PAD;
+      if (mx >= x0 && mx <= x1 && my >= y0 && my <= y1) return blk;
+    }
+    return null;
+  }
+  _showTip(mx, my, blk) {
+    const t   = this.tip;
+    const dur = blk.endCycle - blk.startCycle + 1;
+    const isStall = blk.unit==="SXU" && blk.ev==="WAIT_MXU";
+
+    let html = `<div class="tip-title">${blk.unit} — ${blockLabel(blk)}</div>`;
+    html += `<div class="tip-row"><span>Start cycle</span><span>${blk.startCycle}</span></div>`;
+    html += `<div class="tip-row"><span>Duration</span><span>${dur} cycle${dur>1?"s":""}</span></div>`;
+
+    if (blk.fields.pc !== undefined) {
+      const instr = PROGRAM[blk.fields.pc];
+      if (instr) html += `<div class="tip-row"><span>Instr</span><span class="tip-asm">${instr.asm}</span></div>`;
+    }
+    for (const [k, vals] of Object.entries(blk.allFields)) {
+      if (k === "pc") continue;
+      let v = [...vals].join(", ");
+      if (k === "op") v = [...vals].map(o => VPU_OP_NAMES[+o] || o).join(", ");
+      html += `<div class="tip-row"><span>${k}</span><span>${v}</span></div>`;
+    }
+    if (isStall) {
+      html += `<div class="tip-row warn"><span>⚠ SXU stall — MXU parallel</span><span>${dur} cycles</span></div>`;
+    }
+
+    t.innerHTML = html;
+    t.style.display = "block";
+
+    const tw = 270, th = 160;
+    const pw = this.canvas.parentElement.clientWidth;
+    const ph = this.canvas.parentElement.clientHeight;
+    let tx = mx + 18, ty = my - 12;
+    if (tx + tw > pw) tx = mx - tw - 10;
+    if (ty + th > ph) ty = my - th + 4;
+    t.style.left = tx + "px";
+    t.style.top  = ty + "px";
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════
+  render() {
+    const ctx = this.ctx, W = this.W, H = this.H;
+    ctx.clearRect(0, 0, W, H);
+
+    // Canvas background
+    ctx.fillStyle = "#0d0d1e";
+    ctx.fillRect(0, 0, W, H);
+
+    this._drawStallZone(ctx, W);
+    this._drawGrid(ctx, W);
+    this._drawRowBgs(ctx, W);
+    this._drawBlocks(ctx, W);
+    this._drawRuler(ctx, W);
+    this._drawUnitLabels(ctx);
+    this._drawCorner(ctx);
+
+    // Hover cursor line
+    if (this.hovered) {
+      const midX = (this.cx(this.hovered.startCycle) + this.cx(this.hovered.endCycle + 1)) / 2;
+      ctx.strokeStyle = "rgba(255,255,255,.15)";
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath(); ctx.moveTo(midX, this.T); ctx.lineTo(midX, H); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  _drawStallZone(ctx, W) {
+    // Tinted column showing the MXU-busy / SXU-stall region (cycles 13–21)
+    const x0 = Math.max(this.cx(13), this.L);
+    const x1 = Math.min(this.cx(22), W);
+    if (x1 <= x0) return;
+    const totalH = UNITS.length * this.ROW_H;
+
+    ctx.fillStyle = "rgba(231,76,60,0.05)";
+    ctx.fillRect(x0, this.T, x1 - x0, totalH);
+
+    // Label at top of stall zone
+    if (x1 - x0 > 60) {
+      ctx.save();
+      ctx.font      = "10px -apple-system, sans-serif";
+      ctx.fillStyle = "rgba(231,76,60,0.55)";
+      ctx.textAlign = "center";
+      const lx = (x0 + x1) / 2;
+      ctx.fillText("MXU running", lx, this.T + 13);
+      ctx.fillText("SXU stall →", lx, this.T + 24);
+      ctx.restore();
+    }
+
+    // Right edge line (MXU done)
+    ctx.strokeStyle = "rgba(231,76,60,0.25)";
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(Math.min(this.cx(22), W), this.T);
+    ctx.lineTo(Math.min(this.cx(22), W), this.T + totalH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  _drawGrid(ctx, W) {
+    const step = this._rulerStep();
+    const first = Math.floor(this.viewStart / step) * step;
+    ctx.strokeStyle = "#181830";
+    ctx.lineWidth   = 1;
+    for (let c = first; c <= this.viewEnd + step; c += step) {
+      const x = this.cx(c);
+      if (x < this.L || x > W) continue;
+      ctx.beginPath(); ctx.moveTo(x, this.T); ctx.lineTo(x, this.T + UNITS.length * this.ROW_H); ctx.stroke();
+    }
+    // Row separators
+    ctx.strokeStyle = "#1a1a30";
+    for (let i = 0; i <= UNITS.length; i++) {
+      const y = this.cy(i);
+      ctx.beginPath(); ctx.moveTo(this.L, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  _drawRowBgs(ctx, W) {
+    for (let i = 0; i < UNITS.length; i++) {
+      ctx.fillStyle = i % 2 === 0 ? "#0d0d1e" : "#0f0f22";
+      ctx.fillRect(this.L, this.cy(i), W - this.L, this.ROW_H);
+    }
+  }
+
+  _rulerStep() {
+    const target = 65; // desired px between major ticks
+    for (const s of [1,2,5,10,20,50,100]) if (s * this.pixPerCycle >= target) return s;
+    return 100;
+  }
+
+  _drawRuler(ctx, W) {
+    ctx.fillStyle = "#0b0b1c";
+    ctx.fillRect(this.L, 0, W - this.L, this.T);
+
+    // Bottom border
+    ctx.strokeStyle = "#252545";
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.moveTo(this.L, this.T); ctx.lineTo(W, this.T); ctx.stroke();
+
+    // Minor ticks (every cycle when zoomed in)
+    if (this.pixPerCycle > 20) {
+      ctx.strokeStyle = "#1e1e38";
+      ctx.lineWidth = 1;
+      const fc = Math.floor(this.viewStart);
+      for (let c = fc; c <= this.viewEnd + 1; c++) {
+        const x = this.cx(c);
+        if (x < this.L || x > W) continue;
+        ctx.beginPath(); ctx.moveTo(x, this.T - 3); ctx.lineTo(x, this.T); ctx.stroke();
+      }
+    }
+
+    // Major ticks + labels
+    const step = this._rulerStep();
+    const first = Math.floor(this.viewStart / step) * step;
+    ctx.fillStyle = "#7070a0";
+    ctx.font      = "11px -apple-system, monospace, sans-serif";
+    ctx.textAlign = "center";
+    for (let c = first; c <= this.viewEnd + step; c += step) {
+      const x = this.cx(c);
+      if (x < this.L || x > W + 30) continue;
+      ctx.strokeStyle = "#303060"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, this.T - 7); ctx.lineTo(x, this.T); ctx.stroke();
+      if (x >= this.L + 10) ctx.fillText(`${c}`, x, this.T - 11);
+    }
+
+    // "cycle →" right-aligned
+    ctx.fillStyle = "#404070"; ctx.font = "10px sans-serif"; ctx.textAlign = "right";
+    ctx.fillText("cycle →", W - 6, this.T - 10);
+  }
+
+  _drawUnitLabels(ctx) {
+    const totalH = UNITS.length * this.ROW_H;
+    ctx.fillStyle = "#080816";
+    ctx.fillRect(0, this.T, this.L, totalH);
+
+    // Right border
+    ctx.strokeStyle = "#252545";
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.moveTo(this.L, this.T); ctx.lineTo(this.L, this.T + totalH); ctx.stroke();
+
+    const UNIT_CLR = { SXU:"#6080d0", MXU:"#d09020", VPU:"#d04070", VMEM:"#40a060" };
+    ctx.textAlign    = "center";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < UNITS.length; i++) {
+      const y = this.cy(i) + this.ROW_H / 2;
+      ctx.fillStyle = UNIT_CLR[UNITS[i]] || "#9090d0";
+      ctx.font      = "bold 13px -apple-system, sans-serif";
+      ctx.fillText(UNITS[i], this.L / 2, y);
+    }
+    ctx.textBaseline = "alphabetic";
+  }
+
+  _drawCorner(ctx) {
+    ctx.fillStyle = "#080816";
+    ctx.fillRect(0, 0, this.L, this.T);
+    ctx.fillStyle = "#404070";
+    ctx.font      = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("unit", this.L / 2, this.T / 2);
+    ctx.textBaseline = "alphabetic";
+  }
+
+  // ── block rendering ─────────────────────────────────────────────────
+  _drawBlocks(ctx, W) {
+    for (const blk of this.blocks) {
+      const ui = UNITS.indexOf(blk.unit);
+      if (ui < 0) continue;
+      const x0 = this.cx(blk.startCycle);
+      const x1 = this.cx(blk.endCycle + 1);
+      if (x1 < this.L || x0 > W) continue;
+
+      const cx0 = Math.max(x0, this.L + 1);
+      const cx1 = Math.min(x1 - 1, W - 1);
+      if (cx1 <= cx0) continue;
+
+      const bx = cx0, bw = cx1 - cx0;
+      const by = this.cy(ui) + this.PAD;
+      const bh = this.ROW_H - this.PAD * 2;
+      const isHov = blk === this.hovered;
+      const col   = EV_COLOR[blk.ev] || EV_COLOR_DEFAULT;
+
+      if (blk.ev === "WAIT_MXU") {
+        this._drawHatch(ctx, bx, by, bw, bh, col, isHov);
+      } else {
+        ctx.fillStyle = isHov ? adjustBrightness(col, .22) : col;
+        this._rrect(ctx, bx, by, bw, bh, 3);
+        ctx.fill();
+        ctx.strokeStyle = adjustBrightness(col, -.25);
+        ctx.lineWidth   = 1;
+        this._rrect(ctx, bx, by, bw, bh, 3);
+        ctx.stroke();
+      }
+
+      // Text label (only when there's room)
+      if (bw > 22) {
+        const lbl  = blockLabel(blk);
+        const fsize = bw < 55 ? 9 : 11;
+        ctx.save();
+        ctx.font         = `${fsize}px -apple-system, monospace, sans-serif`;
+        ctx.fillStyle    = blk.ev === "WAIT_MXU" ? "#ffaaaa" : textOnColor(col);
+        ctx.textAlign    = "center";
+        ctx.textBaseline = "middle";
+        ctx.beginPath(); ctx.rect(bx + 2, by, bw - 4, bh); ctx.clip();
+        ctx.fillText(lbl, bx + bw / 2, by + bh / 2);
+        ctx.restore();
+      }
+
+      // Hover outline
+      if (isHov) {
+        ctx.strokeStyle = "rgba(255,255,255,.4)";
+        ctx.lineWidth   = 1.5;
+        this._rrect(ctx, bx, by, bw, bh, 3);
+        ctx.stroke();
+      }
+    }
+
+    // Parallelism annotation: dotted arrow from SXU stall to MXU activity
+    this._drawParallelArrow(ctx);
+  }
+
+  _drawHatch(ctx, x, y, w, h, col, isHov) {
+    ctx.save();
+    ctx.beginPath(); this._rrect(ctx, x, y, w, h, 3); ctx.clip();
+    ctx.fillStyle = adjustBrightness(col, -.45);
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = col + "99";
+    ctx.lineWidth   = 2.5;
+    for (let d = -h; d < w + h; d += 10) {
+      ctx.beginPath();
+      ctx.moveTo(x + d, y);
+      ctx.lineTo(x + d + h, y + h);
+      ctx.stroke();
+    }
+    if (isHov) { ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(x, y, w, h); }
+    ctx.restore();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    this._rrect(ctx, x, y, w, h, 3); ctx.stroke();
+  }
+
+  _drawParallelArrow(ctx) {
+    // Annotate the cycle range where MXU and SXU both active (cycles 15–21)
+    const sxuUI = UNITS.indexOf("SXU");
+    const mxuUI = UNITS.indexOf("MXU");
+    if (sxuUI < 0 || mxuUI < 0) return;
+
+    const midCycle = 18;
+    const ax = this.cx(midCycle);
+    if (ax < this.L || ax > this.W) return;
+
+    const sxuBot = this.cy(sxuUI) + this.ROW_H - this.PAD + 2;
+    const mxuTop = this.cy(mxuUI) + this.PAD - 2;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,210,60,.5)";
+    ctx.fillStyle   = "rgba(255,210,60,.5)";
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(ax, sxuBot); ctx.lineTo(ax, mxuTop); ctx.stroke();
+    ctx.setLineDash([]);
+    // Arrowheads
+    const ah = 5;
+    ctx.beginPath();
+    ctx.moveTo(ax, sxuBot + ah); ctx.lineTo(ax-ah/2, sxuBot); ctx.lineTo(ax+ah/2, sxuBot);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(ax, mxuTop - ah); ctx.lineTo(ax-ah/2, mxuTop); ctx.lineTo(ax+ah/2, mxuTop);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // ── utility ─────────────────────────────────────────────────────────
+  _rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y,   x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x,   y+h, r);
+    ctx.arcTo(x,   y+h, x,   y,   r);
+    ctx.arcTo(x,   y,   x+w, y,   r);
+    ctx.closePath();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATS BAR
+// ═══════════════════════════════════════════════════════════════════════════
+function renderStatsBar(stats) {
+  const UC = { SXU:"#4A90D9", MXU:"#F39C12", VPU:"#E91E63", VMEM:"#27AE60" };
+  let h = "";
+  h += `<div class="stat"><span class="stat-lbl">Total:</span>
+         <span class="stat-val">${stats.totalCycles} cycles</span></div>`;
+  h += `<div class="stat"><span class="stat-lbl">MXU stall:</span>
+         <span class="stat-val warn">${stats.stallCycles} cycles</span></div>`;
+  h += `<div class="stat"><span class="stat-lbl">Bubbles:</span>
+         <span class="stat-val">${stats.bubbles}</span></div>`;
+  for (const u of UNITS) {
+    const c = UC[u]||"#888";
+    h += `<div class="stat">
+      <span class="stat-lbl">${u}:</span>
+      <div class="util-bar"><div class="util-fill" style="width:${stats.util[u]}%;background:${c}"></div></div>
+      <span class="stat-val">${stats.util[u]}%</span>
+    </div>`;
+  }
+  document.getElementById("stats-bar").innerHTML = h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROGRAM LISTING
+// ═══════════════════════════════════════════════════════════════════════════
+function renderProgListing() {
+  const el = document.getElementById("prog-list");
+  el.innerHTML = PROGRAM.map(p =>
+    `<div class="prog-instr" id="pc-${p.pc}" data-pc="${p.pc}">
+      <span class="prog-pc">PC ${p.pc}</span>
+      <span class="prog-asm">${p.asm}</span>
+      <span class="prog-unit">${p.units}</span>
+      <span class="prog-cycles">${p.cyc}</span>
+    </div>`
+  ).join("");
+}
+function highlightPC(pc) {
+  document.querySelectorAll(".prog-instr").forEach(el => el.classList.remove("active"));
+  if (pc !== null && pc !== undefined) {
+    const el = document.getElementById(`pc-${pc}`);
+    if (el) el.classList.add("active");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEGEND
+// ═══════════════════════════════════════════════════════════════════════════
+function renderLegend(blocks) {
+  const seen = [], seenSet = new Set();
+  for (const blk of blocks) {
+    if (!seenSet.has(blk.ev)) { seenSet.add(blk.ev); seen.push(blk.ev); }
+  }
+  document.getElementById("legend").innerHTML = seen.map(ev => {
+    const col = EV_COLOR[ev] || EV_COLOR_DEFAULT;
+    const sw  = ev === "WAIT_MXU"
+      ? `background:${col};` + "background:repeating-linear-gradient(45deg,#E74C3C44,#E74C3C44 3px,#E74C3C 3px,#E74C3C 6px);"
+      : `background:${col};`;
+    return `<div class="leg-item"><div class="leg-sw" style="${sw}"></div><span>${ev}</span></div>`;
+  }).join("");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOAD FROM PERFETTO / TRACE JSON (from profile_tpu.py --trace-out)
+// ═══════════════════════════════════════════════════════════════════════════
+function rawFromPerfettoJSON(json) {
+  const TID_UNIT = { 1:"SXU", 2:"MXU", 3:"VPU", 4:"VMEM" };
+  const raw = [];
+  for (const ev of (json.traceEvents || [])) {
+    if (ev.ph !== "X") continue;
+    const unit = TID_UNIT[ev.tid];
+    if (!unit) continue;
+    const name = ev.name.includes("(") ? ev.name.split("(")[0] : ev.name;
+    for (let c = ev.ts; c < ev.ts + (ev.dur || 1); c++) {
+      raw.push({ cycle: c, unit, ev: name, fields: ev.args || {} });
+    }
+  }
+  return raw;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT / BOOT
+// ═══════════════════════════════════════════════════════════════════════════
+let tl = null;
+
+function boot(rawEvents) {
+  const blocks = coalesce(rawEvents);
+  const stats  = computeStats(rawEvents);
+
+  renderStatsBar(stats);
+  renderProgListing();
+  renderLegend(blocks);
+
+  const canvas = document.getElementById("canvas");
+  const tip    = document.getElementById("tip");
+
+  tl = new Timeline({
+    canvas, tip,
+    blocks,
+    totalCycles: stats.totalCycles,
+    onHoverPC: highlightPC,
+  });
+  tl._resize();  // triggers initial render
+
+  // Fit after layout settles
+  requestAnimationFrame(() => { tl.fitView(); });
+}
+
+// Button wiring
+document.getElementById("btn-zin").addEventListener("click",   () => tl?._zoom(1.5));
+document.getElementById("btn-zout").addEventListener("click",  () => tl?._zoom(1/1.5));
+document.getElementById("btn-reset").addEventListener("click", () => tl?.fitView());
+
+document.getElementById("btn-load").addEventListener("click", () =>
+  document.getElementById("file-input").click()
+);
+document.getElementById("file-input").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const json = JSON.parse(ev.target.result);
+      boot(rawFromPerfettoJSON(json));
+    } catch(err) {
+      alert("Could not parse trace.json: " + err.message);
+    }
+    e.target.value = "";
+  };
+  reader.readAsText(file);
+});
+
+// Start with embedded test case
+boot(RAW_EVENTS);
+</script>
+</body>
+</html>

@@ -133,7 +133,10 @@ tinytpu/
 │   ├── test_cosim.py           #   End-to-end co-simulation test
 │   ├── run_tinytpu.py          #   Standalone runtime runner
 │   ├── dump_tinytpu_bundle.py  #   Bundle inspection utility
-│   ├── profile_tpu.py          #   Profiler driver
+│   ├── profile_tpu.py          #   Profiler driver (text report + Perfetto JSON)
+│   ├── gen_viz.py              #   Regenerate viz_pipeline.html from a bundle/TASM
+│   ├── viz_pipeline.html       #   Self-contained pipeline timeline visualizer
+│   ├── tasm.py                 #   TASM assembler / disassembler
 │   └── run_tinytpu_upstream_subset.py  # Selected upstream tinygrad tests
 ├── doc/                        # Design specs and implementation plans
 ├── AGENT.md                    # Autonomous agent iteration workflow
@@ -142,6 +145,77 @@ tinytpu/
 ├── results.tsv                 # Per-iteration progress log
 └── Makefile                    # BSV build and test targets
 ```
+
+## Pipeline Visualizer
+
+`scripts/viz_pipeline.html` is a self-contained, zero-dependency HTML timeline
+that shows cycle-accurate execution across all four TensorCore units — SXU,
+MXU, VPU, and VMEM — as a Gantt chart you can zoom, pan, and hover over.
+
+```
+Cycle →   0    3    6    9   12   15   18   21   24
+───────────────────────────────────────────────────
+ SXU │FETCH│LDQ│LDR│FETCH│LDQ│LDR│FETCH│VPU│COL│FETCH│MXU│WAIT×7         │FETCH│STOR│...
+ MXU │                             │LOAD_W×4    │STREAM_A×4  │DRAIN│
+ VPU │                        │EXC│RES│
+ VMEM│     │RQ│RS│     │RQ│RS│                                    │WR│
+```
+
+The key story it reveals: after `DISPATCH_MXU` the SXU stalls in `WAIT_MXU`
+(hatched red) while the MXU independently runs LOAD_W → STREAM_A → DRAIN.
+Hover any block to see the TASM instruction, duration, and extra fields.
+
+### Open the embedded test case
+
+```sh
+open scripts/viz_pipeline.html   # macOS
+xdg-open scripts/viz_pipeline.html  # Linux
+```
+
+The file ships with a hard-coded 26-cycle trace of an 8-instruction program
+(two LOADs, two VPU ops, an async MXU GEMM, a WAIT, a STORE, and HALT).  No
+build step required.
+
+### Generate a visualizer from a real simulator trace
+
+First build the trace-enabled simulator (one-time, ~30 s):
+
+```sh
+make runtime-tb-trace
+```
+
+Then pick one of:
+
+```sh
+# Built-in sample bundle (identity GEMM + RELU, exercises all four units):
+python3 scripts/gen_viz.py --sample -o sample.html
+open sample.html
+
+# Any TASM source file:
+python3 scripts/gen_viz.py --tasm my_program.tasm -o my.html
+
+# Pre-assembled numeric bundle:
+python3 scripts/gen_viz.py my.bundle -o my.html
+```
+
+Alternatively, keep `viz_pipeline.html` as-is and use the **Load trace.json**
+button to ingest a Perfetto trace produced by the profiler:
+
+```sh
+python3 scripts/profile_tpu.py my.bundle --trace-out trace.json
+# then open viz_pipeline.html and click "Load trace.json"
+```
+
+### Controls
+
+| Input | Action |
+|-------|--------|
+| Scroll wheel | Zoom in / out (centered on cursor) |
+| Click-drag | Pan left / right |
+| `+` / `-` | Zoom (centered on midpoint) |
+| `←` / `→` | Pan 2 cycles |
+| `R` | Fit whole trace to window |
+| Hover | Tooltip with unit, event, duration, TASM instruction |
 
 ## Software Stack
 
@@ -269,3 +343,4 @@ Tips for Codex:
 | `doc/tinyspec.tex` | Tinyspec formal specification |
 | `doc/tinyspec_coverage.md` | Coverage tracking by tinyspec category |
 | `doc/plan-*.md` | TDD implementation plans for each hardware unit |
+| `doc/viz-pipeline.md` | Pipeline visualizer design spec and extension notes |
