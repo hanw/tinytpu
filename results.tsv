@@ -212,3 +212,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	8ea1f9b	1	Float scalar-const FCMPGT/FCMPNE	x>c and x!=c	pytest backend: 421 passed	none	fcmpeq scalar broken
 2026-04-12	ae761f7	1	Float signed multi-tile FADD	32-elem signed FADD	pytest backend: 422 passed	none	fcmpeq scalar broken
 2026-04-12	44d6ab3	1	Float full-tile fneg	16-elem fneg	pytest backend: 423 passed	none	fcmpeq scalar broken
+2026-04-12	a8698a4	1	Float three-tile fneg	48-elem fneg	pytest backend: 424 passed	none	fcmpeq scalar broken
