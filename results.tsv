@@ -225,3 +225,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	edf521c	1	Float three-tile scalar fsub	48-elem x-c	pytest backend: 434 passed	none	fcmpeq scalar broken
 2026-04-12	b53270b	1	Float three-tile fadd tt	48-elem a+b	pytest backend: 435 passed	none	fcmpeq scalar broken
 2026-04-12	200b59f	1	Float three-tile fsub tt	48-elem a-b	pytest backend: 436 passed	none	fcmpeq scalar broken
+2026-04-12	eb876fe	1	Float three-tile fmul tt	48-elem a*b	pytest backend: 437 passed	none	fcmpeq scalar broken
