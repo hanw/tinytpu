@@ -202,3 +202,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	65daed8	1	Float scalar sub	x-c and c-x coverage	pytest backend: 422 passed	none	Cast round-trip
 2026-04-12	b6965d2	1	Cast round-trip	Fused same-dtype chain lowered to COPY	pytest backend: 423 passed	cast round-trip	Float reductions via host or FADD tree
 2026-04-12	8778ea1	1	Float multi-tile tensor-tensor sub	FSUB works on 32-elem tensor-tensor	pytest backend: 411 passed	none	Float ABS
+2026-04-12	9a24751	1	Float signed multi-tile FMUL	32-elem signed FMUL	pytest backend: 412 passed	none	Float ABS
