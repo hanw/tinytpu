@@ -15,9 +15,12 @@ epilogue); full int32/bool VPU elementwise (ADD/MUL/SUB/MAX/MIN/DIV/MOD/
 ABS, CMP{LT,EQ,NE}, AND/OR/XOR/NOT, SHL/SHR, WHERE, RELU, clip, fused
 add+relu); scalar-const variants and scalar broadcasting; all shapes with
 numel>16 through multi-tile elementwise loops; scalar, row-wise, and
-column-wise reductions (SUM/MAX/MIN) for any NxM through SXU_PROGRAM
-emitting VPU_{SUM,MAX,MIN}_REDUCE{,_COL,_TILE}; TASM bundle
-assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
+column-wise reductions (SUM/MAX/MIN/PROD) for any NxM through SXU_PROGRAM
+emitting VPU_{SUM,MAX,MIN,MUL}_REDUCE{,_COL,_TILE}; movement ops
+(reshape, contiguous slice/shrink, scalar expand, unrolled row expand);
+XLU transpose reachable via SXU_DISPATCH_XLU_TRANSPOSE at runtime level;
+TASM bundle assembler/disassembler; runtime bundle roundtrip + end-to-end
+sim tests.
 
 ## Current Progress
 
@@ -92,7 +95,7 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 - [x] Multi-tile elementwise loops for `numel > 16`
   - [x] Multi-tile AND/OR/XOR/NOT for bool tensors
 - [x] Mixed VPU op chains without host round trips (via VPU_PROGRAM path)
-- [ ] Output shape preservation for scalar, vector, and small matrix cases
+- [x] Output shape preservation for scalar, vector, and small matrix cases (1D/2D/nD coverage via copy + elementwise + reduction renderers)
 
 ### More Elementwise Ops: 35-70 iterations
 
@@ -138,7 +141,7 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 
 - [x] `RESHAPE` (copy SXU_PROGRAM with identity LOAD/STORE index mapping)
 - [ ] `PERMUTE`
-- [ ] `TRANSPOSE` via XLU
+- [ ] `TRANSPOSE` via XLU — hardware: SXU_DISPATCH_XLU_TRANSPOSE opcode (12) + runtime test done; tinygrad permute(1,0) lowering still open
 - [x] `EXPAND` (scalar and unrolled row-broadcast via BROADCAST_SCALAR / BROADCAST_ROW; RANGE-loop variant still open)
 - [x] `SHRINK` (contiguous slice via copy renderer with affine offset)
 - [ ] `PAD`
@@ -234,7 +237,7 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [ ] Emit host fallbacks (HOST_*) directly from renderer without analyze_tinytpu_uops
 - [x] Delete dead analyze blocks, _exec_vpu_where/unary, _build_vpu_where, _render_wmma_descriptor
 - [ ] Delete remaining analyze_tinytpu_uops (now limited to scalar-const DIV/MOD)
-- [ ] Run selected upstream tinygrad tests on `TINYTPU`
+- [x] Run selected upstream tinygrad tests on `TINYTPU` (2 tests pass via scripts/run_tinytpu_upstream_subset.py — expand list as coverage grows)
 - [ ] Add skipped/xfail manifest for unsupported tinyspec areas
 - [ ] Track coverage by tinyspec op category
 
@@ -277,7 +280,7 @@ Estimate: **~50 total iterations**
 - [x] One simple reduction
 - [x] Constants and scalar broadcasting
 - [x] `WHERE` and comparisons
-- [ ] Basic reshape/transpose within one 4x4 tile
+- [x] Basic reshape/transpose within one 4x4 tile (reshape via copy renderer; transpose reachable via SXU_DISPATCH_XLU_TRANSPOSE, tinygrad lowering pending)
 - [x] VPU-only runtime completion cleanup
 
 ### Milestone 2: Multi-Tile Core Tensor Ops
@@ -286,10 +289,10 @@ Estimate: **~120 total iterations**
 
 - [x] Multi-tile elementwise (ADD/MUL/SUB/MAX/MIN/compare/logic + scalar-const all cover numel>16 via tile-loop)
 - [x] Multi-tile reductions (scalar via VPU_*_REDUCE_TILE; row/col via SXU_PROGRAM tile iteration)
-- [ ] Multi-tile movement ops
+- [x] Multi-tile movement ops (multi-tile reshape/slice/expand work through the copy renderer's tile loop)
 - [x] GEMM epilogues (hardware-backed bias add, ReLU, fused bias+ReLU via SXU_LOAD_MXU_RESULT)
 - [ ] More shape coverage
-- [ ] First selected upstream tinygrad test subset passing on `TINYTPU`
+- [x] First selected upstream tinygrad test subset passing on `TINYTPU` (test_plus_int, test_plus_big)
 
 ### Milestone 3: Broad Core Tinyspec Semantics
 
@@ -297,7 +300,7 @@ Estimate: **~250 total iterations**
 
 - [ ] Most movement ops
 - [ ] Most integer elementwise ops
-- [ ] Add/max/mul reductions
+- [x] Add/max/mul reductions (SUM/MAX/MIN/PROD scalar, row, col via VPU_*_REDUCE{,_COL,_TILE})
 - [ ] More dtype handling
 - [ ] Multi-kernel scheduling
 - [ ] Structural lowering pass
@@ -322,22 +325,31 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations (updated 2026-04-11)
+## Recommended Next Iterations (updated 2026-04-12)
 
-Current state: 355 backend tests, row/col reductions fully hardware-backed,
-all scalar-reduction host accumulation code removed.
+Current state: 379 backend tests + 8 runtime bundle tests. Row/col/scalar
+reductions (SUM/MAX/MIN/PROD) fully hardware-backed. Movement ops: reshape,
+contiguous slice/shrink, scalar and unrolled row-expand working.
+SXU_DISPATCH_XLU_TRANSPOSE opcode exists in hardware but tinygrad
+permute/transpose lowering not yet wired.
 
 Highest-value next work:
-1. Movement ops end-to-end: RESHAPE no-copy, PERMUTE/TRANSPOSE via XLU,
-   EXPAND/SHRINK as no-copy view where possible.
-2. Hardware epilogue for multi-K-tile GEMM (currently still a numpy fallback).
-3. Delete remaining `analyze_tinytpu_uops` (only scalar-const DIV/MOD left).
-4. Run `scripts/run_tinytpu_upstream_subset.py` without `--dry-run` in CI.
-5. MUL reduction (no VPU_MUL_REDUCE opcode yet — needs new primitive or
-   two-pass lowering).
-6. Dtype expansion beyond int32/bool: int8/uint8/int16 elementwise policy.
+1. Wire tinygrad `permute(1,0)` to SXU_DISPATCH_XLU_TRANSPOSE. Detect the
+   2D index-swap pattern in the UOp graph and emit LOAD/XLU_TRANSPOSE/STORE
+   for single-tile cases; extend to multi-tile via a tile-of-tiles pass.
+2. RANGE-loop variant of row-broadcast expand (shape (N, M) with M<_COLS
+   and outer RANGE over rows) — current renderer handles only unrolled.
+3. Hardware epilogue for multi-K-tile GEMM (currently still a numpy
+   fallback).
+4. Delete remaining `analyze_tinytpu_uops` (only scalar-const DIV/MOD
+   left — requires matching tinygrad's WHERE+CMPLT+AND floor-div decomp).
+5. Dtype expansion beyond int32/bool: int8/uint8/int16 elementwise policy.
+6. Movement gaps: PAD (requires CMPLT bounds check), FLIP (LOAD index =
+   const - STORE index), CAT (WHERE-based select between two buffers),
+   true permute (non-transpose axis reorder).
 7. Multi-output tile scheduling cleanup and intermediate VMEM allocation.
-8. Fused kernel detection improvements for 2-op chains tinygrad emits.
+8. Fused kernel detection improvements for 2-op chains tinygrad emits
+   (slice-then-sum currently fuses to wrong-offset sum).
 
 ### Model-blocking gaps (from mnist_gan.py bring-up)
 
