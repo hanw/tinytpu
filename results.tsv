@@ -210,3 +210,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	30fae5a	1	Float multi-tile scalar minimum	32-elem x.minimum(0.0)	pytest backend: 417 passed	none	Float ABS
 2026-04-12	cd0caea	1	Float scalar-const FCMPLT	x<c single and multi-tile	pytest backend: 419 passed	none	Float ABS
 2026-04-12	8ea1f9b	1	Float scalar-const FCMPGT/FCMPNE	x>c and x!=c	pytest backend: 421 passed	none	fcmpeq scalar broken
+2026-04-12	ae761f7	1	Float signed multi-tile FADD	32-elem signed FADD	pytest backend: 422 passed	none	fcmpeq scalar broken
