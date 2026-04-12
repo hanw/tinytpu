@@ -260,3 +260,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	0dd9943	1	2D fmax tt	2x2 signed max	pytest backend: 469 passed	none	fcmpeq scalar broken
 2026-04-12	d92e64f	1	2D fmin tt	2x2 signed min	pytest backend: 470 passed	none	fcmpeq scalar broken
 2026-04-12	0c8b519	1	2D fsub tt	2x2 float sub	pytest backend: 471 passed	none	fcmpeq scalar broken
+2026-04-12	611d9df	1	2D fcmpeq tt	2x2 float eq	pytest backend: 472 passed	none	fcmpeq scalar broken
