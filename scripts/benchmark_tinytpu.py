@@ -214,6 +214,21 @@ def run_benches(filter_: str | None = None) -> list[Result]:
     return out
 
 
+def geomean_elems_per_cycle(results: list[Result]) -> float:
+    """Aggregate throughput across kernels, scale-invariant.
+
+    Geomean weights each kernel equally (a 2x speedup on any kernel moves the
+    number by the same factor), and is the natural aggregate when the chip
+    may scale: wider MXU/VPU → proportionally higher elems/cycle across all
+    kernels → proportionally higher geomean.
+    """
+    import math
+    vals = [r.elems_per_cycle for r in results if r.elems_per_cycle > 0]
+    if not vals:
+        return 0.0
+    return math.exp(sum(math.log(v) for v in vals) / len(vals))
+
+
 def print_table(results: list[Result]) -> None:
     hdr = f"{'kernel':<22}{'cycles':>10}{'wall (ms)':>14}{'elems':>10}{'elems/cyc':>14}{'bytes/cyc':>14}"
     print(hdr)
@@ -221,6 +236,9 @@ def print_table(results: list[Result]) -> None:
     for r in results:
         print(f"{r.name:<22}{r.cycles:>10}{r.wall_ms:>14.2f}{r.work_elems:>10}"
               f"{r.elems_per_cycle:>14.3f}{r.bytes_per_cycle:>14.3f}")
+    print("-" * len(hdr))
+    gmean = geomean_elems_per_cycle(results)
+    print(f"{'geomean elems/cyc':<46}{gmean:>14.3f}{'':>14}")
 
 
 def main(argv: list[str]) -> int:

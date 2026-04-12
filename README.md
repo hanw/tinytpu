@@ -52,6 +52,42 @@ print(Tensor([3, 7, 1, 5], dtype="int32", device="TINYTPU").sum().numpy())  # 16
 print(Tensor([3, 7, 1, 5], dtype="int32", device="TINYTPU").max().numpy())  # 7
 ```
 
+## Performance
+
+`scripts/benchmark_tinytpu.py` runs an 11-kernel benchmark suite through the
+cycle-accurate BSV simulator and reports latency (cycles) and throughput
+(int32 elements/cycle). Per-kernel numbers for the current baseline:
+
+| kernel          | cycles | elems/cycle | bytes/cycle |
+|-----------------|-------:|------------:|------------:|
+| add_16          |     33 |       0.485 |        1.94 |
+| add_256         |    423 |       0.605 |        2.42 |
+| relu_64         |     83 |       0.771 |        3.08 |
+| reshape_64      |     63 |       1.016 |        4.06 |
+| sum_16_scalar   |     26 |       0.615 |        2.46 |
+| sum_256_scalar  |    281 |       0.911 |        3.64 |
+| rowsum_8x8      |     79 |       0.810 |        3.24 |
+| colsum_8x8      |     79 |       0.810 |        3.24 |
+| gemm_1x4x4      |     37 |       0.432 |        1.73 |
+| gemm_4x4x4      |    121 |       0.529 |        2.12 |
+| gemm_4x8x4      |    227 |       0.564 |        2.26 |
+| **geomean**     |        |   **0.663** |             |
+
+We track the **geomean of elements/cycle** across all kernels as the
+single-number progress metric — scale-invariant (a 2× wider MXU/VPU should
+move the geomean proportionally), independent of kernel mix, and rises with
+any real speedup.
+
+![Benchmark progress](doc/benchmark_progress.png)
+
+Progress is tracked in `doc/benchmark_history.tsv`; re-render the plot with:
+
+```sh
+python3 scripts/benchmark_tinytpu.py            # print per-kernel table
+python3 scripts/benchmark_tinytpu.py --json     # machine-readable
+python3 scripts/plot_benchmark.py               # update doc/benchmark_progress.png
+```
+
 ## Prerequisites
 
 - [BSC compiler](https://github.com/B-Lang-org/bsc) (Bluesim backend)

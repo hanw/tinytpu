@@ -1,0 +1,2 @@
+experiment	date	commit	label	kept	geomean_elems_per_cycle	notes
+1	2026-04-12	0f3c913	baseline	1	0.663	initial 11-kernel benchmark harness
