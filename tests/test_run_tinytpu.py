@@ -154,6 +154,36 @@ class TestRunTinyTPU(unittest.TestCase):
       expected = [28, 32, 36, 40] * 4
       self.assertEqual(payload["vmem_result"], expected)
 
+  def test_vpu_mul_reduce_col_via_runtime_sim(self):
+    """End-to-end: VPU_MUL_REDUCE_COL gives per-column products broadcast down each column."""
+    sim = REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe"
+    if not sim.exists():
+      self.skipTest("runtime binary not built")
+    with tempfile.TemporaryDirectory() as td:
+      bundle = Path(td) / "vpu_mul_reduce_col.txt"
+      # 4x4 tile with col-product targets: col0=2, col1=6, col2=12, col3=24
+      bundle.write_text(textwrap.dedent("""\
+        5 0 1 1 1 1 2 1 2 2 1 2 3 3 1 3 2 4
+        2 0 0 0 0 0 0 0 0 0
+        2 2 0 1 0 36 0 0 0 0
+        2 1 1 0 1 0 0 0 0 0
+        2 7 0 0 0 0 0 0 0 0
+        6 1
+        4
+      """), encoding="utf-8")
+      proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "run_tinytpu.py"), str(bundle)],
+        cwd=REPO_ROOT, text=True, capture_output=True,
+        env={**os.environ, "TINYTPU_SIM": str(sim)}, check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      payload = json.loads(proc.stdout)
+      self.assertEqual(payload["status"], "ok")
+      # Tile: [1,1,1,1 ; 2,1,2,2 ; 1,2,3,3 ; 1,3,2,4]
+      # col products: 1*2*1*1=2, 1*1*2*3=6, 1*2*3*2=12, 1*2*3*4=24
+      expected = [2, 6, 12, 24] * 4
+      self.assertEqual(payload["vmem_result"], expected)
+
   def test_upstream_subset_wrapper_dry_run(self):
     proc = subprocess.run(
       [sys.executable, str(REPO_ROOT / "scripts" / "run_tinytpu_upstream_subset.py"), "--dry-run"],
