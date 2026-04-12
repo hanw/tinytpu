@@ -375,6 +375,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
     np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
 
+  def test_fmaximum_scalar_const_multi_tile_matches_reference(self):
+    a = np.arange(-16, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").maximum(0.0).numpy()
+    np.testing.assert_allclose(result, np.maximum(a, 0.0), rtol=1e-5)
+
   def test_fmaximum_negative_scalar_const_matches_reference(self):
     a = np.array([-5.0, -1.0, 2.0, -3.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").maximum(-2.0).numpy()
