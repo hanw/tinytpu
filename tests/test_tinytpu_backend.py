@@ -355,6 +355,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
     np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
 
+  def test_fminimum_scalar_const_matches_reference(self):
+    a = np.array([1.0, -2.0, 3.0, 5.0, -1.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").minimum(2.5).numpy()
+    np.testing.assert_allclose(result, np.minimum(a, 2.5), rtol=1e-5)
+
   def test_fwhere_matches_reference(self):
     cond = np.array([True, False, True, False])
     lhs = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
