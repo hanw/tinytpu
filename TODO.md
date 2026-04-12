@@ -182,7 +182,7 @@ sim tests.
 - [ ] int16 elementwise
 - [ ] uint16 elementwise
 - [ ] uint32 elementwise
-- [ ] float32 policy
+- [x] float32 policy (FADD/FSUB/FMUL/FMAX/FCMPLT dispatched via VPU_F* variants; scalar const and multi-tile covered; FRECIP+scalar fdiv work; tensor-tensor fdiv requires RECIPROCAL UOp detection, tracked)
 - [ ] cast saturation/wrapping behavior
 - [ ] comparison output dtype behavior
 - [ ] dtype range diagnostics
