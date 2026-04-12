@@ -695,7 +695,82 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 59);
+   // Test 29: VPU_MUL_REDUCE (per-row)
+   // row = [2, 3, 4, 5] -> product 120, broadcast across row
+   rule dispatch_mul_reduce (cycle == 58);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(1));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = 2; s1[0][1] = 3; s1[0][2] = 4; s1[0][3] = 5;
+      vpu.execute(VPU_MUL_REDUCE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MUL_REDUCE", cycle);
+   endrule
+
+   rule check_mul_reduce (cycle == 59);
+      let res = vpu.result;
+      Bool ok = (res[0][0] == 120 && res[0][1] == 120 && res[0][2] == 120 && res[0][3] == 120);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MUL_REDUCE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MUL_REDUCE got [%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 30: VPU_MUL_REDUCE_COL
+   // tile of 1..16; col products: [585, 960, 1365, 1792]
+   rule dispatch_mul_reduce_col (cycle == 60);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = fromInteger(r * 4 + c + 1);
+      vpu.execute(VPU_MUL_REDUCE_COL, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MUL_REDUCE_COL", cycle);
+   endrule
+
+   rule check_mul_reduce_col (cycle == 61);
+      let res = vpu.result;
+      // col products: col0=1*5*9*13=585, col1=2*6*10*14=1680, col2=3*7*11*15=3465, col3=4*8*12*16=6144
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1) begin
+         if (res[r][0] != 585 || res[r][1] != 1680 || res[r][2] != 3465 || res[r][3] != 6144)
+            ok = False;
+      end
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MUL_REDUCE_COL", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MUL_REDUCE_COL got row0=[%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 31: VPU_MUL_REDUCE_TILE with small values to avoid int32 overflow
+   // tile = [1,2,1,1 ; 2,1,1,1 ; 1,1,3,1 ; 1,1,1,2] -> product 24
+   rule dispatch_mul_reduce_tile (cycle == 62);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(1));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][1] = 2; s1[1][0] = 2; s1[2][2] = 3; s1[3][3] = 2;
+      vpu.execute(VPU_MUL_REDUCE_TILE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MUL_REDUCE_TILE", cycle);
+   endrule
+
+   rule check_mul_reduce_tile (cycle == 63);
+      let res = vpu.result;
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            if (res[r][c] != 24) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MUL_REDUCE_TILE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MUL_REDUCE_TILE got [0][0]=%0d", cycle, res[0][0]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 65);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
