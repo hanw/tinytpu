@@ -47,7 +47,7 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] Fused add+relu full-tile and multi-tile
 - [x] Tensor-tensor IDIV and MOD
 - [x] Row-wise sum/max/min for NxM tensors (VPU_ROWSUM for M=4, HOST_ROWREDUCE for other M)
-- [x] Column-wise sum/max/min for NxM tensors (HOST_COLREDUCE)
+- [x] Column-wise sum/max/min for NxM tensors — hardware-backed via VPU_*_REDUCE_COL for all N,M (legacy HOST_COLREDUCE remains as fallback)
 - [x] Fix stale WAIT_MXU opcode in VPU-only test bundles
 - [x] 2D tensor ops: all VPU binary/unary ops for arbitrary 2D shapes
 - [x] Grouped scalar-const lowering for 2D/large tensors (NEG, x*c, x+c)
@@ -115,8 +115,8 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 ### Reductions: 30-60 iterations
 
 - [x] 4-element int32 sum to scalar
-- [x] Full-tile int32 sum to scalar
-- [x] Multi-tile int32 sum to scalar
+- [x] Full-tile int32 sum to scalar (via VPU_SUM_REDUCE_TILE)
+- [x] Multi-tile int32 sum to scalar (VPU_SUM_REDUCE_TILE per tile + VPU_ADD combine)
 - [x] Row-wise sum/max/min over NxM tensor (VPU_ROWSUM for M=4, HOST_ROWREDUCE otherwise)
 - [x] Column-wise sum/max/min over NxM tensor (HOST_COLREDUCE)
 - [ ] Full-tile sum
