@@ -794,6 +794,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0).numpy()
     np.testing.assert_array_equal(result, data.min(axis=0))
 
+  def test_colsum_4x3_narrow_single_tile_matches_reference(self):
+    data = (np.arange(12, dtype=np.int32) - 6).reshape(4, 3)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=0))
+
+  def test_colmax_3x2_narrow_single_tile_matches_reference(self):
+    data = np.array([[-5, -10], [-6, -2], [-7, -1]], dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=0))
+
+  def test_colmin_2x3_narrow_single_tile_matches_reference(self):
+    data = np.array([[5, 10, 3], [6, 2, 4]], dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=0))
+
   def test_colsum_4x8_matches_reference(self):
     data = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
     result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
