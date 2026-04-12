@@ -774,6 +774,26 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
     np.testing.assert_array_equal(result, data.sum(axis=0))
 
+  def test_colmax_4x4_single_tile_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=0))
+
+  def test_colmax_2x4_single_tile_matches_reference(self):
+    data = np.array([[-5, -10, -3, -8], [-6, -2, -4, -9]], dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=0))
+
+  def test_colmin_4x4_single_tile_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=0))
+
+  def test_colmin_3x4_single_tile_matches_reference(self):
+    data = np.array([[5, 10, 3, 8], [6, 2, 4, 9], [7, 1, 11, 4]], dtype=np.int32)
+    result = Tensor(data, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.min(axis=0))
+
   def test_colsum_4x8_matches_reference(self):
     data = (np.arange(32, dtype=np.int32) - 16).reshape(4, 8)
     result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0).numpy()
