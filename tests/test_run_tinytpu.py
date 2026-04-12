@@ -97,6 +97,33 @@ class TestRunTinyTPU(unittest.TestCase):
       # Full-tile sum of 1..16 = 136, broadcast to every slot
       self.assertEqual(payload["vmem_result"], [136] * 16)
 
+  def test_vpu_mul_reduce_tile_via_runtime_sim(self):
+    """End-to-end: VPU_MUL_REDUCE_TILE on a small tile broadcasts product to full tile."""
+    sim = REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe"
+    if not sim.exists():
+      self.skipTest("runtime binary not built")
+    with tempfile.TemporaryDirectory() as td:
+      bundle = Path(td) / "vpu_mul_reduce_tile.txt"
+      # Tile with one 2, one 3, one 4, rest 1s → product 24.
+      bundle.write_text(textwrap.dedent("""\
+        5 0 2 1 1 1 1 1 1 1 1 1 3 1 1 1 4 1
+        2 0 0 0 0 0 0 0 0 0
+        2 2 0 1 0 37 0 0 0 0
+        2 1 1 0 1 0 0 0 0 0
+        2 7 0 0 0 0 0 0 0 0
+        6 1
+        4
+      """), encoding="utf-8")
+      proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "run_tinytpu.py"), str(bundle)],
+        cwd=REPO_ROOT, text=True, capture_output=True,
+        env={**os.environ, "TINYTPU_SIM": str(sim)}, check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      payload = json.loads(proc.stdout)
+      self.assertEqual(payload["status"], "ok")
+      self.assertEqual(payload["vmem_result"], [24] * 16)
+
   def test_vpu_sum_reduce_col_via_runtime_sim(self):
     """End-to-end: VPU_SUM_REDUCE_COL on 1..16 gives per-col sums broadcast down each column."""
     sim = REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe"
