@@ -1808,6 +1808,16 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").prod().numpy()
     np.testing.assert_array_equal(result, a.prod())
 
+  def test_rowprod_3x4_matches_reference(self):
+    data = np.arange(1, 13, dtype=np.int32).reshape(3, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").prod(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.prod(axis=1))
+
+  def test_colprod_3x4_matches_reference(self):
+    data = np.arange(1, 13, dtype=np.int32).reshape(3, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").prod(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.prod(axis=0))
+
   def test_reshape_1d_to_2d_matches_reference(self):
     a = np.arange(16, dtype=np.int32)
     result = Tensor(a, dtype="int32", device="TINYTPU").reshape(4, 4).numpy()
