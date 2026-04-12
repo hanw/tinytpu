@@ -251,3 +251,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	690d37c	1	Four-tile frecip	64-elem 1/x	pytest backend: 460 passed	none	fcmpeq scalar broken
 2026-04-12	9c0caae	1	Four-tile scalar fadd	64-elem x+c	pytest backend: 461 passed	none	fcmpeq scalar broken
 2026-04-12	3d99d7c	1	Four-tile fdiv tt	64-elem a/b	pytest backend: 462 passed	none	fcmpeq scalar broken
+2026-04-12	f1abcaa	1	Four-tile scalar fmul	64-elem x*c	pytest backend: 463 passed	none	fcmpeq scalar broken
