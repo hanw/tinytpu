@@ -1904,6 +1904,30 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=0, keepdim=True).numpy()
     np.testing.assert_array_equal(result, data.max(axis=0, keepdims=True))
 
+  def test_sum_all_axes_2d_matches_reference(self):
+    data = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, data.sum())
+
+  def test_max_all_axes_2d_matches_reference(self):
+    data = np.arange(16, dtype=np.int32).reshape(4, 4) - 8
+    result = Tensor(data, dtype="int32", device="TINYTPU").max().numpy()
+    np.testing.assert_array_equal(result, data.max())
+
+  def test_prod_all_axes_2d_matches_reference(self):
+    data = np.ones((3, 4), dtype=np.int32); data[0,0] = 2; data[1,1] = 3; data[2,2] = 5
+    result = Tensor(data, dtype="int32", device="TINYTPU").prod().numpy()
+    np.testing.assert_array_equal(result, data.prod())
+
+  def test_reshape_16_to_4x4_then_add_matches_reference(self):
+    a = np.arange(16, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU").reshape(4, 4) +
+              Tensor(np.ones(16, dtype=np.int32).reshape(4,4), dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a.reshape(4, 4) + 1)
+
+  # Note: slice-then-sum currently fuses the sum over the unsliced buffer —
+  # investigate schedule ordering before re-enabling.
+
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
     self.assertEqual(_VPU_OPS["AND"], 15)
