@@ -344,6 +344,17 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
     np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
 
+  def test_fdiv_multi_tile_matches_reference(self):
+    a = np.arange(1, 33, dtype=np.float32)
+    b = np.full(32, 2.0, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") / Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a / b, rtol=1e-3)
+
+  def test_frecip_multi_tile_matches_reference(self):
+    a = np.arange(1, 33, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
+    np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
+
   def test_sqrt_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
