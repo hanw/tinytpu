@@ -309,6 +309,30 @@ class TestTinyTPUBackend(unittest.TestCase):
     ).numpy()
     np.testing.assert_array_equal(result, np.array([4, 7, 6], dtype=np.int32))
 
+  def test_fadd_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    b = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
+  def test_fmul_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    b = np.array([2.0, 2.0, 2.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a * b, rtol=1e-5)
+
+  def test_fsub_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    b = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") - Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a - b, rtol=1e-5)
+
+  def test_fmax_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    b = np.array([1.5, 1.5, 1.5], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").maximum(Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, np.maximum(a, b), rtol=1e-5)
+
   def test_vpu_add_full_tile_matches_reference(self):
     a_np = np.arange(16, dtype=np.int32)
     b_np = np.arange(100, 116, dtype=np.int32)
