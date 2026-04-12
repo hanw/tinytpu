@@ -242,3 +242,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	f95342e	1	Positive scalar fmin mt	x.minimum(5.0) 32-elem	pytest backend: 451 passed	none	fcmpeq scalar broken
 2026-04-12	ed6bd02	1	Signed full-tile fsub tt	16-elem signed	pytest backend: 452 passed	none	fcmpeq scalar broken
 2026-04-12	4cbd168	1	Signed full-tile fadd tt	16-elem signed	pytest backend: 453 passed	none	fcmpeq scalar broken
+2026-04-12	f9ab691	1	Signed full-tile fmul tt	16-elem signed	pytest backend: 454 passed	none	fcmpeq scalar broken
