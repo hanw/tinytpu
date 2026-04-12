@@ -520,11 +520,11 @@ def test_disassemble_vmem_negative():
 
 def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
-    # 29 base ops (0..28) + 6 col/tile reduce ops (29..34)
-    assert len(_VPU) == 35
-    # Contiguous from 0 to 34
+    # 29 base ops (0..28) + 6 col/tile reduce ops (29..34) + 3 mul reduce (35..37)
+    assert len(_VPU) == 38
+    # Contiguous from 0 to 37
     codes = sorted(_VPU.values())
-    assert codes == list(range(35))
+    assert codes == list(range(38))
 
 
 def test_assemble_error_bad_vreg():
