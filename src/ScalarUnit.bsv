@@ -20,7 +20,8 @@ typedef enum {
    SXU_DISPATCH_SELECT,
    SXU_BROADCAST_SCALAR,
    SXU_BROADCAST_ROW,
-   SXU_BROADCAST_COL
+   SXU_BROADCAST_COL,
+   SXU_DISPATCH_XLU_TRANSPOSE
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -50,6 +51,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST, SXU_EXEC_XLU_COLLECT,
                SXU_EXEC_XLU_BROADCAST_SCALAR, SXU_EXEC_XLU_BROADCAST_ROW,
                SXU_EXEC_XLU_BROADCAST_COL,
+               SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
                SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
@@ -106,6 +108,7 @@ module mkScalarUnit#(
          SXU_BROADCAST_SCALAR: pc_state <= SXU_EXEC_XLU_BROADCAST_SCALAR;
          SXU_BROADCAST_ROW: pc_state <= SXU_EXEC_XLU_BROADCAST_ROW;
          SXU_BROADCAST_COL: pc_state <= SXU_EXEC_XLU_BROADCAST_COL;
+         SXU_DISPATCH_XLU_TRANSPOSE: pc_state <= SXU_EXEC_XLU_TRANSPOSE;
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
@@ -215,6 +218,15 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=SXU ev=BROADCAST_COL pc=%0d src=v%0d col=%0d", cycle, pc, curInstr.vregSrc, srcCol);
 `endif
       xlu.executeBroadcastCol(src, srcCol);
+      pc_state <= SXU_EXEC_XLU_COLLECT;
+   endrule
+
+   rule do_xlu_transpose (pc_state == SXU_EXEC_XLU_TRANSPOSE);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=XLU_TRANSPOSE pc=%0d src=v%0d", cycle, pc, curInstr.vregSrc);
+`endif
+      xlu.executeTranspose(src);
       pc_state <= SXU_EXEC_XLU_COLLECT;
    endrule
 

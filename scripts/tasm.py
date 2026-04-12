@@ -41,6 +41,7 @@ _SXU = {
     "BROADCAST_SCALAR":       9,
     "BROADCAST_ROW":          10,
     "BROADCAST_COL":          11,
+    "DISPATCH_XLU_TRANSPOSE": 12,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 

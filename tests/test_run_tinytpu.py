@@ -154,6 +154,36 @@ class TestRunTinyTPU(unittest.TestCase):
       expected = [28, 32, 36, 40] * 4
       self.assertEqual(payload["vmem_result"], expected)
 
+  def test_sxu_xlu_transpose_via_runtime_sim(self):
+    """End-to-end: SXU_DISPATCH_XLU_TRANSPOSE transposes a 4x4 tile."""
+    sim = REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe"
+    if not sim.exists():
+      self.skipTest("runtime binary not built")
+    with tempfile.TemporaryDirectory() as td:
+      bundle = Path(td) / "xlu_transpose.txt"
+      # VMEM[0] = [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]
+      # Transpose → [[1,5,9,13],[2,6,10,14],[3,7,11,15],[4,8,12,16]]
+      # SXU opcodes: 0=LOAD, 1=STORE, 12=DISPATCH_XLU_TRANSPOSE, 7=HALT
+      bundle.write_text(textwrap.dedent("""\
+        5 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+        2 0 0 0 0 0 0 0 0 0
+        2 12 0 1 0 0 0 0 0 0
+        2 1 1 0 1 0 0 0 0 0
+        2 7 0 0 0 0 0 0 0 0
+        6 1
+        4
+      """), encoding="utf-8")
+      proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "run_tinytpu.py"), str(bundle)],
+        cwd=REPO_ROOT, text=True, capture_output=True,
+        env={**os.environ, "TINYTPU_SIM": str(sim)}, check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      payload = json.loads(proc.stdout)
+      self.assertEqual(payload["status"], "ok")
+      self.assertEqual(payload["vmem_result"],
+                       [1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15, 4, 8, 12, 16])
+
   def test_vpu_mul_reduce_col_via_runtime_sim(self):
     """End-to-end: VPU_MUL_REDUCE_COL gives per-column products broadcast down each column."""
     sim = REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe"
