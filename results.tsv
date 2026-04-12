@@ -233,3 +233,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	196a018	1	Signed full-tile I2F	16-elem signed I2F	pytest backend: 442 passed	none	fcmpeq scalar broken
 2026-04-12	33fa4a3	1	Rev scalar fadd	c+x 32-elem	pytest backend: 443 passed	none	fcmpeq scalar broken
 2026-04-12	449fcb8	1	Signed multi-tile I2F	32-elem signed I2F	pytest backend: 444 passed	none	fcmpeq scalar broken
+2026-04-12	093b6b7	1	Full-tile frecip	16-elem 1/x	pytest backend: 445 passed	none	fcmpeq scalar broken
