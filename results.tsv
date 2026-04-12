@@ -287,3 +287,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	7e56f9b	1	Zero-mix fabs	±0/±1 fabs	pytest backend: 497 passed	none	fclip chain broken
 2026-04-12	3979a64	1	Scaled mt fabs	32-elem 0.5x	pytest backend: 498 passed	none	fclip chain broken
 2026-04-12	205f781	1	Negative FCMPEQ scalar	x==-2.0	pytest backend: 499 passed	none	fclip chain broken
+2026-04-12	f0ab6b4	1	Fractional mt FCMPEQ scalar	32-elem 0.5x==4.0	pytest backend: 500 passed	none	fclip chain broken
