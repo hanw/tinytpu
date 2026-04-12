@@ -1879,6 +1879,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU")[2:6].numpy()
     np.testing.assert_array_equal(result, a[2:6])
 
+  def test_expand_scalar_to_tile_matches_reference(self):
+    result = Tensor([[7]], dtype="int32", device="TINYTPU").expand(4, 4).numpy()
+    np.testing.assert_array_equal(result, np.full((4, 4), 7, dtype=np.int32))
+
+  def test_expand_scalar_to_multi_tile_matches_reference(self):
+    result = Tensor([[5]], dtype="int32", device="TINYTPU").expand(4, 8).numpy()
+    np.testing.assert_array_equal(result, np.full((4, 8), 5, dtype=np.int32))
+
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
     self.assertEqual(_VPU_OPS["AND"], 15)
