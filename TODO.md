@@ -60,8 +60,8 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 
 - [x] Make VPU-only programs complete without dummy MXU dispatch
 - [ ] Add first-class runtime bundle builder for VMEM/VPU programs
-- [ ] Support multiple VMEM output tiles
-- [ ] Support multiple VPU instructions in one tinygrad lowered program
+- [x] Support multiple VMEM output tiles (col-reduce/row-reduce/GEMM emit multi-tile outputs through SXU_PROGRAM)
+- [x] Support multiple VPU instructions in one tinygrad lowered program (SXU_PROGRAM multi-step paths: abs, clip, MOD, WHERE, row/col reductions)
 - [x] Add runtime tests for VMEM preload/output protocol
 - [ ] Improve trace output for VPU-only programs
 - [x] Document bundle records for VMEM input/output
@@ -72,7 +72,7 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] Single-tile int32 `MUL`
 - [x] Single-tile int32 `MAX`
 - [x] Single-tile int32 `RELU`
-- [ ] Constants in VPU programs, e.g. `x + 1`, `x * 2`
+- [x] Constants in VPU programs, e.g. `x + 1`, `x * 2`
   - [x] `x + scalar`
   - [x] `x * scalar`
   - [x] `maximum(x, scalar)`
@@ -117,16 +117,16 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] 4-element int32 sum to scalar
 - [x] Full-tile int32 sum to scalar (via VPU_SUM_REDUCE_TILE)
 - [x] Multi-tile int32 sum to scalar (VPU_SUM_REDUCE_TILE per tile + VPU_ADD combine)
-- [x] Row-wise sum/max/min over NxM tensor (VPU_ROWSUM for M=4, HOST_ROWREDUCE otherwise)
-- [x] Column-wise sum/max/min over NxM tensor (HOST_COLREDUCE)
-- [ ] Full-tile sum
-- [x] `MAX` reduction (4-elem, full-tile, multi-tile via VPU_MAX_REDUCE)
-- [x] `MIN` reduction (4-elem, full-tile, multi-tile via VPU_MIN_REDUCE)
+- [x] Row-wise sum/max/min over NxM tensor (SXU_PROGRAM row-reduce renderer, all N,M)
+- [x] Column-wise sum/max/min over NxM tensor (SXU_PROGRAM col-reduce renderer, all N,M)
+- [x] Full-tile sum (via VPU_SUM_REDUCE_TILE)
+- [x] `MAX` reduction (4-elem, full-tile, multi-tile via VPU_MAX_REDUCE_TILE)
+- [x] `MIN` reduction (4-elem, full-tile, multi-tile via VPU_MIN_REDUCE_TILE)
 - [x] VPU col-reduce primitives (VPU_SUM/MAX/MIN_REDUCE_COL opcodes 29/30/31)
 - [x] VPU tile-reduce primitives (VPU_SUM/MAX/MIN_REDUCE_TILE opcodes 32/33/34)
 - [ ] `MUL` reduction
-- [ ] `keepdim` behavior
-- [ ] Multi-tile reductions
+- [x] `keepdim` behavior (rowsum/rowmax/rowmin keepdim tests pass)
+- [x] Multi-tile reductions (scalar SUM/MAX/MIN with VPU_*_REDUCE_TILE per tile + VPU_ADD/MAX/MIN combine)
 - [ ] Reduction axis shape validation
 - [ ] Reduction result layout in VMEM
 
@@ -225,7 +225,7 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [x] Migrate WHERE (ternary select) to SXU_PROGRAM (now via first-class SXU_DISPATCH_SELECT using VPU_SELECT)
 - [x] Migrate multi-step VPU_PROGRAM patterns (abs, clip, MOD, CMPEQ) to SXU_PROGRAM
 - [x] Migrate scalar reductions (SUM/MAX/MIN to scalar) to SXU_PROGRAM
-- [ ] Migrate row-wise reduce (VPU_ROWSUM) to SXU_PROGRAM (needs axis detection to avoid colreduce)
+- [x] Migrate row-wise reduce to SXU_PROGRAM (done: _render_rowreduce_sxu_program, legacy VPU_ROWSUM removed)
 - [x] Migrate row-broadcast binary (VPU_ROWBC_BINARY) to SXU_PROGRAM
 - [ ] Emit host fallbacks (HOST_*) directly from renderer without analyze_tinytpu_uops
 - [x] Delete dead analyze blocks, _exec_vpu_where/unary, _build_vpu_where, _render_wmma_descriptor
@@ -240,7 +240,7 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [x] Perfetto emission for existing traces
 - [ ] Full VPU-only trace coverage
 - [ ] VMEM bundle dump utility
-- [ ] Lowering decision dump
+- [x] Lowering decision dump (TINYTPU_DUMP_LOWERING env var emits renderer JSON)
 - [x] Runtime bundle round-trip tests for all record types
 - [x] Per-op cycle reports
 - [ ] MXU/VPU/VMEM utilization by lowered tinygrad op
@@ -280,10 +280,10 @@ Estimate: **~50 total iterations**
 
 Estimate: **~120 total iterations**
 
-- [ ] Multi-tile elementwise
-- [ ] Multi-tile reductions
+- [x] Multi-tile elementwise (ADD/MUL/SUB/MAX/MIN/compare/logic + scalar-const all cover numel>16 via tile-loop)
+- [x] Multi-tile reductions (scalar via VPU_*_REDUCE_TILE; row/col via SXU_PROGRAM tile iteration)
 - [ ] Multi-tile movement ops
-- [ ] GEMM epilogues
+- [x] GEMM epilogues (hardware-backed bias add, ReLU, fused bias+ReLU via SXU_LOAD_MXU_RESULT)
 - [ ] More shape coverage
 - [ ] First selected upstream tinygrad test subset passing on `TINYTPU`
 
