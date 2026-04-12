@@ -245,3 +245,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	f9ab691	1	Signed full-tile fmul tt	16-elem signed	pytest backend: 454 passed	none	fcmpeq scalar broken
 2026-04-12	dc2da35	1	2D fadd	2x2 float add	pytest backend: 455 passed	none	fcmpeq scalar broken
 2026-04-12	2b579ec	1	2D fmul	2x2 float mul	pytest backend: 456 passed	none	fcmpeq scalar broken
+2026-04-12	b7c2f76	1	Negative const FCMPLT	x<-c	pytest backend: 457 passed	none	fcmpeq scalar broken
