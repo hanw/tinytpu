@@ -355,6 +355,15 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
     np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
 
+  def test_fwhere_matches_reference(self):
+    cond = np.array([True, False, True, False])
+    lhs = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    rhs = np.array([10.0, 20.0, 30.0, 40.0], dtype=np.float32)
+    result = Tensor.where(Tensor(cond, device="TINYTPU"),
+                          Tensor(lhs, dtype="float", device="TINYTPU"),
+                          Tensor(rhs, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, np.where(cond, lhs, rhs), rtol=1e-5)
+
   def test_frelu_full_tile_matches_reference(self):
     a = (np.arange(16, dtype=np.float32) - 8) * 0.5
     result = Tensor(a, dtype="float", device="TINYTPU").relu().numpy()
