@@ -736,6 +736,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") + -2.0).numpy()
     np.testing.assert_allclose(result, a + -2.0, rtol=1e-5)
 
+  def test_fmul_scalar_const_2d_matches_reference(self):
+    a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * 2.5).numpy()
+    np.testing.assert_allclose(result, a * 2.5, rtol=1e-5)
+
   def test_fmul_scalar_const_matches_reference(self):
     a = np.array([1.0, 2.0, 3.0], dtype=np.float32)
     result = (Tensor(a, dtype="float", device="TINYTPU") * 3.0).numpy()

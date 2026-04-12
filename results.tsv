@@ -266,3 +266,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	0a778d8	1	2D frelu	2x2 frelu	pytest backend: 475 passed	none	fcmpeq scalar broken
 2026-04-12	7f68707	1	2D fcmplt tt	2x2 float lt	pytest backend: 476 passed	none	fcmpeq scalar broken
 2026-04-12	acf9d08	1	2D frecip	2x2 1/x	pytest backend: 477 passed	none	fcmpeq scalar broken
+2026-04-12	548a6bb	1	2D scalar fmul	2x2 x*c	pytest backend: 478 passed	none	fcmpeq scalar broken
