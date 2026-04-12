@@ -546,6 +546,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").maximum(Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, np.maximum(a, b), rtol=1e-5)
 
+  def test_fsub_tensor_tensor_multi_tile_matches_reference(self):
+    a = np.arange(32, dtype=np.float32) - 16
+    b = 16 - np.arange(32, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") - Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a - b, rtol=1e-5)
+
   def test_vpu_add_full_tile_matches_reference(self):
     a_np = np.arange(16, dtype=np.int32)
     b_np = np.arange(100, 116, dtype=np.int32)
