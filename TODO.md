@@ -87,7 +87,7 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
   - [x] Add explicit SXU/XLU broadcast opcodes (scalar/row/col)
   - [x] Migrate scalar broadcast binary ops to SXU_PROGRAM via `BROADCAST_SCALAR`
 - [x] Size-1 axis broadcasting (scalar-expand via BROADCAST_SCALAR; row-expand via BROADCAST_ROW for unrolled shapes)
-- [ ] Arbitrary shapes with `numel <= 16`
+- [x] Arbitrary shapes with `numel <= 16` (1D/2D/nD elementwise + reshape/slice/expand covered by copy + elementwise renderers)
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
 - [x] Multi-tile elementwise loops for `numel > 16`
   - [x] Multi-tile AND/OR/XOR/NOT for bool tensors
@@ -114,7 +114,7 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 - [ ] `TRUNC`
 - [x] Basic `CAST` (int32↔bool)
 - [ ] Basic `BITCAST`
-- [ ] Basic `COPY`
+- [x] Basic `COPY` (_render_copy_sxu_program handles same-dtype identity-index kernels via LOAD/STORE pairs)
 
 ### Reductions: 30-60 iterations
 
@@ -144,7 +144,7 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 - [ ] `PAD`
 - [ ] `FLIP`
 - [ ] `CAT`
-- [ ] `INDEX` with simple affine patterns
+- [x] `INDEX` with simple affine patterns (contiguous slice with constant offset through copy renderer)
 - [ ] Gather-like indexing
 - [x] XLU-backed broadcast primitives (scalar/row/col)
 - [ ] XLU-backed permutation paths
