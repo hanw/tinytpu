@@ -229,3 +229,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	aa53b89	1	Float three-tile fmin tt	48-elem min(a,b)	pytest backend: 438 passed	none	fcmpeq scalar broken
 2026-04-12	bb30a16	1	Float three-tile fmax tt	48-elem max(a,b)	pytest backend: 439 passed	none	fcmpeq scalar broken
 2026-04-12	2622240	1	Float neg multi-tile frecip	12-elem 1/neg	pytest backend: 440 passed	none	fcmpeq scalar broken
+2026-04-12	8010b18	1	Float all-negative F2I	F2I preserves trunc toward 0 for negatives	pytest backend: 441 passed	none	fcmpeq scalar broken

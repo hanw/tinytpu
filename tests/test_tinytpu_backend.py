@@ -508,6 +508,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor([1.5, 2.7, -3.2, 0.0], dtype="float", device="TINYTPU").cast("int32").numpy()
     np.testing.assert_array_equal(result, np.array([1, 2, -3, 0], dtype=np.int32))
 
+  def test_float_to_int_all_negative_matches_reference(self):
+    a = np.array([-1.5, -2.7, -0.3, -9.8], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").cast("int32").numpy()
+    np.testing.assert_array_equal(result, a.astype(np.int32))
+
   def test_int_float_int_roundtrip_matches_reference(self):
     a = np.array([1, 2, 3, -5, 10], dtype=np.int32)
     result = Tensor(a, dtype="int32", device="TINYTPU").cast("float").cast("int32").numpy()
