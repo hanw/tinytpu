@@ -237,3 +237,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	51533dc	1	Negative scalar fmul	x*-c	pytest backend: 446 passed	none	fcmpeq scalar broken
 2026-04-12	509abc4	1	Negative scalar fadd	x+-c	pytest backend: 447 passed	none	fcmpeq scalar broken
 2026-04-12	7a6ec21	1	Signed fdiv tt	signed a/b	pytest backend: 448 passed	none	fcmpeq scalar broken
+2026-04-12	ca75687	1	Float WHERE derived cond	boolean cond from >	pytest backend: 449 passed	none	fcmpeq scalar broken

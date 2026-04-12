@@ -721,6 +721,15 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").maximum(Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, np.maximum(a, b), rtol=1e-5)
 
+  def test_fwhere_derived_condition_matches_reference(self):
+    lhs = np.arange(16, dtype=np.float32)
+    rhs = np.arange(16, dtype=np.float32) + 100.0
+    cond = np.arange(16) > 8
+    result = Tensor.where(Tensor(cond, device="TINYTPU"),
+                          Tensor(lhs, dtype="float", device="TINYTPU"),
+                          Tensor(rhs, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, np.where(cond, lhs, rhs), rtol=1e-5)
+
   def test_fwhere_three_tile_matches_reference(self):
     cond = np.array([True, False] * 24)
     lhs = np.arange(48, dtype=np.float32) - 24
