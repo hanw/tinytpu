@@ -86,7 +86,7 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 - [x] Scalar broadcasting
   - [x] Add explicit SXU/XLU broadcast opcodes (scalar/row/col)
   - [x] Migrate scalar broadcast binary ops to SXU_PROGRAM via `BROADCAST_SCALAR`
-- [ ] Size-1 axis broadcasting
+- [x] Size-1 axis broadcasting (scalar-expand via BROADCAST_SCALAR; row-expand via BROADCAST_ROW for unrolled shapes)
 - [ ] Arbitrary shapes with `numel <= 16`
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
 - [x] Multi-tile elementwise loops for `numel > 16`
@@ -128,7 +128,7 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 - [x] `MIN` reduction (4-elem, full-tile, multi-tile via VPU_MIN_REDUCE_TILE)
 - [x] VPU col-reduce primitives (VPU_SUM/MAX/MIN_REDUCE_COL opcodes 29/30/31)
 - [x] VPU tile-reduce primitives (VPU_SUM/MAX/MIN_REDUCE_TILE opcodes 32/33/34)
-- [ ] `MUL` reduction
+- [x] `MUL` reduction (VPU_MUL_REDUCE{,_COL,_TILE} hardware + tinygrad lowering for scalar/row/col prod)
 - [x] `keepdim` behavior (rowsum/rowmax/rowmin keepdim tests pass)
 - [x] Multi-tile reductions (scalar SUM/MAX/MIN with VPU_*_REDUCE_TILE per tile + VPU_ADD/MAX/MIN combine)
 - [ ] Reduction axis shape validation
@@ -136,11 +136,11 @@ assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 
 ### Movement Ops: 40-80 iterations
 
-- [ ] `RESHAPE`
+- [x] `RESHAPE` (copy SXU_PROGRAM with identity LOAD/STORE index mapping)
 - [ ] `PERMUTE`
 - [ ] `TRANSPOSE` via XLU
-- [ ] `EXPAND`
-- [ ] `SHRINK`
+- [x] `EXPAND` (scalar and unrolled row-broadcast via BROADCAST_SCALAR / BROADCAST_ROW; RANGE-loop variant still open)
+- [x] `SHRINK` (contiguous slice via copy renderer with affine offset)
 - [ ] `PAD`
 - [ ] `FLIP`
 - [ ] `CAT`
