@@ -1894,6 +1894,16 @@ class TestTinyTPUBackend(unittest.TestCase):
   # Note: expand-row through a RANGE-loop (e.g. shape (6,3)) not yet supported —
   # requires detecting LOAD depending on inner RANGE only.
 
+  def test_sum_axis0_keepdim_matches_reference(self):
+    data = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").sum(axis=0, keepdim=True).numpy()
+    np.testing.assert_array_equal(result, data.sum(axis=0, keepdims=True))
+
+  def test_max_axis0_keepdim_matches_reference(self):
+    data = (np.arange(16, dtype=np.int32) - 8).reshape(4, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").max(axis=0, keepdim=True).numpy()
+    np.testing.assert_array_equal(result, data.max(axis=0, keepdims=True))
+
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
     self.assertEqual(_VPU_OPS["AND"], 15)
