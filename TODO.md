@@ -9,11 +9,15 @@ tested, committed behavior per iteration.
 - Broad functional tinyspec coverage: **250-400 iterations**
 - Robust hardware-backed and well-tested coverage: **500-800 iterations**
 
-Current coverage is still a small slice of the full spec, but it now includes
-real TinyTPU execution for GEMM, core int32 VPU binary ops, ReLU, equality and
-comparison bool outputs, scalar constants, simple reductions, row-wise
-sum/max/min, abs, clip, fused add+relu, IDIV, MOD, scalar broadcasting,
-int32/bool casts, and the TASM bundle assembler/disassembler.
+Current coverage includes hardware-backed TinyTPU execution for:
+GEMM (multi-WMMA, batched, deep-K, wide-N, with hardware fused bias+ReLU
+epilogue); full int32/bool VPU elementwise (ADD/MUL/SUB/MAX/MIN/DIV/MOD/
+ABS, CMP{LT,EQ,NE}, AND/OR/XOR/NOT, SHL/SHR, WHERE, RELU, clip, fused
+add+relu); scalar-const variants and scalar broadcasting; all shapes with
+numel>16 through multi-tile elementwise loops; scalar, row-wise, and
+column-wise reductions (SUM/MAX/MIN) for any NxM through SXU_PROGRAM
+emitting VPU_{SUM,MAX,MIN}_REDUCE{,_COL,_TILE}; TASM bundle
+assembler/disassembler; runtime bundle roundtrip + end-to-end sim tests.
 
 ## Current Progress
 
@@ -318,105 +322,29 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations (updated 2026-04-10)
+## Recommended Next Iterations (updated 2026-04-11)
 
-Current state: 340 tests, multi-WMMA + hardware epilogue batch completed.
-
-Completed in this batch:
-1. ~~GEMM + bias add epilogue~~ — done, hardware-backed
-2. ~~GEMM + ReLU epilogue~~ — done, hardware-backed
-3. ~~Multi-WMMA lowering~~ — done, all tiled GEMM shapes go through WMMA path
-4. SXU_LOAD_MXU_RESULT instruction — new BSV hardware for MXU→VRF transfer
+Current state: 355 backend tests, row/col reductions fully hardware-backed,
+all scalar-reduction host accumulation code removed.
 
 Highest-value next work:
-1. Hardware epilogue for multi-K-tile GEMM (currently numpy fallback)
-2. Column-wise SUM via VPU (use XLU TRANSPOSE + VPU_SUM_REDUCE instead of host numpy)
-3. Movement ops: RESHAPE as no-copy, PERMUTE via XLU
-4. XLU transpose hardware backing for col-wise reductions
-5. Broader tinygrad upstream test coverage
-6. Multi-output kernel support
-7. Fused kernel detection improvements (tinygrad fuses many 2-op chains)
+1. Movement ops end-to-end: RESHAPE no-copy, PERMUTE/TRANSPOSE via XLU,
+   EXPAND/SHRINK as no-copy view where possible.
+2. Hardware epilogue for multi-K-tile GEMM (currently still a numpy fallback).
+3. Delete remaining `analyze_tinytpu_uops` (only scalar-const DIV/MOD left).
+4. Run `scripts/run_tinytpu_upstream_subset.py` without `--dry-run` in CI.
+5. MUL reduction (no VPU_MUL_REDUCE opcode yet — needs new primitive or
+   two-pass lowering).
+6. Dtype expansion beyond int32/bool: int8/uint8/int16 elementwise policy.
+7. Multi-output tile scheduling cleanup and intermediate VMEM allocation.
+8. Fused kernel detection improvements for 2-op chains tinygrad emits.
 
 ### Model-blocking gaps (from mnist_gan.py bring-up)
 
 - `leaky_relu(alpha)`: tinygrad emits float mul for the negative slope.
-  - SW path: integer approximation via shift (alpha=0.25 → SHR by 2) + WHERE select.
-    Needs: VPU_SHR + VPU_CMPLT + WHERE sequence lowered as a VPU_PROGRAM.
-  - HW path: not needed if SW approximation suffices.
-- `tanh`: requires RECIPROCAL, EXP, float BITCAST — pure float.
-  - SW path: host software fallback (`HOST_UNARY` with numpy). Or integer clamp approximation.
-  - HW path: would need float datapath (major arch change, not recommended now).
-- `log_softmax`: requires EXP, LOG, RECIPROCAL — pure float.
-  - SW path: host software fallback. For inference-only int models, replace with argmax.
-  - HW path: same as tanh — needs float (not recommended now).
-- `float32` GEMM: GAN training uses float weights/activations throughout.
-  - SW path: host fallback for float matmul. Or quantize-aware int8 inference.
-  - HW path: would need float MXU (major arch change).
-- `backward` / autograd: training is not supported on TinyTPU.
-  - SW path: train on CPU/GPU, export int8 weights, run inference on TinyTPU.
-
-## Old Recommended Next Iterations
-
-1. Add multi-tile elementwise loop for `ADD` using the plan in `doc/tinytpu_multitile_add.md`.
-2. Add multiple VMEM output tile support in the runtime protocol.
-3. Add multi-instruction VPU bundles for two-pass reductions.
-4. Add row-wise sum result compaction.
-5. Add full-tile sum through two-pass VPU lowering.
-6. Add `WHERE` as a first general select op.
-7. Add single-tile transpose through XLU.
-8. Add single-tile reshape/permute no-copy cases or document exact tinygrad movement UOps.
-9. Run `scripts/run_tinytpu_upstream_subset.py` without `--dry-run` in CI once the selected tests are stable.
-10. Replace remaining UOp-count matching with structural pattern helpers.
-
-## Next 50 Iteration Plan
-
-1. [x] Add scalar `x - c` coverage.
-2. [x] Add reverse scalar `c - x` lowering.
-3. [x] Add reverse scalar `c - x` coverage.
-4. [x] Add `CMPEQ` VPU opcode.
-5. [x] Lower tensor equality through `CMPEQ`.
-6. [x] Lower scalar equality through `CMPEQ`.
-7. [x] Add equality dtype coverage.
-8. [x] Add full-tile `SUB` coverage.
-9. [x] Add full-tile `CMPLT` coverage.
-10. [x] Add full-tile `CMPNE` coverage.
-11. [x] Add full-tile `CMPEQ` coverage.
-12. [x] Add shape-preservation coverage for 2x2 elementwise ops.
-13. [x] Mark arbitrary `numel <= 16` coverage for supported VPU ops.
-14. [x] Add explicit unsupported test for `numel > 16`.
-15. [x] Add scalar negative constant coverage for `ADD`.
-16. [x] Add scalar negative constant coverage for `MUL`.
-17. [x] Add scalar negative constant coverage for `MAX`.
-18. [x] Add scalar `x != c` full-tile coverage.
-19. [x] Add scalar `x < c` full-tile coverage.
-20. [x] Add scalar `x == c` full-tile coverage.
-21. [x] Add reverse scalar `c < x` diagnostics/coverage.
-22. [x] Add VPU opcode table tests.
-23. [x] Refactor bool-result opcode set into a helper.
-24. [x] Refactor VPU opcode table into module constants.
-25. [x] Refactor scalar-const descriptor fields.
-26. [x] Add tests for descriptor JSON for VPU binary ops.
-27. [x] Add tests for descriptor JSON for scalar const ops.
-28. [x] Add tests for descriptor JSON for equality ops.
-29. [x] Add runtime bundle builder helper for VPU binary programs.
-30. [x] Reuse profiler `Bundle` for VPU bundle text where practical.
-31. [x] Add VMEM/VPU bundle dump utility.
-32. [x] Add lowering-decision dump behind an env var.
-33. [x] Add selected upstream tinygrad VPU test list.
-34. [x] Add selected upstream tinygrad invocation wrapper.
-35. [x] Add skipped manifest for unsupported tinyspec areas.
-36. [x] Add tinyspec coverage category table.
-37. [x] Document VMEM input/output bundle records.
-38. [x] Add runtime VMEM preload/output protocol test.
-39. [x] Add trace parser coverage for VPU-only traces.
-40. [x] Add per-op cycle report for VPU traces.
-41. [x] Improve unsupported diagnostics for multi-tile elementwise.
-42. [x] Improve unsupported diagnostics for `WHERE`.
-43. [x] Improve unsupported diagnostics for movement ops.
-44. [x] Add `RESHAPE` no-copy coverage if tinygrad lowers as copy.
-45. [x] Add `PERMUTE` unsupported diagnostic coverage.
-46. [x] Add row-wise reduction investigation note.
-47. [x] Add full-tile sum investigation note.
-48. [x] Add first multi-tile `ADD` design note.
-49. [x] Re-estimate remaining tinyspec iterations after this batch.
-50. [x] Update recommended next iterations from observed gaps.
+  SW path: integer approximation via SHR + WHERE select.
+- `tanh`, `log_softmax`, float32 GEMM: require float datapath (major arch
+  change). SW fallback via host numpy or replace with int/argmax where
+  semantically acceptable for inference-only models.
+- `backward` / autograd: training is not supported; export int8 weights and
+  run inference only.
