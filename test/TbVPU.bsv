@@ -527,7 +527,175 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 46);
+   // Test 23: VPU_SUM_REDUCE_COL
+   // tile:
+   //   [1, 2, 3, 4]
+   //   [5, 6, 7, 8]
+   //   [9, 10, 11, 12]
+   //   [13, 14, 15, 16]
+   // col sums = [28, 32, 36, 40], broadcast down each column
+   rule dispatch_sum_reduce_col (cycle == 46);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = fromInteger(r * 4 + c + 1);
+      vpu.execute(VPU_SUM_REDUCE_COL, s1, s2);
+      $display("Cycle %0d: dispatched VPU_SUM_REDUCE_COL", cycle);
+   endrule
+
+   rule check_sum_reduce_col (cycle == 47);
+      let res = vpu.result;
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1) begin
+         if (res[r][0] != 28 || res[r][1] != 32 || res[r][2] != 36 || res[r][3] != 40)
+            ok = False;
+      end
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_SUM_REDUCE_COL", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_SUM_REDUCE_COL got row0=[%0d,%0d,%0d,%0d] row3=[%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3],
+            res[3][0], res[3][1], res[3][2], res[3][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 24: VPU_MAX_REDUCE_COL
+   // Same tile, col maxes = [13, 14, 15, 16]
+   rule dispatch_max_reduce_col (cycle == 48);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = fromInteger(r * 4 + c + 1);
+      vpu.execute(VPU_MAX_REDUCE_COL, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MAX_REDUCE_COL", cycle);
+   endrule
+
+   rule check_max_reduce_col (cycle == 49);
+      let res = vpu.result;
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1) begin
+         if (res[r][0] != 13 || res[r][1] != 14 || res[r][2] != 15 || res[r][3] != 16)
+            ok = False;
+      end
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MAX_REDUCE_COL", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MAX_REDUCE_COL got row0=[%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 25: VPU_MIN_REDUCE_COL
+   // Same tile, col mins = [1, 2, 3, 4]
+   rule dispatch_min_reduce_col (cycle == 50);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = fromInteger(r * 4 + c + 1);
+      vpu.execute(VPU_MIN_REDUCE_COL, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MIN_REDUCE_COL", cycle);
+   endrule
+
+   rule check_min_reduce_col (cycle == 51);
+      let res = vpu.result;
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1) begin
+         if (res[r][0] != 1 || res[r][1] != 2 || res[r][2] != 3 || res[r][3] != 4)
+            ok = False;
+      end
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MIN_REDUCE_COL", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MIN_REDUCE_COL got row0=[%0d,%0d,%0d,%0d]",
+            cycle, res[0][0], res[0][1], res[0][2], res[0][3]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 26: VPU_SUM_REDUCE_TILE
+   // tile values 1..16 sum = 136, broadcast to full tile
+   rule dispatch_sum_reduce_tile (cycle == 52);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = fromInteger(r * 4 + c + 1);
+      vpu.execute(VPU_SUM_REDUCE_TILE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_SUM_REDUCE_TILE", cycle);
+   endrule
+
+   rule check_sum_reduce_tile (cycle == 53);
+      let res = vpu.result;
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            if (res[r][c] != 136) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_SUM_REDUCE_TILE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_SUM_REDUCE_TILE got [0][0]=%0d", cycle, res[0][0]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 27: VPU_MAX_REDUCE_TILE
+   // max of 1..16 = 16
+   rule dispatch_max_reduce_tile (cycle == 54);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = fromInteger(r * 4 + c + 1);
+      vpu.execute(VPU_MAX_REDUCE_TILE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MAX_REDUCE_TILE", cycle);
+   endrule
+
+   rule check_max_reduce_tile (cycle == 55);
+      let res = vpu.result;
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            if (res[r][c] != 16) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MAX_REDUCE_TILE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MAX_REDUCE_TILE got [0][0]=%0d", cycle, res[0][0]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 28: VPU_MIN_REDUCE_TILE
+   // min of 1..16 = 1
+   rule dispatch_min_reduce_tile (cycle == 56);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = fromInteger(r * 4 + c + 1);
+      vpu.execute(VPU_MIN_REDUCE_TILE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_MIN_REDUCE_TILE", cycle);
+   endrule
+
+   rule check_min_reduce_tile (cycle == 57);
+      let res = vpu.result;
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            if (res[r][c] != 1) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_MIN_REDUCE_TILE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_MIN_REDUCE_TILE got [0][0]=%0d", cycle, res[0][0]);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 59);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

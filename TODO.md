@@ -122,6 +122,8 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [ ] Full-tile sum
 - [x] `MAX` reduction (4-elem, full-tile, multi-tile via VPU_MAX_REDUCE)
 - [x] `MIN` reduction (4-elem, full-tile, multi-tile via VPU_MIN_REDUCE)
+- [x] VPU col-reduce primitives (VPU_SUM/MAX/MIN_REDUCE_COL opcodes 29/30/31)
+- [x] VPU tile-reduce primitives (VPU_SUM/MAX/MIN_REDUCE_TILE opcodes 32/33/34)
 - [ ] `MUL` reduction
 - [ ] `keepdim` behavior
 - [ ] Multi-tile reductions

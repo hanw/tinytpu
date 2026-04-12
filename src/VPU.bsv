@@ -5,7 +5,9 @@ import FloatingPoint :: *;
 
 typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE, VPU_DIV, VPU_AND, VPU_OR, VPU_XOR,
                VPU_FADD, VPU_FMUL, VPU_FSUB, VPU_FMAX, VPU_FCMPLT, VPU_FRECIP, VPU_I2F, VPU_F2I,
-               VPU_NOT, VPU_SELECT, VPU_COPY }
+               VPU_NOT, VPU_SELECT, VPU_COPY,
+               VPU_SUM_REDUCE_COL, VPU_MAX_REDUCE_COL, VPU_MIN_REDUCE_COL,
+               VPU_SUM_REDUCE_TILE, VPU_MAX_REDUCE_TILE, VPU_MIN_REDUCE_TILE }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -107,6 +109,33 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
       Vector#(sublanes, Vector#(lanes, Int#(32))) src1,
       Vector#(sublanes, Vector#(lanes, Int#(32))) src2
    );
+      // Per-column reductions across sublanes (rows): one value per column.
+      Vector#(lanes, Int#(32)) col_sum = newVector;
+      Vector#(lanes, Int#(32)) col_max = newVector;
+      Vector#(lanes, Int#(32)) col_min = newVector;
+      for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+         Int#(32) csum = 0;
+         Int#(32) cmax = src1[0][l];
+         Int#(32) cmin = src1[0][l];
+         for (Integer s = 0; s < valueOf(sublanes); s = s + 1) begin
+            csum = csum + src1[s][l];
+            cmax = (src1[s][l] > cmax) ? src1[s][l] : cmax;
+            cmin = (src1[s][l] < cmin) ? src1[s][l] : cmin;
+         end
+         col_sum[l] = csum;
+         col_max[l] = cmax;
+         col_min[l] = cmin;
+      end
+      // Full-tile reductions: reduce the per-column reductions across lanes.
+      Int#(32) tile_sum = 0;
+      Int#(32) tile_max = col_max[0];
+      Int#(32) tile_min = col_min[0];
+      for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+         tile_sum = tile_sum + col_sum[l];
+         tile_max = (col_max[l] > tile_max) ? col_max[l] : tile_max;
+         tile_min = (col_min[l] < tile_min) ? col_min[l] : tile_min;
+      end
+
       Vector#(sublanes, Vector#(lanes, Int#(32))) res = newVector;
       for (Integer s = 0; s < valueOf(sublanes); s = s + 1) begin
          Vector#(lanes, Int#(32)) row = newVector;
@@ -272,6 +301,30 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_COPY: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = src1[s][l];
+            end
+            VPU_SUM_REDUCE_COL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = col_sum[l];
+            end
+            VPU_MAX_REDUCE_COL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = col_max[l];
+            end
+            VPU_MIN_REDUCE_COL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = col_min[l];
+            end
+            VPU_SUM_REDUCE_TILE: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = tile_sum;
+            end
+            VPU_MAX_REDUCE_TILE: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = tile_max;
+            end
+            VPU_MIN_REDUCE_TILE: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = tile_min;
             end
          endcase
          res[s] = row;
