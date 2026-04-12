@@ -46,8 +46,8 @@ int32/bool casts, and the TASM bundle assembler/disassembler.
 - [x] Clip (MIN+MAX program) full-tile and multi-tile
 - [x] Fused add+relu full-tile and multi-tile
 - [x] Tensor-tensor IDIV and MOD
-- [x] Row-wise sum/max/min for NxM tensors (VPU_ROWSUM for M=4, HOST_ROWREDUCE for other M)
-- [x] Column-wise sum/max/min for NxM tensors — hardware-backed via VPU_*_REDUCE_COL for all N,M (legacy HOST_COLREDUCE remains as fallback)
+- [x] Row-wise sum/max/min for NxM tensors — hardware-backed via VPU_{SUM,MAX,MIN}_REDUCE through SXU_PROGRAM for all N,M (legacy VPU_ROWSUM/HOST_ROWREDUCE removed)
+- [x] Column-wise sum/max/min for NxM tensors — hardware-backed via VPU_*_REDUCE_COL for all N,M (legacy HOST_COLREDUCE removed)
 - [x] Fix stale WAIT_MXU opcode in VPU-only test bundles
 - [x] 2D tensor ops: all VPU binary/unary ops for arbitrary 2D shapes
 - [x] Grouped scalar-const lowering for 2D/large tensors (NEG, x*c, x+c)

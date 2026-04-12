@@ -169,4 +169,9 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-11	5e5a8de	1	col-reduce multi row-tile (N>4)	split into ceil(N/4) row-tiles, combine via VPU_ADD/MAX/MIN	pytest backend: 352 passed	none	wide M>4
 2026-04-11	1bda80d	1	col-reduce wide M>4	col-tile iteration emits multi-output tiles with offset=col_base	pytest backend: 352 passed	none	full N>4 M>4 test coverage
 2026-04-11	0055ee6	1	col-reduce multi row x col tests	6x6 SUM, 5x7 MAX, 7x5 MIN exercising ceil(N/4) x ceil(M/4) path	pytest backend: 355 passed	marked column-wise and full-tile reductions done	dead code cleanup
-2026-04-11	1c90bff	1	drop dead reduce_layout plumbing	row-layout branch and reduce_src_size fields removed; scalar reduction path always extracts [0]	pytest backend: 355 passed	none	potentially delete HOST_COLREDUCE fallback in a follow-up when confidence is high
+2026-04-11	1c90bff	1	drop dead reduce_layout plumbing	row-layout branch and reduce_src_size fields removed; scalar reduction path always extracts [0]	pytest backend: 355 passed	none	migrate row reductions to SXU_PROGRAM
+2026-04-11	cd460ac	1	row-reduce SUM single-tile	_render_rowreduce_sxu_program for N<=4 M<=4 SUM; output parser extract=row_heads	pytest backend: 355 passed	none	extend to MAX/MIN
+2026-04-11	879df4f	1	row-reduce MAX/MIN single-tile	INT32 identity padding on partial cols	pytest backend: 355 passed	none	multi row-tile
+2026-04-11	5def932	1	row-reduce multi row-tile	ceil(N/4) row-tiles each emit own row_heads output	pytest backend: 355 passed	none	wide M>4
+2026-04-11	689c76f	1	row-reduce wide M>4	combine col-tile partial row-reductions with VPU_ADD/MAX/MIN	pytest backend: 355 passed	none	delete legacy host paths
+2026-04-11	f952f1d	1	delete legacy row/col-reduce host paths	remove VPU_ROWSUM, HOST_ROWREDUCE, HOST_COLREDUCE exec methods and dispatch; -113 lines	pytest backend: 355 passed	marked row/col reductions fully hardware-backed	none
