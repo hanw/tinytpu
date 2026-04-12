@@ -344,16 +344,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
     np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
 
-  def test_fdiv_tensor_tensor_currently_wrong_xfail(self):
-    """Known limitation: float tensor-tensor divide emits FMUL without RECIPROCAL.
-    Tracking in TODO; this test documents the current broken behavior as a regression fence."""
+  def test_fdiv_tensor_tensor_matches_reference(self):
     a = np.array([4.0, 6.0, 8.0, 10.0], dtype=np.float32)
     b = np.array([2.0, 2.0, 4.0, 5.0], dtype=np.float32)
     result = (Tensor(a, dtype="float", device="TINYTPU") / Tensor(b, dtype="float", device="TINYTPU")).numpy()
-    # Currently emits a * b instead of a / b. If this assertion starts failing
-    # (i.e. result matches a/b), the bug is fixed — remove this test.
-    self.assertFalse(np.allclose(result, a / b, rtol=1e-3),
-                     "fdiv tensor-tensor appears fixed; remove this xfail test")
+    np.testing.assert_allclose(result, a / b, rtol=1e-3)
 
   def test_fdiv_scalar_const_matches_reference(self):
     a = np.array([2.0, 4.0, 8.0], dtype=np.float32)
