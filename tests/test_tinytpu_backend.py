@@ -408,6 +408,19 @@ class TestTinyTPUBackend(unittest.TestCase):
     ).numpy()
     np.testing.assert_allclose(result, np.minimum(a, b), rtol=1e-5)
 
+  def test_int_to_float_cast_matches_reference(self):
+    result = Tensor([1, 2, 3, -5], dtype="int32", device="TINYTPU").cast("float").numpy()
+    np.testing.assert_allclose(result, np.array([1.0, 2.0, 3.0, -5.0], dtype=np.float32), rtol=1e-5)
+
+  def test_float_to_int_cast_matches_reference(self):
+    result = Tensor([1.5, 2.7, -3.2, 0.0], dtype="float", device="TINYTPU").cast("int32").numpy()
+    np.testing.assert_array_equal(result, np.array([1, 2, -3, 0], dtype=np.int32))
+
+  def test_int_to_float_multi_tile_matches_reference(self):
+    a = np.arange(32, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").cast("float").numpy()
+    np.testing.assert_allclose(result, a.astype(np.float32), rtol=1e-5)
+
   def test_float_sum_reduce_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([1.0, 2.0, 3.0, 4.0], dtype="float", device="TINYTPU").sum().numpy()
