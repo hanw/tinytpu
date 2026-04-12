@@ -1798,9 +1798,20 @@ class TestTinyTPUBackend(unittest.TestCase):
     with self.assertRaises(NotImplementedError):
       Tensor([[1, 2], [3, 4]], dtype="int32", device="TINYTPU").permute(1, 0).numpy()
 
-  def test_reshape_reports_movement_lowering_gap(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").reshape(2, 2).numpy()
+  def test_reshape_1d_to_2d_matches_reference(self):
+    a = np.arange(16, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").reshape(4, 4).numpy()
+    np.testing.assert_array_equal(result, a.reshape(4, 4))
+
+  def test_reshape_2d_to_1d_matches_reference(self):
+    a = np.arange(12, dtype=np.int32).reshape(3, 4)
+    result = Tensor(a, dtype="int32", device="TINYTPU").reshape(12).numpy()
+    np.testing.assert_array_equal(result, a.reshape(12))
+
+  def test_reshape_multi_tile_matches_reference(self):
+    a = np.arange(32, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").reshape(4, 8).numpy()
+    np.testing.assert_array_equal(result, a.reshape(4, 8))
 
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
