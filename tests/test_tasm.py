@@ -90,6 +90,36 @@ def test_vpu_max_reduce():
     assert wire[0] == "2 2 0 2 0 9 0 0 0 0"
 
 
+def test_vpu_sum_reduce_col():
+    wire = wire_lines(assemble("VPU v2 = SUM_REDUCE_COL(v0)\nHALT\nEND\n"))
+    assert wire[0] == "2 2 0 2 0 29 0 0 0 0"
+
+
+def test_vpu_max_reduce_col():
+    wire = wire_lines(assemble("VPU v3 = MAX_REDUCE_COL(v1)\nHALT\nEND\n"))
+    assert wire[0] == "2 2 0 3 1 30 0 0 0 0"
+
+
+def test_vpu_min_reduce_col():
+    wire = wire_lines(assemble("VPU v3 = MIN_REDUCE_COL(v1)\nHALT\nEND\n"))
+    assert wire[0] == "2 2 0 3 1 31 0 0 0 0"
+
+
+def test_vpu_sum_reduce_tile():
+    wire = wire_lines(assemble("VPU v1 = SUM_REDUCE_TILE(v0)\nHALT\nEND\n"))
+    assert wire[0] == "2 2 0 1 0 32 0 0 0 0"
+
+
+def test_vpu_max_reduce_tile():
+    wire = wire_lines(assemble("VPU v1 = MAX_REDUCE_TILE(v0)\nHALT\nEND\n"))
+    assert wire[0] == "2 2 0 1 0 33 0 0 0 0"
+
+
+def test_vpu_min_reduce_tile():
+    wire = wire_lines(assemble("VPU v1 = MIN_REDUCE_TILE(v0)\nHALT\nEND\n"))
+    assert wire[0] == "2 2 0 1 0 34 0 0 0 0"
+
+
 def test_vpu_unknown_op():
     with pytest.raises(SyntaxError, match="unknown VPU op"):
         assemble("VPU v0 = BADOP(v1)\nHALT\nEND\n")
@@ -490,11 +520,11 @@ def test_disassemble_vmem_negative():
 
 def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
-    # All 26 ops present (18 int + 8 float)
-    assert len(_VPU) == 26
-    # Contiguous from 0 to 25
+    # 29 base ops (0..28) + 6 col/tile reduce ops (29..34)
+    assert len(_VPU) == 35
+    # Contiguous from 0 to 34
     codes = sorted(_VPU.values())
-    assert codes == list(range(26))
+    assert codes == list(range(35))
 
 
 def test_assemble_error_bad_vreg():

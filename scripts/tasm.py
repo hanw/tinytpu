@@ -75,11 +75,19 @@ _VPU = {
     "NOT":        26,
     "SELECT":     27,
     "COPY":       28,
+    "SUM_REDUCE_COL":  29,
+    "MAX_REDUCE_COL":  30,
+    "MIN_REDUCE_COL":  31,
+    "SUM_REDUCE_TILE": 32,
+    "MAX_REDUCE_TILE": 33,
+    "MIN_REDUCE_TILE": 34,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
 # Ops that take a single source register (src2 slot is unused by hardware)
-_VPU_UNARY = {"RELU", "SUM_REDUCE", "MAX_REDUCE", "MIN_REDUCE", "NOT", "COPY"}
+_VPU_UNARY = {"RELU", "SUM_REDUCE", "MAX_REDUCE", "MIN_REDUCE", "NOT", "COPY",
+              "SUM_REDUCE_COL", "MAX_REDUCE_COL", "MIN_REDUCE_COL",
+              "SUM_REDUCE_TILE", "MAX_REDUCE_TILE", "MIN_REDUCE_TILE"}
 
 # VMEM/WMEM/AMEM tile geometry
 _VMEM_ELEMS = 16   # 4×4 Int32
