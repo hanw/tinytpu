@@ -546,6 +546,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") / 4.0).numpy()
     np.testing.assert_allclose(result, a / 4.0, rtol=1e-3)
 
+  def test_fadd_three_tile_matches_reference(self):
+    a = np.arange(48, dtype=np.float32)
+    b = np.full(48, 20.0, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
   def test_fadd_multi_tile_matches_reference(self):
     a = np.arange(32, dtype=np.float32) * 0.5
     b = np.arange(32, dtype=np.float32) * 0.25
