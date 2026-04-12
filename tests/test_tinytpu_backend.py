@@ -678,6 +678,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, a + b, rtol=1e-5)
 
+  def test_fadd_five_tile_matches_reference(self):
+    a = np.arange(80, dtype=np.float32)
+    b = np.full(80, 2.0, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
   def test_fadd_four_tile_matches_reference(self):
     a = np.arange(64, dtype=np.float32)
     b = np.full(64, 1.0, dtype=np.float32)
