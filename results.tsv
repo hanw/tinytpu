@@ -184,3 +184,12 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	2e47fff	1	Signed float	Negative value FADD/FMUL	pytest backend: 392 passed	none	Tensor-tensor fdiv
 2026-04-12	58402fc	1	fdiv regression fence	xfail test documents broken tensor-tensor fdiv	pytest backend: 393 passed	none	RECIPROCAL UOp detection
 2026-04-12	a6ba2dc	1	TODO update	marked float32 policy complete	pytest backend: 393 passed	float32 policy checked	RECIPROCAL UOp detection
+2026-04-12	0190499	1	float tensor-tensor divide	FRECIP+FMUL SXU program; flipped xfail to passing	pytest backend: 393 passed	none	Complex float math rejection
+2026-04-12	096b6a5	1	Reject sqrt/log2/sin/exp2	Guard analyze_tinytpu_uops on BITCAST; tighten HOST_UNARY	pytest backend: 393 passed	none	Diagnostic tests
+2026-04-12	904f568	1	Math diagnostic tests	sqrt/log2/sin/exp2 correctly unsupported	pytest backend: 397 passed	none	Multi-tile fdiv
+2026-04-12	f820c67	1	Multi-tile fdiv + frecip	32-elem coverage	pytest backend: 399 passed	none	Float minimum
+2026-04-12	227bef3	1	Float minimum	FCMPLT+SELECT multistep SXU program	pytest backend: 400 passed	none	Multi-tile fmin
+2026-04-12	e0352d9	1	Multi-tile fmin/fmax	32-elem coverage	pytest backend: 402 passed	none	Float RELU
+2026-04-12	3adc7a6	1	Float RELU	VPU_RELU works on float sign bit; VECTORIZE pattern match	pytest backend: 403 passed	none	Multi-tile frelu
+2026-04-12	97531b7	1	Multi-tile frelu	full-tile and 32-elem coverage	pytest backend: 405 passed	none	Float WHERE
+2026-04-12	8cf7f02	1	Float WHERE	ternary select on float tensors	pytest backend: 406 passed	none	Cast lowering or movement ops
