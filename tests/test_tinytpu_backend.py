@@ -491,6 +491,24 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") * 3.0).numpy()
     np.testing.assert_allclose(result, a * 3.0, rtol=1e-5)
 
+  def test_fcmpne_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    b = np.array([1.0, 0.0, 3.0, 0.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") != Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a != b)
+
+  def test_fcmpeq_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    b = np.array([1.0, 0.0, 3.0, 0.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") == Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a == b)
+
+  def test_fcmpgt_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    b = np.array([1.0, 0.0, 3.0, 0.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") > Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a > b)
+
   def test_fcmplt_matches_reference(self):
     a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
     b = np.array([2.0, 2.0, 2.0, 2.0], dtype=np.float32)
