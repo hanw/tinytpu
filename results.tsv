@@ -175,3 +175,12 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-11	5def932	1	row-reduce multi row-tile	ceil(N/4) row-tiles each emit own row_heads output	pytest backend: 355 passed	none	wide M>4
 2026-04-11	689c76f	1	row-reduce wide M>4	combine col-tile partial row-reductions with VPU_ADD/MAX/MIN	pytest backend: 355 passed	none	delete legacy host paths
 2026-04-11	f952f1d	1	delete legacy row/col-reduce host paths	remove VPU_ROWSUM, HOST_ROWREDUCE, HOST_COLREDUCE exec methods and dispatch; -113 lines	pytest backend: 355 passed	marked row/col reductions fully hardware-backed	none
+2026-04-12	5564628	1	float32 VPU dispatch	Remap ADD/MUL/SUB/MAX/CMPLT to FADD/FMUL/FSUB/FMAX/FCMPLT for float tensors	pytest backend: 379 passed	none	FP tensor-tensor divide requires RECIPROCAL detection
+2026-04-12	604e3a0	1	Float32 binary coverage	FADD/FMUL/FSUB/FMAX tests	pytest backend: 383 passed	none	FCMPLT
+2026-04-12	2ed7c53	1	Float32 FCMPLT	Less-than on float tensors	pytest backend: 384 passed	none	scalar float const
+2026-04-12	b1ddb6a	1	Float32 scalar const	x + 2.5, x * 3.0 with bitcast const	pytest backend: 386 passed	none	multi-tile float
+2026-04-12	2255026	1	Multi-tile float32	32-elem FADD and scalar FMUL	pytest backend: 388 passed	none	Reciprocal + float div
+2026-04-12	e54347d	1	Float32 reciprocal/div	FRECIP hardware works; scalar float div	pytest backend: 390 passed	none	Signed float
+2026-04-12	2e47fff	1	Signed float	Negative value FADD/FMUL	pytest backend: 392 passed	none	Tensor-tensor fdiv
+2026-04-12	58402fc	1	fdiv regression fence	xfail test documents broken tensor-tensor fdiv	pytest backend: 393 passed	none	RECIPROCAL UOp detection
+2026-04-12	a6ba2dc	1	TODO update	marked float32 policy complete	pytest backend: 393 passed	float32 policy checked	RECIPROCAL UOp detection
