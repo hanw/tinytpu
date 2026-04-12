@@ -413,6 +413,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") / Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, a / b, rtol=1e-3)
 
+  def test_fdiv_four_tile_matches_reference(self):
+    a = np.arange(1, 65, dtype=np.float32)
+    b = np.full(64, 2.0, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") / Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a / b, rtol=1e-3)
+
   def test_frecip_multi_tile_negative_matches_reference(self):
     a = np.arange(-16, -4, dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
