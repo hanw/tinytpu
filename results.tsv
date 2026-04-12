@@ -193,3 +193,11 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	3adc7a6	1	Float RELU	VPU_RELU works on float sign bit; VECTORIZE pattern match	pytest backend: 403 passed	none	Multi-tile frelu
 2026-04-12	97531b7	1	Multi-tile frelu	full-tile and 32-elem coverage	pytest backend: 405 passed	none	Float WHERE
 2026-04-12	8cf7f02	1	Float WHERE	ternary select on float tensors	pytest backend: 406 passed	none	Cast lowering or movement ops
+2026-04-12	c8a3baf	1	Float minimum scalar const	FCMPLT+SELECT with broadcast const	pytest backend: 407 passed	none	Float reductions
+2026-04-12	6e60838	1	Reject float reductions	Integer VPU_*_REDUCE on float bits would corrupt; diagnostic tests	pytest backend: 410 passed	none	Casts
+2026-04-12	170d3dc	1	int32↔float32 casts	VPU_I2F / VPU_F2I renderer; supports single and multi-tile	pytest backend: 413 passed	float32 cast coverage	Negative scalar float const
+2026-04-12	951c381	1	Negative scalar float min/max	coverage for -2.0 constant	pytest backend: 415 passed	none	Float cmp
+2026-04-12	b4b6daf	1	Float CMPNE/CMPEQ/CMPGT	comparison coverage	pytest backend: 418 passed	none	Float neg
+2026-04-12	ef21a91	1	Float neg	single and multi-tile	pytest backend: 420 passed	none	Float scalar sub
+2026-04-12	65daed8	1	Float scalar sub	x-c and c-x coverage	pytest backend: 422 passed	none	Cast round-trip
+2026-04-12	b6965d2	1	Cast round-trip	Fused same-dtype chain lowered to COPY	pytest backend: 423 passed	cast round-trip	Float reductions via host or FADD tree

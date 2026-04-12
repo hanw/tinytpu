@@ -115,7 +115,7 @@ sim tests.
 - [x] `IDIV` (via VPU_DIV, truncation semantics)
 - [ ] `RECIP`
 - [ ] `TRUNC`
-- [x] Basic `CAST` (int32↔bool)
+- [x] Basic `CAST` (int32↔bool; int32↔float32 via VPU_I2F/F2I; fused same-dtype round-trips via COPY)
 - [ ] Basic `BITCAST`
 - [x] Basic `COPY` (_render_copy_sxu_program handles same-dtype identity-index kernels via LOAD/STORE pairs)
 
