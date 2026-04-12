@@ -232,3 +232,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	8010b18	1	Float all-negative F2I	F2I preserves trunc toward 0 for negatives	pytest backend: 441 passed	none	fcmpeq scalar broken
 2026-04-12	196a018	1	Signed full-tile I2F	16-elem signed I2F	pytest backend: 442 passed	none	fcmpeq scalar broken
 2026-04-12	33fa4a3	1	Rev scalar fadd	c+x 32-elem	pytest backend: 443 passed	none	fcmpeq scalar broken
+2026-04-12	449fcb8	1	Signed multi-tile I2F	32-elem signed I2F	pytest backend: 444 passed	none	fcmpeq scalar broken

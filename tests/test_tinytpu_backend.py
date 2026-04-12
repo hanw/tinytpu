@@ -528,6 +528,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").cast("float").numpy()
     np.testing.assert_allclose(result, a.astype(np.float32), rtol=1e-5)
 
+  def test_int_to_float_multi_tile_signed_matches_reference(self):
+    a = np.arange(-16, 16, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").cast("float").numpy()
+    np.testing.assert_allclose(result, a.astype(np.float32), rtol=1e-5)
+
   def test_float_to_int_multi_tile_matches_reference(self):
     a = np.arange(32, dtype=np.float32) - 16
     result = Tensor(a, dtype="float", device="TINYTPU").cast("int32").numpy()
