@@ -1887,6 +1887,13 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor([[5]], dtype="int32", device="TINYTPU").expand(4, 8).numpy()
     np.testing.assert_array_equal(result, np.full((4, 8), 5, dtype=np.int32))
 
+  def test_expand_row_to_4x4_matches_reference(self):
+    result = Tensor([[10, 20, 30, 40]], dtype="int32", device="TINYTPU").expand(4, 4).numpy()
+    np.testing.assert_array_equal(result, np.array([[10, 20, 30, 40]] * 4, dtype=np.int32))
+
+  # Note: expand-row through a RANGE-loop (e.g. shape (6,3)) not yet supported —
+  # requires detecting LOAD depending on inner RANGE only.
+
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
     self.assertEqual(_VPU_OPS["AND"], 15)
