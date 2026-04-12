@@ -274,29 +274,76 @@ The tinygrad submodule is a fork at [hanw/tinygrad](https://github.com/hanw/tiny
 
 ## VPU Instruction Set
 
+### Integer (Int#(32))
+
 | Opcode | Type | Description |
 |---|---|---|
 | `VPU_ADD` | Binary | Element-wise addition |
 | `VPU_SUB` | Binary | Element-wise subtraction |
 | `VPU_MUL` | Binary | Element-wise multiplication |
+| `VPU_DIV` | Binary | Element-wise division (div-by-zero yields 0) |
 | `VPU_MAX` | Binary | Element-wise maximum |
+| `VPU_MIN` | Binary | Element-wise minimum |
+| `VPU_SHL` | Binary | Left shift by src2 (low 5 bits) |
+| `VPU_SHR` | Binary | Right shift by src2 (low 5 bits) |
+| `VPU_AND` | Binary | Bitwise AND |
+| `VPU_OR` | Binary | Bitwise OR |
+| `VPU_XOR` | Binary | Bitwise XOR |
 | `VPU_CMPLT` | Binary | Less-than comparison (returns 0/1) |
 | `VPU_CMPNE` | Binary | Not-equal comparison (returns 0/1) |
 | `VPU_CMPEQ` | Binary | Equal comparison (returns 0/1) |
 | `VPU_RELU` | Unary | max(x, 0) |
-| `VPU_SUM_REDUCE` | Reduce | Sum all lanes per row, broadcast result |
-| `VPU_MAX_REDUCE` | Reduce | Max of all lanes per row, broadcast result |
+| `VPU_NOT` | Unary | Bitwise NOT |
+| `VPU_COPY` | Unary | Identity (pass-through) |
+| `VPU_SELECT` | Ternary | (src1!=0) ? src2 : resultReg (masked select) |
+
+### Reductions
+
+| Opcode | Axis | Description |
+|---|---|---|
+| `VPU_SUM_REDUCE` | per-row | Sum all lanes in each row, broadcast result |
+| `VPU_MAX_REDUCE` | per-row | Max of all lanes in each row, broadcast |
+| `VPU_MIN_REDUCE` | per-row | Min of all lanes in each row, broadcast |
+| `VPU_MUL_REDUCE` | per-row | Product of all lanes in each row, broadcast |
+| `VPU_SUM_REDUCE_COL` | per-column | Sum across sublanes, broadcast per column |
+| `VPU_MAX_REDUCE_COL` | per-column | Max across sublanes, broadcast per column |
+| `VPU_MIN_REDUCE_COL` | per-column | Min across sublanes, broadcast per column |
+| `VPU_MUL_REDUCE_COL` | per-column | Product across sublanes, broadcast per column |
+| `VPU_SUM_REDUCE_TILE` | full tile | Sum all elements, broadcast scalar |
+| `VPU_MAX_REDUCE_TILE` | full tile | Max of all elements, broadcast scalar |
+| `VPU_MIN_REDUCE_TILE` | full tile | Min of all elements, broadcast scalar |
+| `VPU_MUL_REDUCE_TILE` | full tile | Product of all elements, broadcast scalar |
+
+### Float32 (IEEE 754 bits carried in Int#(32))
+
+| Opcode | Type | Description |
+|---|---|---|
+| `VPU_FADD` | Binary | Float32 add (round-nearest-even) |
+| `VPU_FSUB` | Binary | Float32 subtract |
+| `VPU_FMUL` | Binary | Float32 multiply |
+| `VPU_FMAX` | Binary | Float32 maximum |
+| `VPU_FCMPLT` | Binary | Float32 less-than (returns 0/1) |
+| `VPU_FRECIP` | Unary | Reciprocal via magic-number + 3-step Newton-Raphson |
+| `VPU_I2F` | Unary | int32 → float32 value conversion |
+| `VPU_F2I` | Unary | float32 → int32 (truncate toward zero) |
 
 ## SXU Instruction Set
 
 | Opcode | Fields | Description |
 |---|---|---|
-| `SXU_LOAD_VREG` | vmemAddr, vregDst | VMEM[addr] -> VRF[dst] |
-| `SXU_STORE_VREG` | vmemAddr, vregSrc | VRF[src] -> VMEM[addr] |
+| `SXU_LOAD_VREG` | vmemAddr, vregDst | VMEM[addr] → VRF[dst] |
+| `SXU_STORE_VREG` | vmemAddr, vregSrc | VRF[src] → VMEM[addr] |
 | `SXU_DISPATCH_VPU` | vpuOp, src1, src2, dst | VPU op, result to VRF |
+| `SXU_DISPATCH_SELECT` | cond, true, false, dst | Masked select via VPU_SELECT |
+| `SXU_BROADCAST_SCALAR` | scalar, vregDst | Broadcast scalar to all lanes of a tile |
+| `SXU_BROADCAST_ROW` | row, vregSrc, vregDst | Replicate one row across all sublanes |
+| `SXU_BROADCAST_COL` | col, vregSrc, vregDst | Replicate one column across all lanes |
+| `SXU_DISPATCH_XLU_BROADCAST` | xluOp, vregSrc, vregDst | XLU broadcast permutation |
+| `SXU_DISPATCH_XLU_TRANSPOSE` | vregSrc, vregDst | XLU transpose |
 | `SXU_DISPATCH_MXU` | wBase, aBase, tLen | Start MXU matrix multiply |
-| `SXU_WAIT_MXU` | -- | Stall until MXU done |
-| `SXU_HALT` | -- | Stop execution |
+| `SXU_WAIT_MXU` | — | Stall until MXU done |
+| `SXU_LOAD_MXU_RESULT` | vregDst | Move MXU result tile into VRF |
+| `SXU_HALT` | — | Stop execution |
 
 ## Developing with AI Agents
 
