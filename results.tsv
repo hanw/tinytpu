@@ -279,3 +279,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	e441742	1	Four-tile fabs	64-elem via FSUB/FMAX	pytest backend: 489 passed	none	fclip chain broken
 2026-04-12	773e68b	1	Fractional FCMPEQ scalar	x==2.5 via bit-pattern broadcast	pytest backend: 490 passed	none	fclip chain broken
 2026-04-12	a0bcc67	1	Multi-tile scalar FCMPEQ	x==c over 32 elems	pytest backend: 491 passed	none	fclip chain broken
+2026-04-12	e3dbb56	1	Five-tile fabs	80-elem via FSUB/FMAX	pytest backend: 492 passed	none	fclip chain broken
