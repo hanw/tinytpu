@@ -1833,6 +1833,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").reshape(4, 8).numpy()
     np.testing.assert_array_equal(result, a.reshape(4, 8))
 
+  def test_slice_prefix_matches_reference(self):
+    a = np.arange(8, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU")[:4].numpy()
+    np.testing.assert_array_equal(result, a[:4])
+
+  def test_slice_suffix_matches_reference(self):
+    a = np.arange(8, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU")[4:].numpy()
+    np.testing.assert_array_equal(result, a[4:])
+
+  def test_slice_middle_matches_reference(self):
+    a = np.arange(16, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU")[4:12].numpy()
+    np.testing.assert_array_equal(result, a[4:12])
+
   def test_vpu_opcode_table_marks_bool_results(self):
     self.assertEqual(_VPU_OPS["CMPEQ"], 8)
     self.assertEqual(_VPU_OPS["AND"], 15)
