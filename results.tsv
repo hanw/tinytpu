@@ -272,3 +272,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	b49e284	1	Five-tile fadd tt	80-elem a+b	pytest backend: 481 passed	none	fcmpeq scalar broken
 2026-04-12	7fd5e21	1	3D scalar fmul	2x2x2 x*c	pytest backend: 482 passed	none	fcmpeq scalar broken
 2026-04-12	1063512	1	Float ABS via FSUB/FMAX	Src-dtype-aware op dispatch in ABS renderer	pytest backend: 483 passed	float abs correctness	fcmpeq scalar broken
+2026-04-12	f69cfe1	1	Float scalar fcmpeq	Pack float bits for broadcast const	pytest backend: 485 passed	fcmpeq scalar correctness	fclip chain broken
