@@ -282,3 +282,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	e3dbb56	1	Five-tile fabs	80-elem via FSUB/FMAX	pytest backend: 492 passed	none	fclip chain broken
 2026-04-12	8169db8	1	3D fabs	2x2x2 via FSUB/FMAX	pytest backend: 493 passed	none	fclip chain broken
 2026-04-12	241578c	1	Fractional fabs	±1.5..4.5 via FSUB/FMAX	pytest backend: 494 passed	none	fclip chain broken
+2026-04-12	fd51dbe	1	Negative-only mt fabs	32-elem all-neg	pytest backend: 495 passed	none	fclip chain broken
