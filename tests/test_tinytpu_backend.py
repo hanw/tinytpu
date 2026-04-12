@@ -1798,6 +1798,16 @@ class TestTinyTPUBackend(unittest.TestCase):
     with self.assertRaises(NotImplementedError):
       Tensor([[1, 2], [3, 4]], dtype="int32", device="TINYTPU").permute(1, 0).numpy()
 
+  def test_prod4_matches_reference(self):
+    result = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU").prod().numpy()
+    np.testing.assert_array_equal(result, 24)
+
+  def test_prod_full_tile_matches_reference(self):
+    a = np.ones(16, dtype=np.int32)
+    a[0] = 2; a[3] = 3; a[7] = 5
+    result = Tensor(a, dtype="int32", device="TINYTPU").prod().numpy()
+    np.testing.assert_array_equal(result, a.prod())
+
   def test_reshape_1d_to_2d_matches_reference(self):
     a = np.arange(16, dtype=np.int32)
     result = Tensor(a, dtype="int32", device="TINYTPU").reshape(4, 4).numpy()
