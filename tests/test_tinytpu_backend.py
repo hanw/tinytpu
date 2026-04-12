@@ -1818,6 +1818,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(data, dtype="int32", device="TINYTPU").prod(axis=0).numpy()
     np.testing.assert_array_equal(result, data.prod(axis=0))
 
+  def test_rowprod_keepdim_matches_reference(self):
+    data = np.arange(1, 13, dtype=np.int32).reshape(3, 4)
+    result = Tensor(data, dtype="int32", device="TINYTPU").prod(axis=1, keepdim=True).numpy()
+    np.testing.assert_array_equal(result, data.prod(axis=1, keepdims=True))
+
+  def test_rowprod_wide_matches_reference(self):
+    # Keep values small to avoid int32 overflow
+    data = np.ones((3, 8), dtype=np.int32); data[0, 0] = 2; data[1, 3] = 3; data[2, 7] = 5
+    result = Tensor(data, dtype="int32", device="TINYTPU").prod(axis=1).numpy()
+    np.testing.assert_array_equal(result, data.prod(axis=1))
+
+  def test_colprod_multi_row_matches_reference(self):
+    data = np.ones((5, 3), dtype=np.int32); data[0, 0] = 2; data[2, 1] = 3; data[4, 2] = 5
+    result = Tensor(data, dtype="int32", device="TINYTPU").prod(axis=0).numpy()
+    np.testing.assert_array_equal(result, data.prod(axis=0))
+
   def test_reshape_1d_to_2d_matches_reference(self):
     a = np.arange(16, dtype=np.int32)
     result = Tensor(a, dtype="int32", device="TINYTPU").reshape(4, 4).numpy()
