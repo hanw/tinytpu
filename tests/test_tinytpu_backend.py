@@ -408,6 +408,18 @@ class TestTinyTPUBackend(unittest.TestCase):
     ).numpy()
     np.testing.assert_allclose(result, np.minimum(a, b), rtol=1e-5)
 
+  def test_float_sum_reduce_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([1.0, 2.0, 3.0, 4.0], dtype="float", device="TINYTPU").sum().numpy()
+
+  def test_float_max_reduce_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([1.0, 2.0, 3.0, 4.0], dtype="float", device="TINYTPU").max().numpy()
+
+  def test_float_min_reduce_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([1.0, 2.0, 3.0, 4.0], dtype="float", device="TINYTPU").min().numpy()
+
   def test_sqrt_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
