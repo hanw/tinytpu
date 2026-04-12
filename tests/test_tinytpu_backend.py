@@ -355,6 +355,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
     np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
 
+  def test_fminimum_multi_tile_matches_reference(self):
+    a = np.arange(32, dtype=np.float32) - 16
+    b = 16 - np.arange(32, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").minimum(
+      Tensor(b, dtype="float", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_allclose(result, np.minimum(a, b), rtol=1e-5)
+
+  def test_fmaximum_multi_tile_matches_reference(self):
+    a = np.arange(32, dtype=np.float32) - 16
+    b = 16 - np.arange(32, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").maximum(
+      Tensor(b, dtype="float", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_allclose(result, np.maximum(a, b), rtol=1e-5)
+
   def test_fminimum_matches_reference(self):
     a = np.array([1.0, 5.0, 3.0, -2.0], dtype=np.float32)
     b = np.array([4.0, 2.0, 6.0, -5.0], dtype=np.float32)
