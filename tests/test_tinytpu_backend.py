@@ -392,6 +392,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
     np.testing.assert_allclose(result, np.abs(a), rtol=1e-5)
 
+  def test_fabs_scaled_multi_tile_matches_reference(self):
+    a = np.arange(-16, 16, dtype=np.float32) * 0.5
+    result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
+    np.testing.assert_allclose(result, np.abs(a), rtol=1e-5)
+
   def test_fabs_zero_mix_matches_reference(self):
     a = np.array([0.0, -0.0, 1.0, -1.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()

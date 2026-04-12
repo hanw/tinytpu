@@ -285,3 +285,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	fd51dbe	1	Negative-only mt fabs	32-elem all-neg	pytest backend: 495 passed	none	fclip chain broken
 2026-04-12	6e5a621	1	Single-elem fabs	1-elem fabs	pytest backend: 496 passed	none	fclip chain broken
 2026-04-12	7e56f9b	1	Zero-mix fabs	±0/±1 fabs	pytest backend: 497 passed	none	fclip chain broken
+2026-04-12	3979a64	1	Scaled mt fabs	32-elem 0.5x	pytest backend: 498 passed	none	fclip chain broken
