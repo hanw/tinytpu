@@ -205,3 +205,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	9a24751	1	Float signed multi-tile FMUL	32-elem signed FMUL	pytest backend: 412 passed	none	Float ABS
 2026-04-12	a31f0f0	1	Float multi-tile WHERE	32-elem float select	pytest backend: 413 passed	none	Float ABS
 2026-04-12	85459c7	1	Float multi-tile F2I cast	32-elem F2I	pytest backend: 414 passed	none	Float ABS
+2026-04-12	77ee2d2	1	Float multi-tile scalar fdiv	32-elem scalar fdiv	pytest backend: 415 passed	none	Float ABS
