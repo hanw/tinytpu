@@ -344,6 +344,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
     np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
 
+  def test_sqrt_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
+
+  def test_log2_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([2.0, 4.0, 8.0], dtype="float", device="TINYTPU").log2().numpy()
+
+  def test_exp2_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([1.0, 2.0, 3.0], dtype="float", device="TINYTPU").exp2().numpy()
+
+  def test_sin_reports_unsupported(self):
+    with self.assertRaises(NotImplementedError):
+      Tensor([0.0, 1.0, 2.0], dtype="float", device="TINYTPU").sin().numpy()
+
   def test_fdiv_tensor_tensor_matches_reference(self):
     a = np.array([4.0, 6.0, 8.0, 10.0], dtype=np.float32)
     b = np.array([2.0, 2.0, 4.0, 5.0], dtype=np.float32)
