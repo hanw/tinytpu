@@ -529,6 +529,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     ).numpy()
     np.testing.assert_allclose(result, np.minimum(a, b), rtol=1e-5)
 
+  def test_fmaximum_2d_matches_reference(self):
+    a = np.array([[1.0, -2.0], [-3.0, 4.0]], dtype=np.float32)
+    b = np.array([[-1.0, 2.0], [3.0, -4.0]], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").maximum(
+      Tensor(b, dtype="float", device="TINYTPU")
+    ).numpy()
+    np.testing.assert_allclose(result, np.maximum(a, b), rtol=1e-5)
+
   def test_fmaximum_three_tile_matches_reference(self):
     a = np.arange(48, dtype=np.float32)
     b = np.full(48, 20.0, dtype=np.float32)
