@@ -63,24 +63,24 @@ sim tests.
 
 ## Legacy Descriptor Removal Milestones
 
-- [ ] Milestone 1: remove legacy `GEMM4x4`
-  - Route all remaining single-tile GEMM cases through `SXU_PROGRAM`
-  - Delete the `GEMM4x4` descriptor/runtime path once coverage is equivalent
-- [ ] Milestone 2: remove legacy `VPU_BINARY`
-  - Migrate remaining simple elementwise/bool/broadcast cases to `SXU_PROGRAM`
-  - Keep regressions for scalar, row, and column broadcast forms while deleting the descriptor path
-- [ ] Milestone 3: remove legacy `VPU_PROGRAM`
-  - Convert remaining analyzer-driven multi-step kernels to explicit `SXU_PROGRAM` renderers
-  - Prefer hardware primitives over adding new analyzer branches
-- [ ] Milestone 4: remove legacy `HOST_BINARY`
-  - Either lower all remaining integer host fallbacks to hardware-backed SXU/VPU sequences
-  - Or make unsupported integer behavior explicit instead of silently keeping a host escape hatch
-- [ ] Milestone 5: remove legacy `HOST_UNARY`
-  - Add hardware-backed support for float `TRUNC` / `RECIPROCAL`, or declare them unsupported on TinyTPU
-  - Delete host-unary execution only after the policy is explicit and tested
-- [ ] Milestone 6: simplify runtime after descriptor removal
-  - Reduce `_SUPPORTED_OPS` to `SXU_PROGRAM` plus `UNSUPPORTED`
-  - Delete `_render_legacy_descriptor(...)` and the non-SXU executors once no tests/workloads depend on them
+- [x] Milestone 1: remove legacy `GEMM4x4`
+  - GEMM fallback (MULACC or scalar MUL+RANGE, no WMMA UOp) now emits `SXU_PROGRAM` with the same data_plan/instructions as the WMMA SXU path
+  - `_exec_gemm4x4` executor deleted
+- [x] Milestone 2: remove legacy `VPU_BINARY`
+  - Scalar-const IDIV, tensor-tensor IDIV, and bool→int32 cast now lower to `SXU_PROGRAM`
+  - `_exec_vpu_binary` executor and `VPU_BINARY` emitter deleted
+- [x] Milestone 3: remove legacy `VPU_PROGRAM`
+  - Scalar-const MOD, tensor-tensor MOD, CLIP, ABS, and fused-add-relu already flow through SXU renderers
+  - `_exec_vpu_program` executor deleted; the analyzer no longer emits `VPU_PROGRAM`
+- [x] Milestone 4: remove legacy `HOST_BINARY`
+  - Dead code: no emitter ever produced `HOST_BINARY`; executor and supported-op entry deleted
+- [x] Milestone 5: remove legacy `HOST_UNARY`
+  - `RECIPROCAL` lowered via `FRECIP` SXU program; `TRUNC` lowered via `F2I+I2F` SXU program
+  - `_exec_host_unary` executor and `HOST_UNARY` emitter deleted
+- [x] Milestone 6: simplify runtime after descriptor removal
+  - `_SUPPORTED_OPS = {"SXU_PROGRAM"}`
+  - `_render_legacy_descriptor` now returns only SXU descriptors (the GEMM fallback builds an SXU_PROGRAM)
+  - `analyze_tinytpu_uops` remains for external consumers in `tests/onnx_tinytpu_trace/driver.py` but is unreachable from the runtime dispatch
 
 ## Coverage Estimate by Area
 
