@@ -345,3 +345,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	d375972	1	fneg unary test	-Tensor 4-elem float	pytest backend: 565 passed	none	none
 2026-04-12	4716da2	1	SHL scalar const test	x<<1 int32 4-elem	pytest backend: 566 passed	none	none
 2026-04-12	ff069a3	1	Rowmin 3x4 test	min axis=1 over 3x4	pytest backend: 567 passed	none	none
+2026-04-12	78e8451	1	F2I three-tile mixed test	signed 48-elem F2I cast	pytest backend: 568 passed	none	none
