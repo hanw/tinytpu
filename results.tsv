@@ -383,3 +383,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	96d9ae1	1	Chain cmp bool_out fix	chain renderer flags bool output for cmp	pytest backend: 764 passed	none	none
 2026-04-12	c121113	1	N-op scalar-const chain	lower arbitrary-length const-op chains on one tensor	pytest backend: 767 passed	none	none
 2026-04-12	ea9a2f5	1	Fclip chain works	N-op chain renderer now lowers float clip end-to-end	pytest backend: 768 passed	fclip chain closed	none
+2026-04-12	a5ef35b	1	4x4 permute(1,0) wiring	XLU_TRANSPOSE SXU_PROGRAM for 4x4 contiguous transpose	pytest backend: 769 passed	Transition permute to hw	Still need non-4x4 permute and true permute axes
