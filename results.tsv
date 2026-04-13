@@ -365,3 +365,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	ee963d5	5	Cast/reduce 2D coverage	f2i 6elem rowsum 2x5 colsum 5x2 rowsum/colsum 4x4	pytest backend: 643 passed	none	none
 2026-04-12	94508af	5	Varied-length iadd_const	2/7/11/17/20-elem	pytest backend: 648 passed	none	none
 2026-04-12	b0103a7	5	Varied len fadd_c + 2D	31elem 5/11/20elem 2x3	pytest backend: 653 passed	none	none
+2026-04-12	56fe755	5	2D shape iadd_c coverage	3x2 4x2 2x4 3x4 4x3	pytest backend: 658 passed	none	none
