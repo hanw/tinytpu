@@ -1124,6 +1124,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") - Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, a - b, rtol=1e-5)
 
+  def test_fsub_2x3_matches_reference(self):
+    a = np.zeros((2, 3), dtype=np.float32)
+    b = np.ones((2, 3), dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") - Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a - b, rtol=1e-5)
+
   def test_fsub_signed_full_tile_matches_reference(self):
     a = np.arange(-8, 8, dtype=np.float32)
     b = np.arange(8, -8, -1, dtype=np.float32)
