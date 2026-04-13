@@ -369,3 +369,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	0361d38	5	2D shape coverage expansion	5x3 3x5 6x2 iadd_c 2x3 4x2 fmul_c	pytest backend: 663 passed	none	none
 2026-04-12	3863c9d	4	More fmul 2D + imul_tt + irelu	3x4 3x5 fmul_c imul_tt irelu	pytest backend: 667 passed	none	none
 2026-04-12	5311869	10	Varied-length isub_tt imul_tt	2/3/5/7/11 elems each	pytest backend: 677 passed	none	none
+2026-04-12	e29a6b0	10	Varied-length frelu iabs	3/5/7/11 frelu + 3/5/7/11/20/31 iabs	pytest backend: 687 passed	none	none
