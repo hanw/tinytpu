@@ -3367,6 +3367,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="int32", device="TINYTPU") + Tensor(b, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a + b)
 
+  def test_fneg_unary_matches_reference(self):
+    a = np.array([1.0, -2.0, 3.0, -4.0], dtype=np.float32)
+    result = (-Tensor(a, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, -a, rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
