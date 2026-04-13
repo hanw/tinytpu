@@ -4414,6 +4414,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (((Tensor(a, dtype="float", device="TINYTPU") + 1.0) * 2.0) + 3.0).numpy()
     np.testing.assert_allclose(result, (a + 1.0) * 2.0 + 3.0, rtol=1e-5)
 
+  def test_float32_fclip_chain_matches_reference(self):
+    a = np.array([-3.0, -1.0, 0.5, 2.0, 5.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").maximum(0.0).minimum(1.0).numpy()
+    np.testing.assert_allclose(result, np.clip(a, 0.0, 1.0), rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
