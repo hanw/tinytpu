@@ -352,3 +352,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	8621d4d	5	Dtype/op/shape coverage	4d fmul_c imax/imin 3tile 2x2 cmplt 5x5 cmpeq	pytest backend: 580 passed	none	none
 2026-04-12	fcda4dc	5	Shift/div/cast coverage	shr_2 idiv imod fneg cast	pytest backend: 585 passed	none	none
 2026-04-12	b84352c	5	Cast/cmp/reduce coverage	bool->int 17elem cmp 3x3 rowmax colmin	pytest backend: 590 passed	none	none
+2026-04-12	4801e70	5	Prod/reduce/neg coverage	rowprod colprod 3d_sum neg_fmul rev_fsub	pytest backend: 595 passed	none	none
