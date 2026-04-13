@@ -381,3 +381,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	3e06b02	1	Fclip silent-wrong-result fix	reject chained MAX in float min-const renderer	pytest backend: 759 passed	none	No multistep clip lowering yet
 2026-04-12	29fdf32	1	Chained scalar-const renderer	(x op c1) op c2 patterns now lower to 6-step SXU_PROGRAM	pytest backend: 762 passed	none	Rev-sub chain with MUL(-1) decomp still unsupported
 2026-04-12	96d9ae1	1	Chain cmp bool_out fix	chain renderer flags bool output for cmp	pytest backend: 764 passed	none	none
+2026-04-12	c121113	1	N-op scalar-const chain	lower arbitrary-length const-op chains on one tensor	pytest backend: 767 passed	none	none
