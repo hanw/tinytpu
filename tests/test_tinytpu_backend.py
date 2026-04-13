@@ -3573,6 +3573,31 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").sum().numpy()
     np.testing.assert_array_equal(result, a.sum())
 
+  def test_int32_scalar_plus_tensor_matches_reference(self):
+    a = np.arange(4, dtype=np.int32)
+    result = (5 + Tensor(a, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, 5 + a)
+
+  def test_int32_slice_matches_reference(self):
+    a = np.arange(8, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU")[2:6].numpy()
+    np.testing.assert_array_equal(result, a[2:6])
+
+  def test_int32_reshape_2d_to_1d_matches_reference(self):
+    a = np.arange(12, dtype=np.int32).reshape(3, 4)
+    result = Tensor(a, dtype="int32", device="TINYTPU").reshape(12).numpy()
+    np.testing.assert_array_equal(result, a.reshape(12))
+
+  def test_int32_reshape_1d_to_4d_matches_reference(self):
+    a = np.arange(24, dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").reshape(2, 3, 4, 1).numpy()
+    np.testing.assert_array_equal(result, a.reshape(2, 3, 4, 1))
+
+  def test_int32_chained_add_const_matches_reference(self):
+    a = np.arange(4, dtype=np.int32)
+    result = ((Tensor(a, dtype="int32", device="TINYTPU") + 1) + 2).numpy()
+    np.testing.assert_array_equal(result, a + 3)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
