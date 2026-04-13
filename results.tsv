@@ -388,3 +388,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	b3f1cb0	1	Const-fill renderer	Tensor.zeros/ones/full on int/float/2D lowers to broadcast store	pytest backend: 774 passed	none	none
 2026-04-12	ca7ae6f	1	Float 4x4 transpose	unwrap CAST on store addr to recognize float permute(1,0)	pytest backend: 775 passed	none	none
 2026-04-12	fad5faf	1	Bool const-fill	Tensor.zeros/ones bool dtype flagged bool_out	pytest backend: 777 passed	none	none
+2026-04-13	072d1ea	1	WHERE with scalar CONST lhs/rhs	cond.where(a, b) now lowers when both branches are consts	pytest backend: 778 passed	none	none
