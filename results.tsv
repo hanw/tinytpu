@@ -330,3 +330,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	591b503	1	Three-tile I2F	48-elem I2F	pytest backend: 542 passed	none	fclip chain broken
 2026-04-12	376d251	1	Three-tile F2I	48-elem signed F2I	pytest backend: 543 passed	none	fclip chain broken
 2026-04-12	b0ad697	1	3x2 fabs	3x2 float abs	pytest backend: 544 passed	none	fclip chain broken
+2026-04-12	8619c82	1	Scalar-numerator fdiv (c/x)	FRECIP+FMUL when src_params=1+RECIPROCAL	pytest backend: 546 passed	c/x fixed	fclip chain broken
