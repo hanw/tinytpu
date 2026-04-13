@@ -343,3 +343,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	cc48a65	1	Row vs col bias classifier	addr/CONST-idx correlation for chunk==1 bias case	pytest backend: 563 passed	3 pre-existing regressions cleared	none
 2026-04-12	e9f7447	1	int32 3D add test	2x3x4 tile-loop coverage	pytest backend: 564 passed	none	none
 2026-04-12	d375972	1	fneg unary test	-Tensor 4-elem float	pytest backend: 565 passed	none	none
+2026-04-12	4716da2	1	SHL scalar const test	x<<1 int32 4-elem	pytest backend: 566 passed	none	none
