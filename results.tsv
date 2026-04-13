@@ -336,3 +336,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	a208ba7	2	Legacy: RECIPROCAL + tensor-tensor IDIV/MOD	RECIPROCAL via FRECIP SXU; divmod renderer extended to 2-param tt case	pytest backend: 547 passed	Milestone 2 + 5 progress	3 pre-existing colbc regressions
 2026-04-12	967683e	1	Legacy: TRUNC SXU	TRUNC via F2I+I2F SXU_PROGRAM round-trip	pytest backend: 547 passed	Milestone 5 progress	3 pre-existing colbc regressions
 2026-04-12	62faf33	1	Legacy cleanup: delete HOST_UNARY/VPU_BINARY/VPU_PROGRAM	_SUPPORTED_OPS now {GEMM4x4, SXU_PROGRAM}; 3 executors + emitters removed	pytest backend: 547 passed	Milestones 2+3+5 done	3 pre-existing colbc regressions
+2026-04-12	546891f	2	Legacy: GEMM4x4 SXU + delete executor	GEMM fallback emits SXU_PROGRAM; _SUPPORTED_OPS={SXU_PROGRAM}	pytest backend: 547 passed	Milestone 1 + 6 done	3 pre-existing colbc regressions
