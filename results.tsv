@@ -350,3 +350,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	9fbbb42	1	Fmin tt three-tile test	48-elem tensor-tensor fmin	pytest backend: 570 passed	none	none
 2026-04-12	ba6ae9f	5	3x3/5x5 int+float coverage	mul_tt add_tt sub_tt add_const 5x5 frelu	pytest backend: 575 passed	none	none
 2026-04-12	8621d4d	5	Dtype/op/shape coverage	4d fmul_c imax/imin 3tile 2x2 cmplt 5x5 cmpeq	pytest backend: 580 passed	none	none
+2026-04-12	fcda4dc	5	Shift/div/cast coverage	shr_2 idiv imod fneg cast	pytest backend: 585 passed	none	none
