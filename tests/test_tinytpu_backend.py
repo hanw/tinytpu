@@ -538,6 +538,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") * Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, a * b, rtol=1e-5)
 
+  def test_frecip_2x3_matches_reference(self):
+    a = np.array([[1.0, 2.0, 4.0], [0.5, 8.0, 16.0]], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
+    np.testing.assert_allclose(result, 1.0 / a, rtol=1e-3)
+
   def test_frecip_2d_matches_reference(self):
     a = np.array([[1.0, 2.0], [4.0, 0.5]], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()

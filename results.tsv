@@ -323,3 +323,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	cdfb818	1	Fwhere signed rhs mt	32-elem lhs/-lhs	pytest backend: 534 passed	none	fclip chain broken
 2026-04-12	9facf40	1	Signed 3-tile fadd tt	48-elem signed	pytest backend: 535 passed	none	fclip chain broken
 2026-04-12	02a2d66	1	Pos-only frelu	identity relu 16-elem	pytest backend: 536 passed	none	fclip chain broken
+2026-04-12	3bb9f84	1	2x3 frecip	2D 2x3 recip	pytest backend: 537 passed	none	fclip chain broken
