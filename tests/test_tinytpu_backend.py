@@ -843,6 +843,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (2.5 + Tensor(a, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, 2.5 + a, rtol=1e-5)
 
+  def test_fadd_scalar_const_3x3_matches_reference(self):
+    a = np.arange(9, dtype=np.float32).reshape(3, 3)
+    result = (Tensor(a, dtype="float", device="TINYTPU") + 0.5).numpy()
+    np.testing.assert_allclose(result, a + 0.5, rtol=1e-5)
+
   def test_fadd_scalar_const_2d_matches_reference(self):
     a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
     result = (Tensor(a, dtype="float", device="TINYTPU") + 1.5).numpy()
