@@ -374,3 +374,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	0cd526c	9	3D add_c + 2D max reduce	3d shapes + row/colmax 3x3/4x4	pytest backend: 705 passed	none	none
 2026-04-12	c307db5	11	2D reduce full coverage	2x5 5x2 all reduces + 3x3 4x4 min	pytest backend: 716 passed	none	none
 2026-04-12	bb27034	12	Scalar reduce len coverage	3/5/7/11-elem sum/max/min	pytest backend: 728 passed	none	none
+2026-04-12	2f3b482	9	Float op length coverage	fmul_c 3/7/31/47 fadd_tt 3/7/11/20 fabs 5	pytest backend: 737 passed	none	none
