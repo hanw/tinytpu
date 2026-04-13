@@ -4099,6 +4099,61 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").max(axis=0).numpy()
     np.testing.assert_array_equal(result, a.max(axis=0))
 
+  def test_int32_2x5_rowmax_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(2, 5)
+    result = Tensor(a, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.max(axis=1))
+
+  def test_int32_2x5_rowmin_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(2, 5)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=1))
+
+  def test_int32_2x5_colmax_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(2, 5)
+    result = Tensor(a, dtype="int32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_array_equal(result, a.max(axis=0))
+
+  def test_int32_2x5_colmin_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(2, 5)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=0))
+
+  def test_int32_5x2_rowmax_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(5, 2)
+    result = Tensor(a, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.max(axis=1))
+
+  def test_int32_5x2_rowmin_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(5, 2)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=1))
+
+  def test_int32_5x2_colmax_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(5, 2)
+    result = Tensor(a, dtype="int32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_array_equal(result, a.max(axis=0))
+
+  def test_int32_5x2_colmin_matches_reference(self):
+    a = np.arange(10, dtype=np.int32).reshape(5, 2)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=0))
+
+  def test_int32_3x3_rowmin_matches_reference(self):
+    a = np.arange(9, dtype=np.int32).reshape(3, 3)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=1))
+
+  def test_int32_4x4_rowmin_matches_reference(self):
+    a = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=1))
+
+  def test_int32_4x4_colmin_matches_reference(self):
+    a = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=0))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
