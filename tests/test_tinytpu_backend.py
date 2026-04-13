@@ -757,6 +757,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").cast("float").numpy()
     np.testing.assert_allclose(result, a.astype(np.float32), rtol=1e-5)
 
+  def test_float_to_int_three_tile_matches_reference(self):
+    a = np.arange(48, dtype=np.float32) - 24
+    result = Tensor(a, dtype="float", device="TINYTPU").cast("int32").numpy()
+    np.testing.assert_array_equal(result, a.astype(np.int32))
+
   def test_float_to_int_all_negative_matches_reference(self):
     a = np.array([-1.5, -2.7, -0.3, -9.8], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").cast("int32").numpy()
