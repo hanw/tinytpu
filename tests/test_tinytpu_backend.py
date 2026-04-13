@@ -3387,6 +3387,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").cast("int32").numpy()
     np.testing.assert_array_equal(result, a.astype(np.int32))
 
+  def test_bool_xor_2d_matches_reference(self):
+    a = np.array([[True, False], [True, True]])
+    b = np.array([[False, False], [True, False]])
+    result = (Tensor(a, dtype="bool", device="TINYTPU") ^ Tensor(b, dtype="bool", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a ^ b)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
