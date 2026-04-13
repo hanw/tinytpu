@@ -315,3 +315,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	914f8a7	1	4x4 scalar fadd	4x4 x+c	pytest backend: 525 passed	none	fclip chain broken
 2026-04-12	cf461c5	1	4x4 scalar fmul	4x4 x*c	pytest backend: 526 passed	none	fclip chain broken
 2026-04-12	abaf7ab	1	4x4 scalar fsub	4x4 x-c	pytest backend: 527 passed	none	fclip chain broken
+2026-04-12	d84ee77	1	4x4 fneg	4x4 -x	pytest backend: 528 passed	none	fclip chain broken
