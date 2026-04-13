@@ -4468,6 +4468,26 @@ class TestTinyTPUBackend(unittest.TestCase):
       99, Tensor(a, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, np.where(cond, 99, a))
 
+  def test_bool_where_consts_6elem_matches_reference(self):
+    cond = np.array([True, False, True, False, True, False])
+    result = Tensor(cond, dtype="bool", device="TINYTPU").where(1, 0).numpy()
+    np.testing.assert_array_equal(result, np.where(cond, 1, 0))
+
+  def test_bool_where_float_consts_matches_reference(self):
+    cond = np.array([True, False, True, False])
+    result = Tensor(cond, dtype="bool", device="TINYTPU").where(1.5, 2.5).numpy()
+    np.testing.assert_allclose(result, np.where(cond, 1.5, 2.5), rtol=1e-5)
+
+  def test_bool_where_consts_2d_matches_reference(self):
+    cond = np.array([[True, False], [False, True]])
+    result = Tensor(cond, dtype="bool", device="TINYTPU").where(5, 10).numpy()
+    np.testing.assert_array_equal(result, np.where(cond, 5, 10))
+
+  def test_bool_where_consts_16elem_matches_reference(self):
+    cond = np.array([True]*8 + [False]*8)
+    result = Tensor(cond, dtype="bool", device="TINYTPU").where(1, 0).numpy()
+    np.testing.assert_array_equal(result, np.where(cond, 1, 0))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
