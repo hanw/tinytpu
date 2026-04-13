@@ -417,6 +417,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
     np.testing.assert_allclose(result, np.abs(a), rtol=1e-5)
 
+  def test_fabs_4x4_matches_reference(self):
+    a = np.arange(-8, 8, dtype=np.float32).reshape(4, 4)
+    result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
+    np.testing.assert_allclose(result, np.abs(a), rtol=1e-5)
+
   def test_fabs_3x4_matches_reference(self):
     a = np.arange(-6, 6, dtype=np.float32).reshape(3, 4)
     result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
