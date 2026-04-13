@@ -295,3 +295,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	834acc2	1	5x3 fabs	2D non-square fabs	pytest backend: 505 passed	none	fclip chain broken
 2026-04-12	f54706a	1	3x4 fabs	2D non-square fabs	pytest backend: 506 passed	none	fclip chain broken
 2026-04-12	364de51	1	4x4 fabs	2D square fabs	pytest backend: 507 passed	none	fclip chain broken
+2026-04-12	874944d	1	2D frac fneg	2x2 ±1.5..4.5	pytest backend: 508 passed	none	fclip chain broken

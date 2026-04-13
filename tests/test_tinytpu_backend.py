@@ -437,6 +437,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
     np.testing.assert_allclose(result, np.abs(a), rtol=1e-5)
 
+  def test_fneg_2d_fractional_matches_reference(self):
+    a = np.array([[1.5, -2.5], [3.5, -4.5]], dtype=np.float32)
+    result = (-Tensor(a, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, -a, rtol=1e-5)
+
   def test_fneg_2d_matches_reference(self):
     a = np.array([[1.0, -2.0], [3.0, -4.0]], dtype=np.float32)
     result = (-Tensor(a, dtype="float", device="TINYTPU")).numpy()
