@@ -61,6 +61,27 @@ sim tests.
 - [x] _tasm helper functions + bundle builders rewritten in readable assembly style
 - [x] TASM bundle roundtrip tests for all bundle builders
 
+## Legacy Descriptor Removal Milestones
+
+- [ ] Milestone 1: remove legacy `GEMM4x4`
+  - Route all remaining single-tile GEMM cases through `SXU_PROGRAM`
+  - Delete the `GEMM4x4` descriptor/runtime path once coverage is equivalent
+- [ ] Milestone 2: remove legacy `VPU_BINARY`
+  - Migrate remaining simple elementwise/bool/broadcast cases to `SXU_PROGRAM`
+  - Keep regressions for scalar, row, and column broadcast forms while deleting the descriptor path
+- [ ] Milestone 3: remove legacy `VPU_PROGRAM`
+  - Convert remaining analyzer-driven multi-step kernels to explicit `SXU_PROGRAM` renderers
+  - Prefer hardware primitives over adding new analyzer branches
+- [ ] Milestone 4: remove legacy `HOST_BINARY`
+  - Either lower all remaining integer host fallbacks to hardware-backed SXU/VPU sequences
+  - Or make unsupported integer behavior explicit instead of silently keeping a host escape hatch
+- [ ] Milestone 5: remove legacy `HOST_UNARY`
+  - Add hardware-backed support for float `TRUNC` / `RECIPROCAL`, or declare them unsupported on TinyTPU
+  - Delete host-unary execution only after the policy is explicit and tested
+- [ ] Milestone 6: simplify runtime after descriptor removal
+  - Reduce `_SUPPORTED_OPS` to `SXU_PROGRAM` plus `UNSUPPORTED`
+  - Delete `_render_legacy_descriptor(...)` and the non-SXU executors once no tests/workloads depend on them
+
 ## Coverage Estimate by Area
 
 ### Current VPU/Runtime Architecture: 20-40 iterations
