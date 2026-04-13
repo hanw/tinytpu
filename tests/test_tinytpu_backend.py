@@ -4374,6 +4374,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") - 1.0).numpy()
     np.testing.assert_allclose(result, a - 1.0, rtol=1e-5)
 
+  def test_int32_add_then_mul_const_chain_matches_reference(self):
+    a = np.arange(4, dtype=np.int32)
+    result = ((Tensor(a, dtype="int32", device="TINYTPU") + 1) * 2).numpy()
+    np.testing.assert_array_equal(result, (a + 1) * 2)
+
+  def test_int32_mul_then_add_const_chain_matches_reference(self):
+    a = np.arange(4, dtype=np.int32)
+    result = ((Tensor(a, dtype="int32", device="TINYTPU") * 2) + 1).numpy()
+    np.testing.assert_array_equal(result, a * 2 + 1)
+
+  def test_int32_mul_then_max_const_chain_matches_reference(self):
+    a = np.arange(4, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") * 2).maximum(3).numpy()
+    np.testing.assert_array_equal(result, np.maximum(a * 2, 3))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
