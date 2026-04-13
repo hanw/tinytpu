@@ -310,3 +310,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	a9014e8	1	2-elem neg fabs	[-1.5,-2.5]	pytest backend: 520 passed	none	fclip chain broken
 2026-04-12	0acadcb	1	5-elem neg fabs	-1..-5	pytest backend: 521 passed	none	fclip chain broken
 2026-04-12	4805611	1	5-elem frelu	signed -2..2	pytest backend: 522 passed	none	fclip chain broken
+2026-04-12	c930667	1	2D fcmpgt tt	2x2 float gt	pytest backend: 523 passed	none	fclip chain broken
