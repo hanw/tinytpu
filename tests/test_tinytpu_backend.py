@@ -3708,6 +3708,35 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="int32", device="TINYTPU") // Tensor(b, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a // b)
 
+  def test_int32_4elem_imod_tt_matches_reference(self):
+    a = np.array([10, 20, 30, 40], dtype=np.int32)
+    b = np.array([3, 4, 7, 9], dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") % Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a % b)
+
+  def test_float32_5x5_fneg_matches_reference(self):
+    a = np.arange(25, dtype=np.float32).reshape(5, 5)
+    result = (-Tensor(a, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, -a, rtol=1e-5)
+
+  def test_float32_2x2_fmax_tt_matches_reference(self):
+    a = np.array([[1.0, 5.0], [3.0, 2.0]], dtype=np.float32)
+    b = np.array([[3.0, 2.0], [1.0, 4.0]], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").maximum(Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, np.maximum(a, b), rtol=1e-5)
+
+  def test_float32_2x2_fmin_tt_matches_reference(self):
+    a = np.array([[1.0, 5.0], [3.0, 2.0]], dtype=np.float32)
+    b = np.array([[3.0, 2.0], [1.0, 4.0]], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").minimum(Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, np.minimum(a, b), rtol=1e-5)
+
+  def test_float32_3elem_fadd_tt_matches_reference(self):
+    a = np.array([5.0, 6.0, 7.0], dtype=np.float32)
+    b = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
