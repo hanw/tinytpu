@@ -356,3 +356,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	87d42fa	4	Rev fadd / cmp / bitwise coverage	7elem rev fadd fcmplt 40elem AND tt shl_3	pytest backend: 599 passed	none	none
 2026-04-12	38fb757	5	Shape/bitwise/reduce coverage	1x16 16x1 xor_tt or_c 32-elem isum	pytest backend: 604 passed	none	none
 2026-04-12	16c4a66	5	Slice/reshape/chain coverage	scalar+tensor slice reshape_2d_1d reshape_1d_4d chained add	pytest backend: 609 passed	none	none
+2026-04-12	55bac23	5	Chain/fclip/where coverage	mul_c chain fmax0 fmin0 bool_add where	pytest backend: 614 passed	none	none
