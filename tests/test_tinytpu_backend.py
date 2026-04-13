@@ -3680,6 +3680,34 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="int32", device="TINYTPU") >> Tensor(b, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a >> b)
 
+  def test_int32_4elem_shl_tt_matches_reference(self):
+    a = np.array([1, 2, 3, 4], dtype=np.int32)
+    b = np.array([3, 2, 1, 0], dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") << Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a << b)
+
+  def test_int32_4x8_cmplt_scalar_const_matches_reference(self):
+    a = np.arange(32, dtype=np.int32).reshape(4, 8)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") < 10).numpy()
+    np.testing.assert_array_equal(result, a < 10)
+
+  def test_int32_4x4_cmpne_scalar_const_matches_reference(self):
+    a = np.arange(16, dtype=np.int32).reshape(4, 4)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") != 5).numpy()
+    np.testing.assert_array_equal(result, a != 5)
+
+  def test_int32_6elem_cmpeq_tt_matches_reference(self):
+    a = np.array([1, 2, 3, 4, 5, 6], dtype=np.int32)
+    b = np.array([1, 1, 1, 4, 5, 5], dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") == Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a == b)
+
+  def test_int32_4elem_idiv_tt_matches_reference(self):
+    a = np.array([10, 20, 30, 40], dtype=np.int32)
+    b = np.array([2, 4, 5, 8], dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") // Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a // b)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
