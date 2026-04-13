@@ -4304,6 +4304,56 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="int32", device="TINYTPU") ^ 5).numpy()
     np.testing.assert_array_equal(result, a ^ 5)
 
+  def test_int32_3elem_or_c_matches_reference(self):
+    a = np.arange(3, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") | 4).numpy()
+    np.testing.assert_array_equal(result, a | 4)
+
+  def test_int32_3elem_and_c_matches_reference(self):
+    a = np.arange(3, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") & 3).numpy()
+    np.testing.assert_array_equal(result, a & 3)
+
+  def test_int32_3elem_xor_c_matches_reference(self):
+    a = np.arange(3, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") ^ 1).numpy()
+    np.testing.assert_array_equal(result, a ^ 1)
+
+  def test_int32_17elem_or_c_matches_reference(self):
+    a = np.arange(17, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") | 1).numpy()
+    np.testing.assert_array_equal(result, a | 1)
+
+  def test_int32_17elem_and_c_matches_reference(self):
+    a = np.arange(17, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") & 15).numpy()
+    np.testing.assert_array_equal(result, a & 15)
+
+  def test_int32_17elem_xor_c_matches_reference(self):
+    a = np.arange(17, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") ^ 7).numpy()
+    np.testing.assert_array_equal(result, a ^ 7)
+
+  def test_int32_7elem_isub_c_matches_reference(self):
+    a = np.arange(7, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") - 2).numpy()
+    np.testing.assert_array_equal(result, a - 2)
+
+  def test_int32_11elem_isub_c_matches_reference(self):
+    a = np.arange(11, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") - 2).numpy()
+    np.testing.assert_array_equal(result, a - 2)
+
+  def test_int32_20elem_isub_c_matches_reference(self):
+    a = np.arange(20, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") - 2).numpy()
+    np.testing.assert_array_equal(result, a - 2)
+
+  def test_int32_31elem_isub_c_matches_reference(self):
+    a = np.arange(31, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") - 2).numpy()
+    np.testing.assert_array_equal(result, a - 2)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
