@@ -4214,6 +4214,51 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").min().numpy()
     np.testing.assert_array_equal(result, a.min())
 
+  def test_float32_3elem_mul_const_matches_reference(self):
+    a = np.arange(3, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * 2.0).numpy()
+    np.testing.assert_allclose(result, a * 2.0, rtol=1e-5)
+
+  def test_float32_7elem_mul_const_matches_reference(self):
+    a = np.arange(7, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * 2.0).numpy()
+    np.testing.assert_allclose(result, a * 2.0, rtol=1e-5)
+
+  def test_float32_31elem_mul_const_matches_reference(self):
+    a = np.arange(31, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * 2.0).numpy()
+    np.testing.assert_allclose(result, a * 2.0, rtol=1e-5)
+
+  def test_float32_47elem_mul_const_matches_reference(self):
+    a = np.arange(47, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * 2.0).numpy()
+    np.testing.assert_allclose(result, a * 2.0, rtol=1e-5)
+
+  def test_float32_3elem_fadd_tt_matches_reference(self):
+    a = np.arange(3, dtype=np.float32); b = a + 1
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
+  def test_float32_7elem_fadd_tt_matches_reference(self):
+    a = np.arange(7, dtype=np.float32); b = a + 1
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
+  def test_float32_11elem_fadd_tt_matches_reference(self):
+    a = np.arange(11, dtype=np.float32); b = a + 1
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
+  def test_float32_20elem_fadd_tt_matches_reference(self):
+    a = np.arange(20, dtype=np.float32); b = a + 1
+    result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
+  def test_float32_5elem_fabs_matches_reference(self):
+    a = np.arange(5, dtype=np.float32) - 2
+    result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
+    np.testing.assert_allclose(result, np.abs(a), rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
