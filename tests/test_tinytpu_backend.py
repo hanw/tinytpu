@@ -3477,6 +3477,31 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").cast("bool").numpy()
     np.testing.assert_array_equal(result, a.astype(bool))
 
+  def test_bool_3x3_cast_int32_matches_reference(self):
+    a = np.arange(9, dtype=np.int32).reshape(3, 3).astype(bool)
+    result = Tensor(a, dtype="bool", device="TINYTPU").cast("int32").numpy()
+    np.testing.assert_array_equal(result, a.astype(np.int32))
+
+  def test_int32_17elem_cmplt_scalar_const_matches_reference(self):
+    a = np.arange(17, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") < 8).numpy()
+    np.testing.assert_array_equal(result, a < 8)
+
+  def test_int32_17elem_cmpne_scalar_const_matches_reference(self):
+    a = np.arange(17, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") != 5).numpy()
+    np.testing.assert_array_equal(result, a != 5)
+
+  def test_int32_3x3_rowmax_matches_reference(self):
+    a = np.arange(9, dtype=np.int32).reshape(3, 3)
+    result = Tensor(a, dtype="int32", device="TINYTPU").max(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.max(axis=1))
+
+  def test_int32_3x3_colmin_matches_reference(self):
+    a = np.arange(9, dtype=np.int32).reshape(3, 3)
+    result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=0).numpy()
+    np.testing.assert_array_equal(result, a.min(axis=0))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
