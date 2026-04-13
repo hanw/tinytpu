@@ -14,11 +14,17 @@ When asked to do iterations (e.g. "do 25 iterations"):
 
 ## Verification
 
-Run tests from the repo root. Use `/Users/hanwang/miniconda3/bin/python3` (has pytest).
+Run tests from the repo root. Use the repo-local venv at `.venv/bin/python3`. If it doesn't exist, create it once:
 
 ```
-PYTHONPATH=tinygrad /Users/hanwang/miniconda3/bin/python3 -m pytest tests/test_tinytpu_backend.py::TestTinyTPUBackend -x -v   # sim-backed backend tests
-PYTHONPATH=tinygrad /Users/hanwang/miniconda3/bin/python3 -m pytest tests/ -x -v   # all Python-side tests
+python3 -m venv .venv && .venv/bin/pip install --quiet pytest numpy
+```
+
+Then run tests via the venv interpreter:
+
+```
+PYTHONPATH=tinygrad .venv/bin/python3 -m pytest tests/test_tinytpu_backend.py::TestTinyTPUBackend -x -v   # sim-backed backend tests
+PYTHONPATH=tinygrad .venv/bin/python3 -m pytest tests/ -x -v   # all Python-side tests
 make test-<unit>                         # BSV unit tests
 python3 scripts/test_cosim.py            # end-to-end co-sim
 ```
