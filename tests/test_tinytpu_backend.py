@@ -906,6 +906,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") == 5.0).numpy()
     np.testing.assert_array_equal(result, a == 5.0)
 
+  def test_fcmpeq_2d_scalar_const_matches_reference(self):
+    a = np.array([[1.0, 2.0], [3.0, 1.0]], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") == 1.0).numpy()
+    np.testing.assert_array_equal(result, a == 1.0)
+
   def test_fcmpeq_fractional_scalar_const_multi_tile_matches_reference(self):
     a = np.arange(32, dtype=np.float32) * 0.5
     result = (Tensor(a, dtype="float", device="TINYTPU") == 4.0).numpy()

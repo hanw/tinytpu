@@ -291,3 +291,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	660fc16	1	Fractional FCMPGT scalar	x>1.5	pytest backend: 501 passed	none	fclip chain broken
 2026-04-12	fc4db3b	1	Fractional FCMPLT scalar	x<1.5	pytest backend: 502 passed	none	fclip chain broken
 2026-04-12	eedb6eb	1	Fractional FCMPNE scalar	x!=2.5	pytest backend: 503 passed	none	fclip chain broken
+2026-04-12	46c008b	1	2D FCMPEQ scalar	2x2 x==1.0	pytest backend: 504 passed	none	fclip chain broken
