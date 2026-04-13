@@ -3393,6 +3393,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="bool", device="TINYTPU") ^ Tensor(b, dtype="bool", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a ^ b)
 
+  def test_fmin_three_tile_tt_48elem_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0] * 8, dtype=np.float32)
+    b = np.full(48, 3.0, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").minimum(Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, np.minimum(a, b), rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
