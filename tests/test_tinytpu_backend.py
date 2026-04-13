@@ -3399,6 +3399,33 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").minimum(Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, np.minimum(a, b), rtol=1e-5)
 
+  def test_int32_3x3_mul_tt_matches_reference(self):
+    a = np.arange(9, dtype=np.int32).reshape(3, 3)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") * Tensor(a, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a * a)
+
+  def test_int32_3x3_add_tt_matches_reference(self):
+    a = np.arange(9, dtype=np.int32).reshape(3, 3)
+    b = a + 1
+    result = (Tensor(a, dtype="int32", device="TINYTPU") + Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a + b)
+
+  def test_int32_3x3_sub_tt_matches_reference(self):
+    a = np.arange(9, dtype=np.int32).reshape(3, 3)
+    b = a + 5
+    result = (Tensor(b, dtype="int32", device="TINYTPU") - Tensor(a, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, b - a)
+
+  def test_int32_5x5_add_scalar_matches_reference(self):
+    a = np.arange(25, dtype=np.int32).reshape(5, 5)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") + 10).numpy()
+    np.testing.assert_array_equal(result, a + 10)
+
+  def test_float32_5x5_relu_matches_reference(self):
+    a = np.arange(-10, 15, dtype=np.float32).reshape(5, 5)
+    result = Tensor(a, dtype="float", device="TINYTPU").relu().numpy()
+    np.testing.assert_allclose(result, np.maximum(a, 0), rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
