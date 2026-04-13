@@ -618,6 +618,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").relu().numpy()
     np.testing.assert_allclose(result, np.maximum(a, 0.0), rtol=1e-5)
 
+  def test_frelu_five_elem_matches_reference(self):
+    a = np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").relu().numpy()
+    np.testing.assert_allclose(result, np.maximum(a, 0.0), rtol=1e-5)
+
   def test_frelu_full_tile_matches_reference(self):
     a = (np.arange(16, dtype=np.float32) - 8) * 0.5
     result = Tensor(a, dtype="float", device="TINYTPU").relu().numpy()
