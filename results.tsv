@@ -393,3 +393,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-13	2b92646	4	Where-consts coverage	6/16-elem 2D float const branches	pytest backend: 784 passed	none	none
 2026-04-13	5ae0d16	1	Size-1 scalar reduction misclaim fix	reduction renderer requires src_size>1	pytest backend: 786 passed	none	none
 2026-04-13	7742f90	3	Reduction edge-case coverage	size-1 sum all-neg max 3D sum-all	pytest backend: 789 passed	none	none
+2026-04-13	3af50b3	1	Reduce+const post-op	reduce+scalar-const lowers in one kernel	pytest backend: 790 passed	none	none
