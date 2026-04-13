@@ -361,3 +361,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	2880c6d	5	Abs/bitwise coverage	3x3 iabs fabs 4x4 and_c or_tt shr_tt	pytest backend: 624 passed	none	none
 2026-04-12	9b122eb	5	Shift/cmp/div tt coverage	shl_tt cmplt_c cmpne_c cmpeq_tt idiv_tt	pytest backend: 629 passed	none	none
 2026-04-12	472cc06	5	2D float op coverage	imod_tt fneg_5x5 fmax_2x2 fmin_2x2 fadd_tt	pytest backend: 634 passed	none	none
+2026-04-12	fe6903d	4	Float tt / cast coverage	fsub fmul fdiv 3elem i2f 6elem	pytest backend: 638 passed	none	none
