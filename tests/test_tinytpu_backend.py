@@ -3598,6 +3598,36 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = ((Tensor(a, dtype="int32", device="TINYTPU") + 1) + 2).numpy()
     np.testing.assert_array_equal(result, a + 3)
 
+  def test_int32_chained_mul_const_matches_reference(self):
+    a = np.arange(4, dtype=np.int32)
+    result = ((Tensor(a, dtype="int32", device="TINYTPU") * 2) * 3).numpy()
+    np.testing.assert_array_equal(result, a * 6)
+
+  def test_float32_5elem_scalar_fclip_max0_matches_reference(self):
+    a = np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").maximum(0.0).numpy()
+    np.testing.assert_allclose(result, np.maximum(a, 0.0), rtol=1e-5)
+
+  def test_float32_5elem_scalar_fmin0_matches_reference(self):
+    a = np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").minimum(0.0).numpy()
+    np.testing.assert_allclose(result, np.minimum(a, 0.0), rtol=1e-5)
+
+  def test_bool_3elem_cast_int_add_matches_reference(self):
+    a = np.array([True, False, True], dtype=bool)
+    result = (Tensor(a, dtype="bool", device="TINYTPU").cast("int32") + 1).numpy()
+    np.testing.assert_array_equal(result, a.astype(np.int32) + 1)
+
+  def test_int32_bool_where_4elem_matches_reference(self):
+    cond = np.array([True, False, True, False])
+    a = np.array([1, 2, 3, 4], dtype=np.int32)
+    b = np.array([10, 20, 30, 40], dtype=np.int32)
+    result = Tensor(cond, dtype="bool", device="TINYTPU").where(
+      Tensor(a, dtype="int32", device="TINYTPU"),
+      Tensor(b, dtype="int32", device="TINYTPU"),
+    ).numpy()
+    np.testing.assert_array_equal(result, np.where(cond, a, b))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
