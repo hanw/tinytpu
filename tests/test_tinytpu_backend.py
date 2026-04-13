@@ -801,6 +801,17 @@ class TestTinyTPUBackend(unittest.TestCase):
     with self.assertRaises(NotImplementedError):
       Tensor([0.0, 1.0, 2.0], dtype="float", device="TINYTPU").sin().numpy()
 
+  def test_fdiv_3x3_matches_reference(self):
+    a = np.arange(1, 10, dtype=np.float32).reshape(3, 3)
+    b = np.full((3, 3), 2.0, dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") / Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a / b, rtol=1e-3)
+
+  def test_fdiv_3x3_scalar_matches_reference(self):
+    a = np.arange(1, 10, dtype=np.float32).reshape(3, 3)
+    result = (Tensor(a, dtype="float", device="TINYTPU") / 2.0).numpy()
+    np.testing.assert_allclose(result, a / 2.0, rtol=1e-3)
+
   def test_fdiv_tensor_tensor_signed_matches_reference(self):
     a = np.array([8.0, -6.0, 12.0, -4.0], dtype=np.float32)
     b = np.array([2.0, -3.0, -4.0, 2.0], dtype=np.float32)
