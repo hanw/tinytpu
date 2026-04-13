@@ -333,3 +333,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	8619c82	1	Scalar-numerator fdiv (c/x)	FRECIP+FMUL when src_params=1+RECIPROCAL	pytest backend: 546 passed	c/x fixed	fclip chain broken
 2026-04-12	fe4ea03	3	Legacy descriptor: IDIV/MOD SXU + HOST_BINARY delete	Scalar-const IDIV/MOD now SXU_PROGRAM, HOST_BINARY dead code removed	pytest backend: 547 passed	Milestone 2 progress + Milestone 4 done	3 pre-existing colbc regressions
 2026-04-12	ffe4d01	1	Legacy descriptor: bool cast SXU	bool->int32 cast emits COPY via SXU_PROGRAM	pytest backend: 547 passed	Milestone 2 near-done	3 pre-existing colbc regressions
+2026-04-12	a208ba7	2	Legacy: RECIPROCAL + tensor-tensor IDIV/MOD	RECIPROCAL via FRECIP SXU; divmod renderer extended to 2-param tt case	pytest backend: 547 passed	Milestone 2 + 5 progress	3 pre-existing colbc regressions
