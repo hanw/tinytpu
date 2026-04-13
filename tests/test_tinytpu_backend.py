@@ -3737,6 +3737,29 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") + Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, a + b, rtol=1e-5)
 
+  def test_float32_3elem_fsub_tt_matches_reference(self):
+    a = np.array([5.0, 6.0, 7.0], dtype=np.float32)
+    b = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") - Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a - b, rtol=1e-5)
+
+  def test_float32_3elem_fmul_tt_matches_reference(self):
+    a = np.array([5.0, 6.0, 7.0], dtype=np.float32)
+    b = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a * b, rtol=1e-5)
+
+  def test_float32_3elem_fdiv_tt_matches_reference(self):
+    a = np.array([6.0, 8.0, 10.0], dtype=np.float32)
+    b = np.array([2.0, 2.0, 2.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") / Tensor(b, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, a / b, rtol=1e-5)
+
+  def test_int32_6elem_i2f_matches_reference(self):
+    a = np.array([1, 2, 3, 4, 5, 6], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").cast("float").numpy()
+    np.testing.assert_allclose(result, a.astype(np.float32), rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
