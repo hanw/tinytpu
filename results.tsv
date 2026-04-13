@@ -340,3 +340,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	3578ab0	1	Legacy cleanup: rename wrapper	_render_legacy_descriptor -> _render_gemm_fallback_sxu_program	pytest backend: 547 passed	naming accurate after migration	3 pre-existing colbc regressions
 2026-04-12	17bd003	1	Scalar-broadcast SUB fix	colbc SUB operand order + ADD(x,MUL(-1)) detection	pytest backend: 561 passed	none	2 pre-existing lowering_dump primitive-name regressions
 2026-04-12	cd3d709	1	Scalar-broadcast descriptor fix	colbc rejects nrows=1 so BROADCAST_SCALAR handles it	pytest backend: 562 passed	none	1 pre-existing lowering_dump row-broadcast-bias regression
+2026-04-12	cc48a65	1	Row vs col bias classifier	addr/CONST-idx correlation for chunk==1 bias case	pytest backend: 563 passed	3 pre-existing regressions cleared	none
