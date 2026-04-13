@@ -4439,6 +4439,10 @@ class TestTinyTPUBackend(unittest.TestCase):
   def test_int32_2x3_zeros_matches_reference(self):
     np.testing.assert_array_equal(Tensor.zeros((2, 3), dtype="int32", device="TINYTPU").numpy(), np.zeros((2, 3), dtype=np.int32))
 
+  def test_float32_4x4_transpose_matches_reference(self):
+    a = np.arange(16, dtype=np.float32).reshape(4, 4)
+    np.testing.assert_allclose(Tensor(a, dtype="float", device="TINYTPU").permute(1, 0).numpy(), a.T, rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
