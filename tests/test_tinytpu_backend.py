@@ -332,6 +332,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") - 1.0).numpy()
     np.testing.assert_allclose(result, a - 1.0, rtol=1e-5)
 
+  def test_fsub_scalar_const_4x4_matches_reference(self):
+    a = np.arange(16, dtype=np.float32).reshape(4, 4)
+    result = (Tensor(a, dtype="float", device="TINYTPU") - 1.0).numpy()
+    np.testing.assert_allclose(result, a - 1.0, rtol=1e-5)
+
   def test_fsub_scalar_const_three_tile_matches_reference(self):
     a = np.arange(48, dtype=np.float32)
     result = (Tensor(a, dtype="float", device="TINYTPU") - 2.5).numpy()
