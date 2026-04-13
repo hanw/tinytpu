@@ -81,6 +81,15 @@ Expected output for each investigated workload:
 - The exact missing instruction sequence, lowering rule, or hardware capability
 - The chosen fix location: tinygrad software or TinyTPU hardware
 
+After any successful model or workload run, explicitly check ISA support sufficiency:
+
+- Did the workload run end to end on `TINYTPU` without host fallback?
+- Did lowering use direct primitives or short regular SXU programs instead of large analyzer special-cases?
+- Did any unsupported path, `UNSUPPORTED` descriptor, or simulator-side software convention appear?
+- Did the generated bundle count and instruction mix look structurally reasonable for the workload?
+
+If the answer to any of these is "no", record the exact missing primitive, lowering gap, or hardware contract in `TODO.md`. Do not treat "model ran" as equivalent to "ISA support is sufficient".
+
 ## Implementation Rules
 
 - Prefer test-driven expansion: add or tighten a failing test before the fix when practical.
