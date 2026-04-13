@@ -321,3 +321,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	a7a0b1a	1	Positive scalar fadd mt	x+5.0 32-elem	pytest backend: 532 passed	none	fclip chain broken
 2026-04-12	a6f95d2	1	fsub -c mt	x-(-3.0) 32-elem	pytest backend: 533 passed	none	fclip chain broken
 2026-04-12	cdfb818	1	Fwhere signed rhs mt	32-elem lhs/-lhs	pytest backend: 534 passed	none	fclip chain broken
+2026-04-12	9facf40	1	Signed 3-tile fadd tt	48-elem signed	pytest backend: 535 passed	none	fclip chain broken
