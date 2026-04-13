@@ -378,3 +378,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	31b167c	9	Abs/bitwise coverage	fabs 7/11 2D iabs fabs bitwise 5/7/11	pytest backend: 746 passed	none	none
 2026-04-12	8678ba0	10	Bitwise+isub_c length coverage	3/17 or/and/xor_c + 7/11/20/31 isub_c	pytest backend: 756 passed	none	none
 2026-04-12	078782b	4	Fsub_c length coverage	3/7/20/31-elem	pytest backend: 760 passed	none	none
+2026-04-12	3e06b02	1	Fclip silent-wrong-result fix	reject chained MAX in float min-const renderer	pytest backend: 759 passed	none	No multistep clip lowering yet
