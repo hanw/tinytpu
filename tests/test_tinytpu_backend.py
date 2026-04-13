@@ -1150,6 +1150,15 @@ class TestTinyTPUBackend(unittest.TestCase):
                           Tensor(rhs, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, np.where(cond, lhs, rhs), rtol=1e-5)
 
+  def test_fwhere_signed_rhs_multi_tile_matches_reference(self):
+    cond = np.array([True, False, True, False] * 8)
+    lhs = np.arange(32, dtype=np.float32)
+    rhs = -np.arange(32, dtype=np.float32)
+    result = Tensor.where(Tensor(cond, device="TINYTPU"),
+                          Tensor(lhs, dtype="float", device="TINYTPU"),
+                          Tensor(rhs, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, np.where(cond, lhs, rhs), rtol=1e-5)
+
   def test_fwhere_multi_tile_matches_reference(self):
     cond = np.array([True, False] * 16)
     lhs = np.arange(32, dtype=np.float32)
