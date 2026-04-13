@@ -3502,6 +3502,31 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").min(axis=0).numpy()
     np.testing.assert_array_equal(result, a.min(axis=0))
 
+  def test_int32_2x3_rowprod_matches_reference(self):
+    a = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").prod(axis=1).numpy()
+    np.testing.assert_array_equal(result, a.prod(axis=1))
+
+  def test_int32_2x3_colprod_matches_reference(self):
+    a = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").prod(axis=0).numpy()
+    np.testing.assert_array_equal(result, a.prod(axis=0))
+
+  def test_int32_2x2x2_scalar_sum_matches_reference(self):
+    a = np.arange(8, dtype=np.int32).reshape(2, 2, 2)
+    result = Tensor(a, dtype="int32", device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, a.sum())
+
+  def test_float32_2x2_negative_scalar_const_fmul_matches_reference(self):
+    a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") * -3.0).numpy()
+    np.testing.assert_allclose(result, a * -3.0, rtol=1e-5)
+
+  def test_float32_6elem_rev_fsub_matches_reference(self):
+    a = np.arange(6, dtype=np.float32)
+    result = (2.0 - Tensor(a, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, 2.0 - a, rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
