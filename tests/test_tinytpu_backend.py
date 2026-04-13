@@ -3527,6 +3527,27 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (2.0 - Tensor(a, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, 2.0 - a, rtol=1e-5)
 
+  def test_float32_7elem_rev_fadd_matches_reference(self):
+    a = np.arange(7, dtype=np.float32)
+    result = (5.0 + Tensor(a, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, 5.0 + a, rtol=1e-5)
+
+  def test_float32_2x3_fcmplt_scalar_const_matches_reference(self):
+    a = np.arange(6, dtype=np.float32).reshape(2, 3)
+    result = (Tensor(a, dtype="float", device="TINYTPU") < 3.0).numpy()
+    np.testing.assert_array_equal(result, a < 3.0)
+
+  def test_int32_40elem_and_tt_matches_reference(self):
+    a = np.arange(40, dtype=np.int32)
+    b = np.full(40, 0xF, dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") & Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a & b)
+
+  def test_int32_3elem_shl_by_three_matches_reference(self):
+    a = np.array([1, 2, 3], dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") << 3).numpy()
+    np.testing.assert_array_equal(result, a << 3)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
