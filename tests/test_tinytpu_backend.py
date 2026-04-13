@@ -2230,6 +2230,39 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor([10], dtype="int32", device="TINYTPU") - Tensor(data, device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, 10 - data)
 
+  def test_cmplt_column_broadcast_4x1_to_4x4_matches_reference(self):
+    lhs = (np.arange(16, dtype=np.int32) - 4).reshape(4, 4)
+    rhs = np.array([[-2], [0], [2], [4]], dtype=np.int32)
+    result = (Tensor(lhs, dtype="int32", device="TINYTPU") <
+              Tensor(rhs, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, lhs < rhs)
+
+  def test_post_run_review_model_matches_reference(self):
+    np.random.seed(7)
+    x = np.random.randint(-3, 4, size=(4, 4), dtype=np.int32)
+    w = np.random.randint(-2, 3, size=(4, 4), dtype=np.int32)
+    b = np.random.randint(-1, 2, size=(4,), dtype=np.int32)
+    th = np.random.randint(-2, 3, size=(4, 1), dtype=np.int32)
+
+    y = (Tensor(x, dtype="int32", device="TINYTPU") @
+         Tensor(w, dtype="int32", device="TINYTPU") +
+         Tensor(b, dtype="int32", device="TINYTPU")).relu().realize()
+    mask = (y < Tensor(th, dtype="int32", device="TINYTPU"))
+    sel = mask.where(y, y * 2).realize()
+    row_sum = sel.sum(axis=1).numpy()
+    col_max = sel.max(axis=0).numpy()
+    tile_min = sel.min().numpy()
+
+    y_np = np.maximum(x @ w + b, 0)
+    mask_np = y_np < th
+    sel_np = np.where(mask_np, y_np, y_np * 2)
+    np.testing.assert_array_equal(y.numpy(), y_np)
+    np.testing.assert_array_equal(mask.numpy(), mask_np)
+    np.testing.assert_array_equal(sel.numpy(), sel_np)
+    np.testing.assert_array_equal(row_sum, sel_np.sum(axis=1))
+    np.testing.assert_array_equal(col_max, sel_np.max(axis=0))
+    np.testing.assert_array_equal(tile_min, int(sel_np.min()))
+
   def test_mul_2d_4x4_tensor_tensor_matches_reference(self):
     a = np.arange(16, dtype=np.int32).reshape(4, 4)
     b = (np.arange(16, dtype=np.int32) + 1).reshape(4, 4)
@@ -3173,6 +3206,28 @@ class TestTinyTPUBackend(unittest.TestCase):
       self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
       self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("primitive") == "BROADCAST_SCALAR" and any(instr.startswith("2 9 ") for instr in r.get("instructions", [])) for r in records), records)
+
+  def test_lowering_dump_records_column_broadcast_compare_as_sxu_program(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          import numpy as np
+          from tinygrad import Tensor
+          lhs = Tensor((np.arange(16, dtype=np.int32) - 4).reshape(4, 4), dtype="int32", device="TINYTPU")
+          rhs = Tensor(np.array([[-2], [0], [2], [4]], dtype=np.int32), dtype="int32", device="TINYTPU")
+          print((lhs < rhs).numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("primitive") == "BROADCAST_COL" and any(instr.startswith("2 11 ") for instr in r.get("instructions", [])) for r in records), records)
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):

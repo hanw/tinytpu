@@ -72,6 +72,9 @@ sim tests.
 - [x] Add runtime tests for VMEM preload/output protocol
 - [ ] Improve trace output for VPU-only programs
 - [x] Document bundle records for VMEM input/output
+- [ ] Fuse GEMM epilogues in model runs
+  - Post-run review on `scripts/models/cnn_4_8_8_4.py` showed the model runs end to end without host fallback or `UNSUPPORTED`, but each layer still lowers as `MXU -> LOAD bias -> VPU ADD -> VPU RELU -> STORE` rather than a first-class fused `matmul + bias + relu` epilogue path.
+  - Add a direct runtime/compiler path so model kernels stop depending on separate bias-load and VPU epilogue instructions after every MXU tile.
 
 ### General Elementwise Scalar/Tile Support: 30-60 iterations
 
@@ -90,6 +93,10 @@ sim tests.
   - [x] Add explicit SXU/XLU broadcast opcodes (scalar/row/col)
   - [x] Migrate scalar broadcast binary ops to SXU_PROGRAM via `BROADCAST_SCALAR`
 - [x] Size-1 axis broadcasting (scalar-expand via BROADCAST_SCALAR; row-expand via BROADCAST_ROW for unrolled shapes)
+- [x] Column-broadcast compare/select lowering for tinygrad workloads
+  - `(4,4) < (4,1)` now lowers through `SXU_PROGRAM` with the `BROADCAST_COL` primitive instead of falling through to `UNSUPPORTED`.
+  - The post-run review model path `mask.where(y, y * 2)` now closes through a dedicated single-tile `BROADCAST_COL_SELECT` SXU program when the compare and select stay fused in one kernel.
+  - Follow-up: a separately realized bool mask still exposes a different mixed bool/int32 arithmetic gap in the generic `VPU_BINARY` path; keep that as a distinct issue rather than regressing the fused review-model path.
 - [x] Arbitrary shapes with `numel <= 16` (1D/2D/nD elementwise + reshape/slice/expand covered by copy + elementwise renderers)
   - [x] Shape-preserving 2x2 elementwise coverage for supported VPU ops
 - [x] Multi-tile elementwise loops for `numel > 16`
