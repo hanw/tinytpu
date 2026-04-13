@@ -3628,6 +3628,31 @@ class TestTinyTPUBackend(unittest.TestCase):
     ).numpy()
     np.testing.assert_array_equal(result, np.where(cond, a, b))
 
+  def test_float32_fabs_three_negative_only_matches_reference(self):
+    a = np.array([-3.0, -2.0, -1.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").abs().numpy()
+    np.testing.assert_allclose(result, np.abs(a), rtol=1e-5)
+
+  def test_int32_iabs_6elem_signed_matches_reference(self):
+    a = np.array([-3, -2, -1, 1, 2, 3], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.abs(a))
+
+  def test_float32_frecip_2x2_matches_reference(self):
+    a = np.array([[1.0, 2.0], [4.0, 5.0]], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
+    np.testing.assert_allclose(result, 1.0 / a, rtol=1e-5)
+
+  def test_float32_fneg_2x2_matches_reference(self):
+    a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    result = (-Tensor(a, dtype="float", device="TINYTPU")).numpy()
+    np.testing.assert_allclose(result, -a, rtol=1e-5)
+
+  def test_int32_iabs_8elem_mixed_signs_matches_reference(self):
+    a = np.array([-4, -3, -2, -1, 0, 1, 2, 3], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").abs().numpy()
+    np.testing.assert_array_equal(result, np.abs(a))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
