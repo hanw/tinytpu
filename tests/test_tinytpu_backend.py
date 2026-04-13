@@ -3361,6 +3361,12 @@ class TestTinyTPUBackend(unittest.TestCase):
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
       self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("primitive") == "BROADCAST_COL" and any(instr.startswith("2 11 ") for instr in r.get("instructions", [])) for r in records), records)
 
+  def test_int32_3d_add_matches_reference(self):
+    a = np.arange(24, dtype=np.int32).reshape(2, 3, 4)
+    b = np.ones((2, 3, 4), dtype=np.int32)
+    result = (Tensor(a, dtype="int32", device="TINYTPU") + Tensor(b, dtype="int32", device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, a + b)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
