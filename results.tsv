@@ -347,3 +347,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-12	ff069a3	1	Rowmin 3x4 test	min axis=1 over 3x4	pytest backend: 567 passed	none	none
 2026-04-12	78e8451	1	F2I three-tile mixed test	signed 48-elem F2I cast	pytest backend: 568 passed	none	none
 2026-04-12	7e7de6e	1	Bool XOR 2D test	2x2 bool xor	pytest backend: 569 passed	none	none
+2026-04-12	9fbbb42	1	Fmin tt three-tile test	48-elem tensor-tensor fmin	pytest backend: 570 passed	none	none
