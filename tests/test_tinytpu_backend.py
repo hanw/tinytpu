@@ -4449,6 +4449,11 @@ class TestTinyTPUBackend(unittest.TestCase):
   def test_bool_ones_matches_reference(self):
     np.testing.assert_array_equal(Tensor.ones(4, dtype="bool", device="TINYTPU").numpy(), np.ones(4, dtype=bool))
 
+  def test_bool_where_scalar_consts_matches_reference(self):
+    cond = np.array([True, False, True, False])
+    result = Tensor(cond, dtype="bool", device="TINYTPU").where(1, 0).numpy()
+    np.testing.assert_array_equal(result, np.where(cond, 1, 0))
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
