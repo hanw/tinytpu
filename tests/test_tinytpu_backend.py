@@ -1017,6 +1017,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") < 0.0).numpy()
     np.testing.assert_array_equal(result, a < 0.0)
 
+  def test_fcmplt_scalar_const_3x3_matches_reference(self):
+    a = np.arange(9, dtype=np.float32).reshape(3, 3)
+    result = (Tensor(a, dtype="float", device="TINYTPU") < 4.0).numpy()
+    np.testing.assert_array_equal(result, a < 4.0)
+
   def test_fcmplt_2d_matches_reference(self):
     a = np.array([[1.0, 5.0], [3.0, 0.0]], dtype=np.float32)
     b = np.array([[2.0, 2.0], [2.0, 2.0]], dtype=np.float32)
