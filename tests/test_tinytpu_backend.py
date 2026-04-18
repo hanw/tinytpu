@@ -4523,6 +4523,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").maximum(0).minimum(5).numpy()
     np.testing.assert_array_equal(result, np.clip(a, 0, 5))
 
+  def test_bool_not_2x2_matches_reference(self):
+    data = np.array([[True, False], [False, True]])
+    result = (~Tensor(data, device="TINYTPU")).numpy()
+    np.testing.assert_array_equal(result, ~data)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
