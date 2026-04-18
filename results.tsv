@@ -395,3 +395,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-13	7742f90	3	Reduction edge-case coverage	size-1 sum all-neg max 3D sum-all	pytest backend: 789 passed	none	none
 2026-04-13	3af50b3	1	Reduce+const post-op	reduce+scalar-const lowers in one kernel	pytest backend: 790 passed	none	none
 2026-04-13	ff39f67	1	Int clip chain	max(c).min(c) lowers via chain renderer	pytest backend: 791 passed	none	none
+2026-04-18	22fa9c8	1	Bool NOT 2x2 coverage	2x2 shape	pytest backend: 792 passed	none	none
