@@ -407,3 +407,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-18	3bc77bc	1	Reduce+const post-op for MAX	max() + const now lowers	pytest backend: 801 passed	none	none
 2026-04-18	3524ed0	1	min+const post-op	min() + const works after fix	pytest backend: 802 passed	none	none
 2026-04-18	c8fb716	1	sum*const post-op	sum() * const post-op	pytest backend: 803 passed	none	none
+2026-04-18	9f9d629	1	prod+const post-op	prod() + const	pytest backend: 804 passed	none	none
