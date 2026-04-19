@@ -412,3 +412,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-18	e985306	1	Float sum() end-to-end	FSUM_REDUCE_TILE opcode wired in tasm + renderer + tests	pytest backend: 808 passed	float reducer primitive available	float max/min/prod reducer opcodes
 2026-04-18	e5fd0b5	1	VPU_FMAX_REDUCE_TILE hardware	float tile-max opcode	make test-vpu: 33/33	second float reducer available	tinygrad wiring + FMIN reducer
 2026-04-18	ce63210	1	Float max() end-to-end	FMAX_REDUCE_TILE wired + -inf pad + tests	pytest backend: 811 passed	float max() supported	FMIN reducer
+2026-04-18	41e66ed	1	VPU_FMIN_REDUCE_TILE hardware	float tile-min opcode	make test-vpu: 34/34; runtime build 1:45	third float reducer available	tinygrad wiring
