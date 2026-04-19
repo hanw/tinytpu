@@ -425,3 +425,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	bf1f0f3	1	Float row/col min via negation rewrite	shared helper applied in scalar/row/col renderers	pytest backend: 824 passed	full float min axis support	float prod reducers
 2026-04-19	871df53	1	Float prod tile reducer	FPR_PROD in FpReducer + VPU_FPROD_REDUCE_TILE + tinygrad lowering	pytest backend: 826 passed; vpu 42/42; runtime build 1:40	float prod scalar reduction	float prod row/col
 2026-04-19	6057b46	1	Float prod row/col reducers	FPROD_REDUCE + FPROD_REDUCE_COL hardware + tinygrad + detect fix	pytest backend: 828 passed; vpu 44/44; runtime build 1:48	float prod axis support	more hw capability gaps
+2026-04-19	f133cfa	1	PAD primitive (small unrolled)	PAD_FILL renderer; 1D pad tests	pytest backend: 830 passed	movement op gap narrowing	VECTORIZE-based pads; multi-tile pad
