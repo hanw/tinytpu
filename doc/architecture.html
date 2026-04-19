@@ -754,9 +754,19 @@ program doesn't demand their result.
   <path class="dpc" d="M880,185 L880,205"/>
   <text class="label" x="888" y="200" fill="#d2a8ff">SXU_LOAD_MXU_RESULT</text>
 
-  <!-- HBM ↔ VMEM (VMEM is the bottom storage row, adjacent to HBM). -->
+  <!-- HBM connects to every tile-sized store inside the core:
+         - VMEM (short vertical pair, directly above HBM)
+         - WeightSRAM + ActivSRAM (via a preload bus in the gutter at x=220
+           so it clears VMEM and the weights/activations feed curves).
+       Drawn as plain control edges since these are DMA-style preloads,
+       not per-tick engine reads. -->
+  <!-- HBM ↔ VMEM -->
   <path class="dp" d="M140,430 L140,400"/>
   <path class="dp" d="M130,400 L130,430"/>
+  <!-- HBM → WeightSRAM / ActivSRAM preload bus -->
+  <path class="dp" d="M220,430 L220,230 L200,230"/>
+  <path class="dp" d="M220,300 L200,300"/>
+  <text class="label" x="228" y="410" fill="#8b949e">preload</text>
 
   <!-- NoC connects the tensor cores -->
   <path class="dp" d="M240,465 L270,465"/>
