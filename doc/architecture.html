@@ -683,32 +683,39 @@ program doesn't demand their result.
   </g>
 
   <!-- =============== EDGES =============== -->
+  <!-- Dispatch and read buses enter each engine at OFFSET y-positions on
+       the left edge, so the gray dispatch arrow and the green vreg-input
+       arrow don't stack on top of each other. Convention:
+         dispatch  → engine_top + 15  (upper part of left edge)
+         vs / vs2  → engine_top + 35  (lower part of left edge)
+  -->
+
   <!-- Dispatch bus: single vertical line from SXU bar down the left side
-       of the engine column, with one tee per engine. TinyTPU has one SXU;
-       drawing one bus (instead of four SEQ stubs) reflects that. -->
-  <path class="dp" d="M260,98 L260,370"/>
-  <path class="dp" d="M260,160 L300,160"/>
-  <path class="dp" d="M260,230 L300,230"/>
-  <path class="dp" d="M260,300 L300,300"/>
-  <path class="dp" d="M260,370 L300,370"/>
+       of the engine column, with one tee per engine at the UPPER entry. -->
+  <path class="dp" d="M260,98 L260,360"/>
+  <path class="dp" d="M260,150 L300,150"/>
+  <path class="dp" d="M260,220 L300,220"/>
+  <path class="dp" d="M260,290 L300,290"/>
+  <path class="dp" d="M260,360 L300,360"/>
   <text class="label" x="266" y="130">dispatch</text>
 
-  <!-- Read bus for VRegFile → VPU / FpReducer / XLU. Short stub from
-       VRegFile right edge down to a vertical bus just left of the engines,
-       then tees into the three consuming engines. (MXU does not read
-       VRegFile directly.) -->
-  <path class="dph" d="M200,160 L280,160"/>
-  <path class="dph" d="M280,160 L280,370"/>
-  <path class="dph" d="M280,230 L300,230"/>
-  <path class="dph" d="M280,300 L300,300"/>
-  <path class="dph" d="M280,370 L300,370"/>
+  <!-- Read bus for VRegFile → VPU / FpReducer / XLU, offset so the green
+       arrow enters each engine at the LOWER part of its left edge. Short
+       stub from VRegFile's right edge down to the bus, then tees into the
+       three consuming engines (MXU does not read VRegFile directly). -->
+  <path class="dph" d="M200,170 L280,170"/>
+  <path class="dph" d="M280,170 L280,380"/>
+  <path class="dph" d="M280,240 L300,240"/>
+  <path class="dph" d="M280,310 L300,310"/>
+  <path class="dph" d="M280,380 L300,380"/>
   <text class="label" x="285" y="398" fill="#7ee787">vs / vs2</text>
 
   <!-- MXU Int8 operand feeds: short diagonals from WeightSRAM and
-       ActivSRAM directly into MXU's row. -->
-  <path class="dph" d="M200,225 C240,210 260,180 300,160"/>
+       ActivSRAM into MXU's LOWER entry (~y=175), so they don't overlap
+       with the dispatch tee at y=150. -->
+  <path class="dph" d="M200,225 C240,210 270,190 300,175"/>
   <text class="label" x="204" y="218" fill="#7ee787">weights</text>
-  <path class="dph" d="M200,285 C250,250 270,185 300,165"/>
+  <path class="dph" d="M200,285 C250,260 275,195 300,180"/>
   <text class="label" x="204" y="278" fill="#7ee787">activations</text>
 
   <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) along the outer edge. -->
