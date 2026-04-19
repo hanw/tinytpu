@@ -464,11 +464,15 @@ ratio — the top ones would most change what TinyTPU can run.
       (b) a dedicated transcendental unit next to the VPU, (c) a tiny
       programmable SIMD lane (RISC-V style). (a) is the natural first
       iteration.
-- [ ] **Predicate register + `SKIP_IF_ZERO` (baby `IF` / `BARRIER`).**
-      Straight-line SXU means no masked writes, no early exits, no
-      conditional epilogues. A single 1-bit predicate and a skip
-      instruction is a cheap step toward the larger `BARRIER` / `IF`
-      / `ENDIF` gap.
+- [x] **Predicate register + `SKIP_IF_ZERO` (baby `IF` / `BARRIER`).**
+      Landed. `src/ScalarUnit.bsv` gains a 1-bit `pred` Reg plus two
+      opcodes: `SXU_SET_PRED_IF_ZERO` (opcode 20, pred := vreg[0][0]
+      == 0) and `SXU_SKIP_IF_PRED` (opcode 21, advances pc by 2 when
+      pred is set and auto-resets pred). TASM opcode table and Python
+      wire helpers (`_set_pred_if_zero`, `_skip_if_pred`) landed;
+      runtime sim tests cover both skip-taken and skip-not-taken
+      paths. No tinygrad renderer is emitting these yet — they're
+      infrastructure for future BARRIER / IF / ENDIF work.
 - [ ] **Output-stationary dataflow mode on MXU.** Second mode (in
       addition to weight-stationary) for depthwise conv / batched
       inputs with shared weights. Same systolic silicon, different
