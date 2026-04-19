@@ -12,7 +12,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_MUL_REDUCE, VPU_MUL_REDUCE_COL, VPU_MUL_REDUCE_TILE,
                VPU_FSUM_REDUCE_TILE, VPU_FMAX_REDUCE_TILE, VPU_FMIN_REDUCE_TILE,
                VPU_FMIN,
-               VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE }
+               VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE,
+               VPU_FSUM_REDUCE_COL, VPU_FMAX_REDUCE_COL, VPU_FMIN_REDUCE_COL }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -113,6 +114,41 @@ function Int#(32) lane_prod(Vector#(lanes, Int#(32)) row)
    return acc;
 endfunction
 
+// Float sequential reducers over `n` Int#(32) bit patterns reinterpreted
+// as IEEE 754 floats. Using helper functions keeps the FP adders and
+// comparators in one place so bsc elaborates them once and they are
+// shared between the row-reducer (per-sublane) and col-reducer
+// (per-column) paths.
+function Float lane_fsum(Vector#(n, Int#(32)) vec)
+   provisos(Add#(1, n_, n));
+   Float acc = unpack(32'h00000000);  // +0.0
+   for (Integer i = 0; i < valueOf(n); i = i + 1)
+      acc = tpl_1(addFP(acc, bits2fp(vec[i]), Rnd_Nearest_Even));
+   return acc;
+endfunction
+
+function Float lane_fmax(Vector#(n, Int#(32)) vec)
+   provisos(Add#(1, n_, n));
+   Float acc = bits2fp(vec[0]);
+   for (Integer i = 1; i < valueOf(n); i = i + 1) begin
+      Float b = bits2fp(vec[i]);
+      let cmp = compareFP(acc, b);
+      acc = (cmp == GT || cmp == EQ) ? acc : b;
+   end
+   return acc;
+endfunction
+
+function Float lane_fmin(Vector#(n, Int#(32)) vec)
+   provisos(Add#(1, n_, n));
+   Float acc = bits2fp(vec[0]);
+   for (Integer i = 1; i < valueOf(n); i = i + 1) begin
+      Float b = bits2fp(vec[i]);
+      let cmp = compareFP(acc, b);
+      acc = (cmp == LT || cmp == EQ) ? acc : b;
+   end
+   return acc;
+endfunction
+
 module mkVPU(VPU_IFC#(sublanes, lanes))
    provisos(
       Add#(1, s_, sublanes),
@@ -182,6 +218,23 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
          col_max[l] = cmax;
          col_min[l] = cmin;
          col_prod[l] = cprod;
+      end
+
+      // Float per-column reductions. Computed unconditionally (like the
+      // integer variants above) so each FP adder/comparator cone is
+      // elaborated once, not re-elaborated per case branch. One col_f*
+      // helper call per column; the helpers themselves (lane_fsum etc.)
+      // are shared between row and col paths.
+      Vector#(lanes, Int#(32)) col_fsum = newVector;
+      Vector#(lanes, Int#(32)) col_fmax = newVector;
+      Vector#(lanes, Int#(32)) col_fmin = newVector;
+      for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+         Vector#(sublanes, Int#(32)) colv = newVector;
+         for (Integer sc = 0; sc < valueOf(sublanes); sc = sc + 1)
+            colv[sc] = src1[sc][l];
+         col_fsum[l] = unpack(pack(lane_fsum(colv)));
+         col_fmax[l] = unpack(pack(lane_fmax(colv)));
+         col_fmin[l] = unpack(pack(lane_fmin(colv)));
       end
       // Full-tile reductions: reduce the per-column reductions across lanes.
       Int#(32) tile_sum = 0;
@@ -448,6 +501,20 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                   end
                Int#(32) bits = fp2bits(level[0]);
                for (Integer l = 0; l < n; l = l + 1) row[l] = bits;
+            end
+            // Float column reductions: just index the precomputed col_f*
+            // vectors. The FP arithmetic happens above, unconditionally.
+            VPU_FSUM_REDUCE_COL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = col_fsum[l];
+            end
+            VPU_FMAX_REDUCE_COL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = col_fmax[l];
+            end
+            VPU_FMIN_REDUCE_COL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = col_fmin[l];
             end
          endcase
          res[s] = row;

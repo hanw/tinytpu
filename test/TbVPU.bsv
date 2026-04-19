@@ -986,6 +986,98 @@ module mkTbVPU();
       end
    endrule
 
+   // --- Float column reductions (single-cycle, hoisted pre-compute) ---
+
+   // Test 39: VPU_FSUM_REDUCE_COL. Fill (r,c) = 1.0; each column sum = 4.0.
+   rule dispatch_fsum_reduce_col (cycle == 78);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(unpack(32'h3F800000)));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      vpu.execute(VPU_FSUM_REDUCE_COL, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FSUM_REDUCE_COL", cycle);
+   endrule
+
+   rule check_fsum_reduce_col (cycle == 79);
+      let res = vpu.result;
+      Bit#(32) expected = 32'h40800000;  // 4.0
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            if (pack(res[r][c]) != expected) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FSUM_REDUCE_COL", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FSUM_REDUCE_COL got [0][0]=0x%08x", cycle, pack(res[0][0]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 40: VPU_FMAX_REDUCE_COL.
+   // col0 = [1.0, 2.0, 3.0, 4.0] -> max 4.0; col1 = [4,3,2,1] -> 4.0;
+   // col2/3 = 0 -> max 0.0.
+   rule dispatch_fmax_reduce_col (cycle == 80);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      Bit#(32) fbits[4] = {32'h3F800000, 32'h40000000, 32'h40400000, 32'h40800000};
+      for (Integer r = 0; r < 4; r = r + 1) begin
+         s1[r][0] = unpack(fbits[r]);
+         s1[r][1] = unpack(fbits[3 - r]);
+      end
+      vpu.execute(VPU_FMAX_REDUCE_COL, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FMAX_REDUCE_COL", cycle);
+   endrule
+
+   rule check_fmax_reduce_col (cycle == 81);
+      let res = vpu.result;
+      Bit#(32) e01 = 32'h40800000;      // 4.0
+      Bit#(32) e23 = 32'h00000000;      // +0.0
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1) begin
+         if (pack(res[r][0]) != e01) ok = False;
+         if (pack(res[r][1]) != e01) ok = False;
+         if (pack(res[r][2]) != e23) ok = False;
+         if (pack(res[r][3]) != e23) ok = False;
+      end
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FMAX_REDUCE_COL", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FMAX_REDUCE_COL got [0]=[0x%08x,0x%08x,0x%08x,0x%08x]",
+            cycle, pack(res[0][0]), pack(res[0][1]), pack(res[0][2]), pack(res[0][3]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 41: VPU_FMIN_REDUCE_COL.
+   // col0 = [3,1,4,2] -> min 1.0. Fill other columns with 4.0.
+   rule dispatch_fmin_reduce_col (cycle == 82);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(unpack(32'h40800000)));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h40400000);
+      s1[1][0] = unpack(32'h3F800000);
+      s1[2][0] = unpack(32'h40800000);
+      s1[3][0] = unpack(32'h40000000);
+      vpu.execute(VPU_FMIN_REDUCE_COL, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FMIN_REDUCE_COL", cycle);
+   endrule
+
+   rule check_fmin_reduce_col (cycle == 83);
+      let res = vpu.result;
+      Bit#(32) e0    = 32'h3F800000;  // 1.0
+      Bit#(32) erest = 32'h40800000;  // 4.0
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1) begin
+         if (pack(res[r][0]) != e0) ok = False;
+         for (Integer c = 1; c < 4; c = c + 1)
+            if (pack(res[r][c]) != erest) ok = False;
+      end
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FMIN_REDUCE_COL", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FMIN_REDUCE_COL got [0]=[0x%08x,0x%08x,0x%08x,0x%08x]",
+            cycle, pack(res[0][0]), pack(res[0][1]), pack(res[0][2]), pack(res[0][3]));
+         failed <= failed + 1;
+      end
+   endrule
+
    rule finish (cycle == 180);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
