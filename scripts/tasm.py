@@ -42,6 +42,8 @@ _SXU = {
     "BROADCAST_ROW":          10,
     "BROADCAST_COL":          11,
     "DISPATCH_XLU_TRANSPOSE": 12,
+    "LOAD_VPU_RESULT":        13,
+    "LOAD_XLU_RESULT":        14,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 

@@ -21,7 +21,12 @@ typedef enum {
    SXU_BROADCAST_SCALAR,
    SXU_BROADCAST_ROW,
    SXU_BROADCAST_COL,
-   SXU_DISPATCH_XLU_TRANSPOSE
+   SXU_DISPATCH_XLU_TRANSPOSE,
+   // Generalized engine-to-engine reads. Mirror of SXU_LOAD_MXU_RESULT
+   // for each accumulator column block, so kernels can chain ops
+   // without round-tripping through VRegFile between every step.
+   SXU_LOAD_VPU_RESULT,
+   SXU_LOAD_XLU_RESULT
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -53,7 +58,9 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_HALTED }
+               SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT,
+               SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
+               SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
 module mkScalarUnit#(
@@ -112,6 +119,8 @@ module mkScalarUnit#(
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
+         SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
+         SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -271,6 +280,29 @@ module mkScalarUnit#(
 `endif
       vpu.execute(VPU_SELECT, cond, lhs);
       pc_state <= SXU_EXEC_VPU_COLLECT;
+   endrule
+
+   // LOAD_VPU_RESULT: copy vpu.result directly into vregDst.
+   // Mirror of LOAD_MXU_RESULT for the VPU accumulator. Lets kernels
+   // chain VPU ops into a downstream engine without round-tripping
+   // through VRegFile for writeback+read.
+   rule do_load_vpu_result (pc_state == SXU_EXEC_LOAD_VPU_RESULT && vpu.isDone);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=LOAD_VPU_RESULT pc=%0d dst=v%0d", cycle, pc, curInstr.vregDst);
+`endif
+      vrf.write(truncate(curInstr.vregDst), vpu.result);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // LOAD_XLU_RESULT: copy xlu.result directly into vregDst.
+   rule do_load_xlu_result (pc_state == SXU_EXEC_LOAD_XLU_RESULT);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=LOAD_XLU_RESULT pc=%0d dst=v%0d", cycle, pc, curInstr.vregDst);
+`endif
+      vrf.write(truncate(curInstr.vregDst), xlu.result);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
    endrule
 
    // LOAD_MXU_RESULT: copy ctrl.results (1 row of cols Int#(32)) into row 0 of vregDst
