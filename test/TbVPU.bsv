@@ -8,13 +8,13 @@ module mkTbVPU();
 
    VPU_IFC#(4, 4) vpu <- mkVPU;
 
-   Reg#(UInt#(8)) cycle  <- mkReg(0);
-   Reg#(UInt#(8)) passed <- mkReg(0);
-   Reg#(UInt#(8)) failed <- mkReg(0);
+   Reg#(UInt#(16)) cycle  <- mkReg(0);
+   Reg#(UInt#(8))  passed <- mkReg(0);
+   Reg#(UInt#(8))  failed <- mkReg(0);
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 100) begin $display("FAIL: timeout"); $finish(1); end
+      if (cycle > 300) begin $display("FAIL: timeout"); $finish(1); end
    endrule
 
    // Test 1: VPU_ADD
@@ -770,10 +770,15 @@ module mkTbVPU();
       end
    endrule
 
+   // --- FP tile reducers now go through the multi-cycle shared FpReducer ---
+   // Each takes ~16 FSM cycles for a 16-element reduction + 1 collect cycle,
+   // so we give them a 25-cycle window (dispatch..check) each and keep
+   // them clustered after all single-cycle tests finish at cycle 77.
+
    // Test 32: VPU_FSUM_REDUCE_TILE — float tile sum.
    // Values 1.0..16.0 (as IEEE 754 bit patterns packed into Int#(32)).
    // Expected float sum: 136.0 = 0x43080000.
-   rule dispatch_fsum_reduce_tile (cycle == 64);
+   rule dispatch_fsum_reduce_tile (cycle == 100);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
       Bit#(32) fbits[16] = {
@@ -788,7 +793,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_FSUM_REDUCE_TILE", cycle);
    endrule
 
-   rule check_fsum_reduce_tile (cycle == 65);
+   rule check_fsum_reduce_tile (cycle == 120);
       let res = vpu.result;
       Bit#(32) expected = 32'h43080000;  // 136.0
       Bool ok = True;
@@ -806,7 +811,7 @@ module mkTbVPU();
 
    // Test 33: VPU_FMAX_REDUCE_TILE — float tile max.
    // Values 1.0..16.0 as IEEE 754 bit patterns, expected max = 16.0 = 0x41800000.
-   rule dispatch_fmax_reduce_tile (cycle == 66);
+   rule dispatch_fmax_reduce_tile (cycle == 125);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
       Bit#(32) fbits[16] = {
@@ -821,7 +826,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_FMAX_REDUCE_TILE", cycle);
    endrule
 
-   rule check_fmax_reduce_tile (cycle == 67);
+   rule check_fmax_reduce_tile (cycle == 145);
       let res = vpu.result;
       Bit#(32) expected = 32'h41800000;  // 16.0
       Bool ok = True;
@@ -839,7 +844,7 @@ module mkTbVPU();
 
    // Test 34: VPU_FMIN_REDUCE_TILE — float tile min.
    // Values 1.0..16.0, expected min = 1.0 = 0x3F800000.
-   rule dispatch_fmin_reduce_tile (cycle == 68);
+   rule dispatch_fmin_reduce_tile (cycle == 150);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
       Bit#(32) fbits[16] = {
@@ -854,7 +859,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_FMIN_REDUCE_TILE", cycle);
    endrule
 
-   rule check_fmin_reduce_tile (cycle == 69);
+   rule check_fmin_reduce_tile (cycle == 170);
       let res = vpu.result;
       Bit#(32) expected = 32'h3F800000;  // 1.0
       Bool ok = True;
@@ -981,7 +986,7 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 79);
+   rule finish (cycle == 180);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

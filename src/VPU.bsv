@@ -2,6 +2,7 @@ package VPU;
 
 import Vector :: *;
 import FloatingPoint :: *;
+import FpReducer :: *;
 
 typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE, VPU_DIV, VPU_AND, VPU_OR, VPU_XOR,
                VPU_FADD, VPU_FMUL, VPU_FSUB, VPU_FMAX, VPU_FCMPLT, VPU_FRECIP, VPU_I2F, VPU_F2I,
@@ -70,6 +71,10 @@ interface VPU_IFC#(numeric type sublanes, numeric type lanes);
       Vector#(sublanes, Vector#(lanes, Int#(32))) src2
    );
    method Vector#(sublanes, Vector#(lanes, Int#(32))) result;
+   // True when the most recent dispatch has completed and `result` holds
+   // the final value. Single-cycle ops report done immediately; multi-
+   // cycle float reducers go False during the walk and True on completion.
+   method Bool isDone;
 endinterface
 
 // Sum all lanes in one row: unrolled adder
@@ -112,16 +117,51 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
    provisos(
       Add#(1, s_, sublanes),
       Add#(1, l_, lanes),
+      Add#(1, sl_, TMul#(sublanes, lanes)),
       Bits#(Vector#(sublanes, Vector#(lanes, Int#(32))), vsz)
    );
 
    Reg#(Vector#(sublanes, Vector#(lanes, Int#(32)))) resultReg <- mkRegU;
 
+   // Shared multi-cycle FP reducer for SUM/MAX/MIN across the flattened
+   // tile (row/col variants will feed their vectors through the same unit
+   // in later iterations with caller-supplied identity padding).
+   FpReducer_IFC#(TMul#(sublanes, lanes)) fpr <- mkFpReducer;
+   Reg#(Bool) fp_busy <- mkReg(False);
+
+   // When the reducer signals done, broadcast its scalar across the full
+   // tile and clear the busy flag. SXU waits on isDone before reading.
+   rule fp_collect (fp_busy && fpr.isDone);
+      Int#(32) bits = unpack(pack(fpr.getResult));
+      Vector#(sublanes, Vector#(lanes, Int#(32))) res =
+         replicate(replicate(bits));
+      resultReg <= res;
+      fp_busy <= False;
+   endrule
+
    method Action execute(
       VpuOp op,
       Vector#(sublanes, Vector#(lanes, Int#(32))) src1,
       Vector#(sublanes, Vector#(lanes, Int#(32))) src2
-   );
+   ) if (!fp_busy);
+      // Multi-cycle float tile reducers dispatch through the shared
+      // FpReducer and set fp_busy; the fp_collect rule later writes
+      // resultReg and clears fp_busy. The combinational case block below
+      // runs for everything else.
+      Bool use_fp_tile_reducer =
+             (op == VPU_FSUM_REDUCE_TILE)
+          || (op == VPU_FMAX_REDUCE_TILE)
+          || (op == VPU_FMIN_REDUCE_TILE);
+      if (use_fp_tile_reducer) begin
+         Vector#(TMul#(sublanes, lanes), Int#(32)) flat = newVector;
+         for (Integer sf = 0; sf < valueOf(sublanes); sf = sf + 1)
+            for (Integer lf = 0; lf < valueOf(lanes); lf = lf + 1)
+               flat[sf * valueOf(lanes) + lf] = src1[sf][lf];
+         FpReducerOp frop = (op == VPU_FSUM_REDUCE_TILE) ? FPR_SUM :
+                             (op == VPU_FMAX_REDUCE_TILE) ? FPR_MAX : FPR_MIN;
+         fpr.start(frop, flat);
+         fp_busy <= True;
+      end else begin
       // Per-column reductions across sublanes (rows): one value per column.
       Vector#(lanes, Int#(32)) col_sum = newVector;
       Vector#(lanes, Int#(32)) col_max = newVector;
@@ -365,57 +405,9 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = tile_prod;
             end
-            VPU_FSUM_REDUCE_TILE: begin
-               // Balanced binary reduction tree over all sublanes*lanes entries
-               // (15 adds for sublanes=lanes=4), kept inside the case branch so
-               // the FP adders only elaborate for this opcode.
-               Integer n = valueOf(sublanes) * valueOf(lanes);
-               Vector#(TMul#(sublanes, lanes), Float) level = newVector;
-               for (Integer s = 0; s < valueOf(sublanes); s = s + 1)
-                  for (Integer c = 0; c < valueOf(lanes); c = c + 1)
-                     level[s * valueOf(lanes) + c] = bits2fp(src1[s][c]);
-               for (Integer stride = 1; stride < n; stride = stride * 2)
-                  for (Integer i = 0; i + stride < n; i = i + 2 * stride)
-                     level[i] = tpl_1(addFP(level[i], level[i + stride], Rnd_Nearest_Even));
-               Int#(32) fsum_bits = fp2bits(level[0]);
-               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
-                  row[l] = fsum_bits;
-            end
-            VPU_FMAX_REDUCE_TILE: begin
-               // Balanced binary compareFP tree. Like FSUM, kept inside the
-               // case branch so FP comparators only elaborate for this opcode.
-               // GT/EQ keep the left operand; otherwise pick the right.
-               Integer n = valueOf(sublanes) * valueOf(lanes);
-               Vector#(TMul#(sublanes, lanes), Float) level = newVector;
-               for (Integer s = 0; s < valueOf(sublanes); s = s + 1)
-                  for (Integer c = 0; c < valueOf(lanes); c = c + 1)
-                     level[s * valueOf(lanes) + c] = bits2fp(src1[s][c]);
-               for (Integer stride = 1; stride < n; stride = stride * 2)
-                  for (Integer i = 0; i + stride < n; i = i + 2 * stride) begin
-                     let cmp = compareFP(level[i], level[i + stride]);
-                     level[i] = (cmp == GT || cmp == EQ) ? level[i] : level[i + stride];
-                  end
-               Int#(32) fmax_bits = fp2bits(level[0]);
-               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
-                  row[l] = fmax_bits;
-            end
-            VPU_FMIN_REDUCE_TILE: begin
-               // Mirror of FMAX: keep the LT operand. Kept inside the case
-               // branch for elaboration scoping.
-               Integer n = valueOf(sublanes) * valueOf(lanes);
-               Vector#(TMul#(sublanes, lanes), Float) level = newVector;
-               for (Integer s = 0; s < valueOf(sublanes); s = s + 1)
-                  for (Integer c = 0; c < valueOf(lanes); c = c + 1)
-                     level[s * valueOf(lanes) + c] = bits2fp(src1[s][c]);
-               for (Integer stride = 1; stride < n; stride = stride * 2)
-                  for (Integer i = 0; i + stride < n; i = i + 2 * stride) begin
-                     let cmp = compareFP(level[i], level[i + stride]);
-                     level[i] = (cmp == LT || cmp == EQ) ? level[i] : level[i + stride];
-                  end
-               Int#(32) fmin_bits = fp2bits(level[0]);
-               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
-                  row[l] = fmin_bits;
-            end
+            // FSUM/FMAX/FMIN_REDUCE_TILE are handled by the multi-cycle
+            // FpReducer at the top of execute(). They never enter this
+            // combinational case block.
             VPU_FSUM_REDUCE: begin
                // Row/lane float sum: reduce this sublane's `lanes` values to
                // one scalar via a binary addFP tree, broadcast across lanes.
@@ -461,11 +453,16 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
          res[s] = row;
       end
       resultReg <= res;
+      end
    endmethod
 
    method Vector#(sublanes, Vector#(lanes, Int#(32))) result;
       return resultReg;
    endmethod
+
+   // True when no multi-cycle reducer is in flight. Single-cycle ops
+   // always observe True here on the next cycle after dispatch.
+   method Bool isDone = !fp_busy;
 
 endmodule
 

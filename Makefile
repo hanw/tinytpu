@@ -143,6 +143,7 @@ $(BUILDDIR)/TbAccelerator4x4.bo: $(BUILDDIR)/TensorAccelerator.bo
 $(BUILDDIR)/TbXLU.bo: $(BUILDDIR)/XLU.bo
 $(BUILDDIR)/TbVMEM.bo: $(BUILDDIR)/VMEM.bo
 $(BUILDDIR)/TbVRegFile.bo: $(BUILDDIR)/VRegFile.bo
+$(BUILDDIR)/VPU.bo: $(BUILDDIR)/FpReducer.bo
 $(BUILDDIR)/TbVPU.bo: $(BUILDDIR)/VPU.bo
 $(BUILDDIR)/TbFpReducer.bo: $(BUILDDIR)/FpReducer.bo
 $(BUILDDIR)/ScalarUnit.bo: $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo

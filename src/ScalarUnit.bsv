@@ -166,8 +166,11 @@ module mkScalarUnit#(
       pc_state <= SXU_EXEC_VPU_COLLECT;
    endrule
 
-   // Collect VPU result (1-cycle latency), write to vregDst, advance pc
-   rule do_vpu_collect (pc_state == SXU_EXEC_VPU_COLLECT);
+   // Collect VPU result. Single-cycle ops report isDone immediately; the
+   // multi-cycle float reducer keeps isDone=False while its FSM walks, so
+   // this rule stalls until the reducer finishes and resultReg holds the
+   // final broadcast value.
+   rule do_vpu_collect (pc_state == SXU_EXEC_VPU_COLLECT && vpu.isDone);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=VPU_COLLECT pc=%0d", cycle, pc);
       $display("TRACE cycle=%0d unit=VPU ev=RESULT", cycle);
