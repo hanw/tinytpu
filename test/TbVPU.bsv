@@ -900,7 +900,88 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 73);
+   // Test 36: VPU_FSUM_REDUCE — per-sublane (row) float sum.
+   // Row0: [1.0, 2.0, 3.0, 4.0] -> 10.0 (0x41200000), broadcast across row0.
+   rule dispatch_fsum_reduce (cycle == 72);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h3F800000);  // 1.0
+      s1[0][1] = unpack(32'h40000000);  // 2.0
+      s1[0][2] = unpack(32'h40400000);  // 3.0
+      s1[0][3] = unpack(32'h40800000);  // 4.0
+      vpu.execute(VPU_FSUM_REDUCE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FSUM_REDUCE", cycle);
+   endrule
+
+   rule check_fsum_reduce (cycle == 73);
+      let res = vpu.result;
+      Bit#(32) expected = 32'h41200000;  // 10.0
+      Bool ok = True;
+      for (Integer l = 0; l < 4; l = l + 1)
+         if (pack(res[0][l]) != expected) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FSUM_REDUCE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FSUM_REDUCE got [0][0]=0x%08x", cycle, pack(res[0][0]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 37: VPU_FMAX_REDUCE — per-row float max.
+   // Row0: [3.0, 1.0, 4.0, 2.0] -> 4.0 (0x40800000).
+   rule dispatch_fmax_reduce (cycle == 74);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h40400000);  // 3.0
+      s1[0][1] = unpack(32'h3F800000);  // 1.0
+      s1[0][2] = unpack(32'h40800000);  // 4.0
+      s1[0][3] = unpack(32'h40000000);  // 2.0
+      vpu.execute(VPU_FMAX_REDUCE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FMAX_REDUCE", cycle);
+   endrule
+
+   rule check_fmax_reduce (cycle == 75);
+      let res = vpu.result;
+      Bit#(32) expected = 32'h40800000;  // 4.0
+      Bool ok = True;
+      for (Integer l = 0; l < 4; l = l + 1)
+         if (pack(res[0][l]) != expected) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FMAX_REDUCE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FMAX_REDUCE got [0][0]=0x%08x", cycle, pack(res[0][0]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   // Test 38: VPU_FMIN_REDUCE — per-row float min.
+   // Row0: [3.0, 1.0, 4.0, 2.0] -> 1.0 (0x3F800000).
+   rule dispatch_fmin_reduce (cycle == 76);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h40400000);  // 3.0
+      s1[0][1] = unpack(32'h3F800000);  // 1.0
+      s1[0][2] = unpack(32'h40800000);  // 4.0
+      s1[0][3] = unpack(32'h40000000);  // 2.0
+      vpu.execute(VPU_FMIN_REDUCE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FMIN_REDUCE", cycle);
+   endrule
+
+   rule check_fmin_reduce (cycle == 77);
+      let res = vpu.result;
+      Bit#(32) expected = 32'h3F800000;  // 1.0
+      Bool ok = True;
+      for (Integer l = 0; l < 4; l = l + 1)
+         if (pack(res[0][l]) != expected) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FMIN_REDUCE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FMIN_REDUCE got [0][0]=0x%08x", cycle, pack(res[0][0]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 79);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

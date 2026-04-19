@@ -10,7 +10,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_SUM_REDUCE_TILE, VPU_MAX_REDUCE_TILE, VPU_MIN_REDUCE_TILE,
                VPU_MUL_REDUCE, VPU_MUL_REDUCE_COL, VPU_MUL_REDUCE_TILE,
                VPU_FSUM_REDUCE_TILE, VPU_FMAX_REDUCE_TILE, VPU_FMIN_REDUCE_TILE,
-               VPU_FMIN }
+               VPU_FMIN,
+               VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -414,6 +415,47 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                Int#(32) fmin_bits = fp2bits(level[0]);
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = fmin_bits;
+            end
+            VPU_FSUM_REDUCE: begin
+               // Row/lane float sum: reduce this sublane's `lanes` values to
+               // one scalar via a binary addFP tree, broadcast across lanes.
+               Integer n = valueOf(lanes);
+               Vector#(lanes, Float) level = newVector;
+               for (Integer c = 0; c < n; c = c + 1)
+                  level[c] = bits2fp(src1[s][c]);
+               for (Integer stride = 1; stride < n; stride = stride * 2)
+                  for (Integer i = 0; i + stride < n; i = i + 2 * stride)
+                     level[i] = tpl_1(addFP(level[i], level[i + stride], Rnd_Nearest_Even));
+               Int#(32) bits = fp2bits(level[0]);
+               for (Integer l = 0; l < n; l = l + 1) row[l] = bits;
+            end
+            VPU_FMAX_REDUCE: begin
+               // Row/lane float max: compareFP binary tree, keep GT/EQ.
+               Integer n = valueOf(lanes);
+               Vector#(lanes, Float) level = newVector;
+               for (Integer c = 0; c < n; c = c + 1)
+                  level[c] = bits2fp(src1[s][c]);
+               for (Integer stride = 1; stride < n; stride = stride * 2)
+                  for (Integer i = 0; i + stride < n; i = i + 2 * stride) begin
+                     let cmp = compareFP(level[i], level[i + stride]);
+                     level[i] = (cmp == GT || cmp == EQ) ? level[i] : level[i + stride];
+                  end
+               Int#(32) bits = fp2bits(level[0]);
+               for (Integer l = 0; l < n; l = l + 1) row[l] = bits;
+            end
+            VPU_FMIN_REDUCE: begin
+               // Row/lane float min: compareFP binary tree, keep LT/EQ.
+               Integer n = valueOf(lanes);
+               Vector#(lanes, Float) level = newVector;
+               for (Integer c = 0; c < n; c = c + 1)
+                  level[c] = bits2fp(src1[s][c]);
+               for (Integer stride = 1; stride < n; stride = stride * 2)
+                  for (Integer i = 0; i + stride < n; i = i + 2 * stride) begin
+                     let cmp = compareFP(level[i], level[i + stride]);
+                     level[i] = (cmp == LT || cmp == EQ) ? level[i] : level[i + stride];
+                  end
+               Int#(32) bits = fp2bits(level[0]);
+               for (Integer l = 0; l < n; l = l + 1) row[l] = bits;
             end
          endcase
          res[s] = row;
