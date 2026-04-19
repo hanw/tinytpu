@@ -163,6 +163,45 @@ def test_mxu():
     assert wire[0] == "2 4 0 0 0 0 0 0 1 2"
 
 
+def test_mxu_psum_write():
+    wire = wire_lines(assemble(
+        "MXU WMEM[0], AMEM[1], tiles=2, psum_write=PSUM[3], psum_row=2\n"
+        "HALT\nEND\n"))
+    # vregDst=3 (psum addr), vregSrc=2 (psum row), vregSrc2=1 (WRITE mode)
+    assert wire[0] == "2 4 0 3 2 0 1 0 1 2"
+
+
+def test_mxu_psum_accumulate():
+    wire = wire_lines(assemble(
+        "MXU WMEM[5], AMEM[7], tiles=1, psum_acc=PSUM[1], psum_row=0\n"
+        "HALT\nEND\n"))
+    # vregDst=1 (addr), vregSrc=0 (row), vregSrc2=2 (ACCUMULATE mode)
+    assert wire[0] == "2 4 0 1 0 0 2 5 7 1"
+
+
+def test_mxu_psum_write_roundtrip():
+    src = ("MXU WMEM[0], AMEM[1], tiles=2, psum_write=PSUM[3], psum_row=2\n"
+           "HALT\nEND\n")
+    text = disassemble(assemble(src))
+    assert "psum_write=PSUM[3]" in text
+    assert "psum_row=2" in text
+
+
+def test_mxu_psum_acc_roundtrip():
+    src = ("MXU WMEM[5], AMEM[7], tiles=1, psum_acc=PSUM[1], psum_row=0\n"
+           "HALT\nEND\n")
+    text = disassemble(assemble(src))
+    assert "psum_acc=PSUM[1]" in text
+    assert "psum_row=0" in text
+
+
+def test_mxu_default_round_trip():
+    # A plain MXU dispatch without psum fields should not emit psum syntax.
+    src = "MXU WMEM[0], AMEM[1], tiles=2\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "psum" not in text
+
+
 def test_wait_mxu():
     wire = wire_lines(assemble("WAIT_MXU\nHALT\nEND\n"))
     assert wire[0] == "2 5 0 0 0 0 0 0 0 0"

@@ -336,9 +336,11 @@ def assemble(text: str) -> str:
                 # MXU WMEM[W], AMEM[A], tiles=N
                 rest = line[len("MXU"):].strip()
                 parts = [p.strip() for p in rest.split(",")]
-                if len(parts) != 3:
+                if len(parts) not in (3, 5):
                     raise SyntaxError(
-                        "MXU syntax: MXU WMEM[W], AMEM[A], tiles=N")
+                        "MXU syntax: MXU WMEM[W], AMEM[A], tiles=N "
+                        "[, psum_write=PSUM[A], psum_row=R | "
+                        "psum_acc=PSUM[A], psum_row=R]")
                 wbase = _parse_mem("WMEM", parts[0])
                 abase = _parse_mem("AMEM", parts[1])
                 tm = re.fullmatch(r"tiles=(\d+)", parts[2], re.IGNORECASE)
@@ -346,7 +348,29 @@ def assemble(text: str) -> str:
                     raise SyntaxError(
                         f"expected tiles=N, got {parts[2]!r}")
                 tlen = int(tm.group(1))
+                psum_addr = 0
+                psum_row = 0
+                psum_mode = 0   # PSUM_OFF
+                if len(parts) == 5:
+                    pm = re.fullmatch(r"psum_(write|acc)=PSUM\[(\d+)\]",
+                                      parts[3], re.IGNORECASE)
+                    if not pm:
+                        raise SyntaxError(
+                            "expected psum_write=PSUM[A] or "
+                            f"psum_acc=PSUM[A], got {parts[3]!r}")
+                    psum_addr = int(pm.group(2))
+                    psum_mode = 1 if pm.group(1).lower() == "write" else 2
+                    rm = re.fullmatch(r"psum_row=(\d+)", parts[4], re.IGNORECASE)
+                    if not rm:
+                        raise SyntaxError(
+                            f"expected psum_row=R, got {parts[4]!r}")
+                    psum_row = int(rm.group(1))
+                # psumAddr packs into vregDst, psumRow into vregSrc, psumMode
+                # into vregSrc2 — matching ScalarUnit.do_mxu decoding.
                 out.append(_instr(_SXU["DISPATCH_MXU"],
+                                  vregDst=psum_addr,
+                                  vregSrc=psum_row,
+                                  vregSrc2=psum_mode,
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=tlen))
 
@@ -485,9 +509,17 @@ def disassemble(wire: str) -> str:
                     out.append(f"BROADCAST_COL v{vregDst} = COL(v{vregSrc}, col={vregSrc2})")
 
                 elif opc == _SXU["DISPATCH_MXU"]:
-                    out.append(
-                        f"MXU   WMEM[{mxuWBase}], AMEM[{mxuABase}], "
-                        f"tiles={mxuTLen}")
+                    psum_mode = vregSrc2 & 0x3
+                    if psum_mode == 0:
+                        out.append(
+                            f"MXU   WMEM[{mxuWBase}], AMEM[{mxuABase}], "
+                            f"tiles={mxuTLen}")
+                    else:
+                        mode_kw = "psum_write" if psum_mode == 1 else "psum_acc"
+                        out.append(
+                            f"MXU   WMEM[{mxuWBase}], AMEM[{mxuABase}], "
+                            f"tiles={mxuTLen}, {mode_kw}=PSUM[{vregDst}], "
+                            f"psum_row={vregSrc & 0x3}")
 
                 elif opc == _SXU["WAIT_MXU"]:
                     out.append("WAIT_MXU")
