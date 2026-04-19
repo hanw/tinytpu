@@ -866,6 +866,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float32", device="TINYTPU").max(axis=1).numpy()
     np.testing.assert_allclose(result, a.max(axis=1), rtol=1e-6)
 
+  def test_float_colsum_3x4_matches_reference(self):
+    a = (np.arange(12, dtype=np.float32) - 4.0).reshape(3, 4)
+    result = Tensor(a, dtype="float32", device="TINYTPU").sum(axis=0).numpy()
+    np.testing.assert_allclose(result, a.sum(axis=0), rtol=1e-6)
+
+  def test_float_colsum_4x4_matches_reference(self):
+    a = np.arange(16, dtype=np.float32).reshape(4, 4)
+    result = Tensor(a, dtype="float32", device="TINYTPU").sum(axis=0).numpy()
+    np.testing.assert_allclose(result, a.sum(axis=0), rtol=1e-6)
+
+  def test_float_colmax_4x4_matches_reference(self):
+    a = (np.arange(16, dtype=np.float32) - 8.0).reshape(4, 4)
+    result = Tensor(a, dtype="float32", device="TINYTPU").max(axis=0).numpy()
+    np.testing.assert_allclose(result, a.max(axis=0), rtol=1e-6)
+
   def test_sqrt_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
