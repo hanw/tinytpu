@@ -10,6 +10,7 @@ import SystolicArray :: *;
 import WeightSRAM :: *;
 import ActivationSRAM :: *;
 import Controller :: *;
+import PSUMBank :: *;
 
 // TCInstr is SxuInstr; export it so testbench only needs to import TensorCore
 typedef SxuInstr TCInstr;
@@ -65,9 +66,14 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
    VPU_IFC#(rows, rows)            vpu  <- mkVPU;
    XLU_IFC#(rows, rows)            xlu  <- mkXLU;
 
+   // PSUM bucket bank — 8 tile-shaped Int32 accumulators. Shared
+   // between MXU (for multi-K-tile accumulate) and SXU (via the new
+   // SXU_PSUM_{WRITE,ACCUMULATE,READ} opcodes).
+   PSUMBank_IFC#(8, rows, rows)    psum <- mkPSUMBank;
+
    // Scalar Unit drives everything
    SXU_IFC#(256, depth, 16, rows, rows) sxu <-
-      mkScalarUnit(vmem, vrf, vpu, xlu, ctrl);
+      mkScalarUnit(vmem, vrf, vpu, xlu, ctrl, psum);
 
    method Action loadWeightTile(UInt#(TLog#(depth)) addr,
                                 Vector#(rows, Vector#(cols, Int#(8))) data);

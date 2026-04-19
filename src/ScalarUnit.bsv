@@ -7,6 +7,7 @@ import VRegFile :: *;
 import VPU :: *;
 import XLU :: *;
 import Controller :: *;
+import PSUMBank :: *;
 
 typedef enum {
    SXU_LOAD_VREG,
@@ -69,6 +70,8 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
                SXU_EXEC_MXU, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
+               SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
+               SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -77,7 +80,8 @@ module mkScalarUnit#(
    VRegFile_IFC#(numRegs, sublanes, lanes)          vrf,
    VPU_IFC#(sublanes, lanes)                        vpu,
    XLU_IFC#(sublanes, lanes)                        xlu,
-   Controller_IFC#(sublanes, lanes, vmDepth)        ctrl
+   Controller_IFC#(sublanes, lanes, vmDepth)        ctrl,
+   PSUMBank_IFC#(psumDepth, sublanes, lanes)         psum
 )(SXU_IFC#(progDepth, vmDepth, numRegs, sublanes, lanes))
    provisos(
       Add#(1, p_, progDepth),
@@ -85,6 +89,7 @@ module mkScalarUnit#(
       Add#(1, r_, numRegs),
       Add#(1, s_, sublanes),
       Add#(1, l_, lanes),
+      Add#(1, pd_, psumDepth),
       Bits#(Vector#(sublanes, Vector#(lanes, Int#(32))), vsz),
       Bits#(SxuInstr, isz),
       Add#(0, sublanes, lanes),          // square vregs (XLU requirement)
@@ -92,6 +97,7 @@ module mkScalarUnit#(
       Add#(b__, TLog#(numRegs), 4),      // vregDst/vregSrc:UInt#(4) truncates to TLog#(numRegs)
       Add#(d__, TLog#(numRegs), 8),      // mxuWBase can be reused as a register source for SELECT
       Add#(c__, TLog#(lanes), 4),        // vregSrc2 carries XLU broadcast lane selector
+      Add#(e__, TLog#(psumDepth), 8),    // vmemAddr field doubles as PSUM bucket addr
       Add#(logd_, TLog#(vmDepth), 32)    // needed by Controller
    );
 
@@ -130,6 +136,9 @@ module mkScalarUnit#(
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
+         SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
+         SXU_PSUM_ACCUMULATE: pc_state <= SXU_EXEC_PSUM_ACCUMULATE;
+         SXU_PSUM_READ:       pc_state <= SXU_EXEC_PSUM_READ_REQ;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -310,6 +319,52 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=SXU ev=LOAD_XLU_RESULT pc=%0d dst=v%0d", cycle, pc, curInstr.vregDst);
 `endif
       vrf.write(truncate(curInstr.vregDst), xlu.result);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // PSUM_WRITE: read vregSrc, deposit into psum bucket. Bucket index is
+   // carried in vmemAddr (same 8-bit field as VMEM addr, truncated).
+   rule do_psum_write (pc_state == SXU_EXEC_PSUM_WRITE);
+      let data = vrf.read(truncate(curInstr.vregSrc));
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_WRITE pc=%0d addr=%0d src=v%0d",
+               cycle, pc, curInstr.vmemAddr, curInstr.vregSrc);
+`endif
+      psum.write(truncate(curInstr.vmemAddr), data);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // PSUM_ACCUMULATE: psum[addr] += vregSrc.
+   rule do_psum_accumulate (pc_state == SXU_EXEC_PSUM_ACCUMULATE);
+      let data = vrf.read(truncate(curInstr.vregSrc));
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_ACCUMULATE pc=%0d addr=%0d src=v%0d",
+               cycle, pc, curInstr.vmemAddr, curInstr.vregSrc);
+`endif
+      psum.accumulate(truncate(curInstr.vmemAddr), data);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // PSUM_READ step 1: issue psum readReq (1-cycle latency matches VMEM).
+   rule do_psum_read_req (pc_state == SXU_EXEC_PSUM_READ_REQ);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_READ_REQ pc=%0d addr=%0d dst=v%0d",
+               cycle, pc, curInstr.vmemAddr, curInstr.vregDst);
+`endif
+      psum.readReq(truncate(curInstr.vmemAddr));
+      pc_state <= SXU_EXEC_PSUM_READ_RESP;
+   endrule
+
+   // PSUM_READ step 2: collect readResp into vregDst.
+   rule do_psum_read_resp (pc_state == SXU_EXEC_PSUM_READ_RESP);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_READ_RESP pc=%0d dst=v%0d",
+               cycle, pc, curInstr.vregDst);
+`endif
+      vrf.write(truncate(curInstr.vregDst), psum.readResp);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

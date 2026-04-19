@@ -10,6 +10,7 @@ import SystolicArray :: *;
 import WeightSRAM :: *;
 import ActivationSRAM :: *;
 import Controller :: *;
+import PSUMBank :: *;
 
 (* synthesize *)
 module mkTbScalarUnit();
@@ -25,8 +26,12 @@ module mkTbScalarUnit();
    ActivationSRAM_IFC#(16, 4) asram <- mkActivationSRAM;
    Controller_IFC#(4, 4, 16)  ctrl  <- mkController(arr, wsram, asram);
 
+   // PSUM bank required by SXU interface; not exercised in this TB —
+   // dedicated PSUM-through-SXU coverage lives in TbSxuPSUM.
+   PSUMBank_IFC#(4, 4, 4)     psum  <- mkPSUMBank;
+
    // progDepth=24: room for VPU smoke, legacy broadcast, SELECT, and explicit broadcasts.
-   SXU_IFC#(24, 16, 8, 4, 4) sxu <- mkScalarUnit(vmem, vrf, vpu, xlu, ctrl);
+   SXU_IFC#(24, 16, 8, 4, 4) sxu <- mkScalarUnit(vmem, vrf, vpu, xlu, ctrl, psum);
 
    Reg#(UInt#(8)) cycle  <- mkReg(0);
    Reg#(UInt#(8)) passed <- mkReg(0);
