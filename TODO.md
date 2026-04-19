@@ -319,29 +319,31 @@ software lowering alone. Ordered roughly by impact on real workloads.
       reducer ops added; row-sum and row-max are wired through the
       tinygrad row renderer. Row-min still needs negation-decomp
       detection in the row path.
-- [ ] **Float col-reduce primitives** (`VPU_F{SUM,MAX,MIN}_REDUCE_COL`).
-      Initial naive parallel implementation blew up bsc elaboration
-      (runtime rebuild 11+ min vs. 1:48 baseline) because each col case
-      branch instantiates `lanes` parallel FP reduction trees. Deferred
-      until we refactor the VPU to use a shared, multi-cycle FP reducer
-      unit that SUM/MAX/MIN all time-share; that also shrinks the tile
-      reducers. See "Build-time / bsc elaboration" note below.
+- [x] **Float col-reduce primitives** (`VPU_FSUM_REDUCE_COL` 45,
+      `VPU_FMAX_REDUCE_COL` 46, `VPU_FMIN_REDUCE_COL` 47). Landed via
+      the "hoist once outside the case block" pattern (same as the
+      integer col reducers) using shared `lane_f*` helpers. Col-sum
+      and col-max wired through tinygrad. Col-min pending negation
+      rewrite.
+- [x] **Shared multi-cycle FP tile reducer** — `mkFpReducer`
+      sub-module with one FP adder + one comparator driven by a small
+      FSM. Tile-scope FP reducers now dispatch through it; SXU stalls
+      on `vpu.isDone` until the walk completes. Runtime build went from
+      1:48 to 1:29 after replacing the 3 combinational tile FP trees,
+      and adding 3 col reducer opcodes on top cost only +7s (1:36),
+      meeting the <10s/opcode acceptance bar.
 - [ ] **Float prod reducer** — no opcode; tinyspec `Reduce(Mul, axes)`
       on float would need a `VPU_FMUL_REDUCE*` family.
 
 ### Build-time / bsc elaboration
 
-- [ ] **Shared multi-cycle FP reducer unit** — right now every float
-      reducer opcode instantiates its own combinational FP adder/
-      comparator tree inside a `case` branch. This scales linearly in
-      opcode count and super-linearly in `lanes × sublanes`. Refactor:
-      one FP adder + one FP comparator in the VPU, driven by a small
-      FSM that walks the input tile/row/col across multiple cycles.
-      SUM/MAX/MIN tile, row, and col variants all time-share the same
-      silicon. This is the enabling refactor for landing float col-
-      reducers (and later transcendentals) without regressing compile
-      time. Acceptance criterion: adding a new float reducer opcode
-      should add <10s to the runtime rebuild.
+- [x] **Shared multi-cycle FP reducer unit** — `src/FpReducer.bsv`
+      landed. Tile-scope FP reducers now route through it; acceptance
+      criterion met (+7s for 3 new col reducer opcodes). Row/col
+      reducers still use the "hoist once" combinational pattern with
+      shared lane_f* helpers, which is cheap at the current 4×4 lane
+      count. If we scale lanes or add more reducer kinds (e.g. float
+      prod), consider routing row and col through FpReducer too.
 - [ ] **Narrow-dtype VPU lanes**: int8, uint8, int16, uint16, uint32
       elementwise. Current VPU is int32-only on the data path (except
       MXU which is int8). Blocks quantized-int8 inference kernels outside
