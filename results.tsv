@@ -451,3 +451,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	6c4e071	1	TODO sync: mark closed GEMM/movement gaps	multi-K HW epilogue, PAD unrolled, FLIP unrolled	docs-only; pytest backend: 839 passed (unchanged)	TODO more accurately reflects current HW state	remaining: dual-issue, transcendentals, multi-tile PAD/FLIP, CAT
 2026-04-19	7a90a3a	1	Item#2 iter 15: deeper PSUM path stress test (k=4)	4x16@16x4 GEMM through 4-tile PSUM accumulate	pytest backend: 840 passed (+1)	PSUM chain length of 4 tested	none new
 2026-04-19	a1e4ce5	1	cleanup: fix test_tasm.py imports	remove 2 dead WHERE bundle tests; fix `from tasm` -> `from scripts.tasm`	pytest test_tasm: 77 passed (up from 75+2broken)	TASM test suite fully green	no
+2026-04-19	<pending>	1	Item#7 iter 4: predicate auto-reset test	test_skip_if_pred_auto_resets_after_consume verifies pred clears after SKIP	pytest backend: 841 passed (+1)	predicate semantics tested end-to-end	none

@@ -4965,6 +4965,41 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
                      "SKIP_IF_PRED did not skip the protected STORE")
     self.assertEqual(got_unskipped, forty_two)
 
+  def test_skip_if_pred_auto_resets_after_consume(self):
+    # Two SKIP_IF_PRED ops in sequence: the first should skip (pred=True),
+    # but pred auto-resets so the second should NOT skip. Expected:
+    # VMEM[3] unchanged (skipped), VMEM[4] updated, VMEM[5] also updated.
+    sim = os.environ["TINYTPU_SIM"]
+    zero_tile = [0] * 16
+    forty_two = [42] * 16
+    sentinel_a = [11] * 16
+    sentinel_b = [22] * 16
+    bundle = _bundle(
+      _vmem(0, zero_tile),
+      _vmem(1, forty_two),
+      _vmem(3, sentinel_a),    # skipped STORE target
+      _vmem(5, sentinel_b),    # unskipped STORE target, pre-populated
+      _load(0, 0),
+      _load(1, 1),
+      _set_pred_if_zero(0),    # pred := True
+      _skip_if_pred(),         # consume pred (skip next)
+      _store(3, 1),            # SKIPPED
+      _skip_if_pred(),         # pred auto-reset -> False, does not skip
+      _store(5, 1),            # NOT SKIPPED: VMEM[5] := 42s
+      _halt(),
+      _output_vmem(3),
+      _output_vmem(5),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tiles = [line for line in out.splitlines() if line.startswith("vmem_result")]
+    self.assertEqual(len(tiles), 2)
+    got3 = [int(x) for x in tiles[0].split()[1:]]
+    got5 = [int(x) for x in tiles[1].split()[1:]]
+    self.assertEqual(got3, sentinel_a, "first SKIP_IF_PRED should skip")
+    self.assertEqual(got5, forty_two,
+                     "second SKIP_IF_PRED should NOT skip (pred auto-reset)")
+
   def test_skip_if_pred_does_not_skip_when_pred_clear(self):
     # Same shape but v0 holds a nonzero — pred stays False and the
     # STORE after SKIP_IF_PRED must execute.
