@@ -44,6 +44,9 @@ _SXU = {
     "DISPATCH_XLU_TRANSPOSE": 12,
     "LOAD_VPU_RESULT":        13,
     "LOAD_XLU_RESULT":        14,
+    "PSUM_WRITE":             15,
+    "PSUM_ACCUMULATE":        16,
+    "PSUM_READ":              17,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 

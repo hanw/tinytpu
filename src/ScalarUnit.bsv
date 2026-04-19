@@ -26,7 +26,16 @@ typedef enum {
    // for each accumulator column block, so kernels can chain ops
    // without round-tripping through VRegFile between every step.
    SXU_LOAD_VPU_RESULT,
-   SXU_LOAD_XLU_RESULT
+   SXU_LOAD_XLU_RESULT,
+   // PSUM (partial-sum) bank access. Reserved in advance; exec rules
+   // are added in later iterations once the bank is wired into
+   // TensorCore. Layout:
+   //   SXU_PSUM_WRITE(psum_addr, vregSrc)       — tile := vreg
+   //   SXU_PSUM_ACCUMULATE(psum_addr, vregSrc)  — tile += vreg
+   //   SXU_PSUM_READ(psum_addr, vregDst)        — vreg := tile (1-cycle)
+   SXU_PSUM_WRITE,
+   SXU_PSUM_ACCUMULATE,
+   SXU_PSUM_READ
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
