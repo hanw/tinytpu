@@ -116,6 +116,18 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = ((a_t @ w_t) + b_t).relu().numpy()
     np.testing.assert_array_equal(result, np.maximum(a_np @ w_np + b_np, 0))
 
+  def test_deep_k4_gemm_through_psum_matches_numpy(self):
+    # num_k_tiles = 4 (16-wide K) pushes the PSUM accumulator chain
+    # further than the deep-K existing tests. Without bias/relu so
+    # just the pure accumulate path is exercised.
+    rng = np.random.default_rng(7)
+    a_np = rng.integers(-4, 5, size=(4, 16), dtype=np.int32)
+    w_np = rng.integers(-4, 5, size=(16, 4), dtype=np.int32)
+    a_t = Tensor(a_np, dtype="int32", device="TINYTPU")
+    w_t = Tensor(w_np, dtype="int32", device="TINYTPU")
+    result = (a_t @ w_t).numpy()
+    np.testing.assert_array_equal(result, a_np @ w_np)
+
   def test_activation_out_of_int8_range_raises(self):
     a_np = np.array([[128, 0, 0, 0]], dtype=np.int32)
     w_np = np.eye(4, dtype=np.int32)
