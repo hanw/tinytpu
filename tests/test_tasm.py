@@ -173,6 +173,30 @@ def test_halt():
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"
 
 
+def test_load_vpu_result_assembles():
+    wire = wire_lines(assemble("LOAD_VPU_RESULT v3\nHALT\nEND\n"))
+    assert wire[0] == "2 13 0 3 0 0 0 0 0 0"
+
+
+def test_load_xlu_result_assembles():
+    wire = wire_lines(assemble("LOAD_XLU_RESULT v5\nHALT\nEND\n"))
+    assert wire[0] == "2 14 0 5 0 0 0 0 0 0"
+
+
+def test_load_vpu_result_roundtrip():
+    from tasm import disassemble
+    wire = assemble("LOAD_VPU_RESULT v7\nHALT\nEND\n")
+    text = disassemble(wire)
+    assert "LOAD_VPU_RESULT v7" in text
+
+
+def test_load_xlu_result_roundtrip():
+    from tasm import disassemble
+    wire = assemble("LOAD_XLU_RESULT v1\nHALT\nEND\n")
+    text = disassemble(wire)
+    assert "LOAD_XLU_RESULT v1" in text
+
+
 # ---------------------------------------------------------------------------
 # Output directives
 # ---------------------------------------------------------------------------
@@ -520,11 +544,11 @@ def test_disassemble_vmem_negative():
 
 def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
-    # 29 base ops (0..28) + 6 col/tile reduce ops (29..34) + 3 mul reduce (35..37)
-    assert len(_VPU) == 38
-    # Contiguous from 0 to 37
+    # Full VPU opcode range after FpReducer, col/tile reducers, and float
+    # prod reducers: 0..50 contiguous.
+    assert len(_VPU) == 51
     codes = sorted(_VPU.values())
-    assert codes == list(range(38))
+    assert codes == list(range(51))
 
 
 def test_assemble_error_bad_vreg():

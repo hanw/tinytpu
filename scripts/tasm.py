@@ -354,6 +354,14 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["LOAD_MXU_RESULT"], vregDst=dst))
 
+            elif kw == "LOAD_VPU_RESULT":
+                dst = _parse_vreg(tokens[1])
+                out.append(_instr(_SXU["LOAD_VPU_RESULT"], vregDst=dst))
+
+            elif kw == "LOAD_XLU_RESULT":
+                dst = _parse_vreg(tokens[1])
+                out.append(_instr(_SXU["LOAD_XLU_RESULT"], vregDst=dst))
+
             elif kw == "HALT":
                 out.append(_instr(_SXU["HALT"]))
 
@@ -483,6 +491,12 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["LOAD_MXU_RESULT"]:
                     out.append(f"LOAD_MXU_RESULT v{vregDst}")
+
+                elif opc == _SXU["LOAD_VPU_RESULT"]:
+                    out.append(f"LOAD_VPU_RESULT v{vregDst}")
+
+                elif opc == _SXU["LOAD_XLU_RESULT"]:
+                    out.append(f"LOAD_XLU_RESULT v{vregDst}")
 
                 elif opc == _SXU["HALT"]:
                     out.append("HALT")
