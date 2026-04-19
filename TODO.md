@@ -376,10 +376,13 @@ software lowering alone. Ordered roughly by impact on real workloads.
 
 ### GEMM & matmul
 
-- [ ] **Multi-K-tile hardware epilogue** — `SXU_LOAD_MXU_RESULT` only
-      handles single-K-tile GEMMs. Multi-K-tile GEMM still falls back to
-      numpy for bias/relu after the last K-tile. Needs a hardware
-      accumulator path that the epilogue can consume after the K loop.
+- [x] **Multi-K-tile hardware epilogue** — landed via PSUM bucket
+      bank (Item #2 below). Multi-K-tile GEMM now zeros a PSUM bucket
+      via `SXU_PSUM_CLEAR`, accumulates every K-tile into row 0 via
+      `DISPATCH_MXU` with `psum_acc` mode, then extracts the row with
+      `SXU_PSUM_READ_ROW` and runs the existing bias+ReLU epilogue on
+      the PSUM result. No numpy fallback path remains for multi-K-tile
+      bias/relu.
 
 ### Control flow & ordering
 
@@ -423,15 +426,15 @@ ratio — the top ones would most change what TinyTPU can run.
       per-engine FIFOs, each with its own execute-side controller; add
       a scoreboard keyed on VRegFile destination index for RAW/WAW.
       Closes the biggest visible gap vs NeuronCore's per-engine SEQs.
-- [ ] **Dedicated PSUM accumulator bank.** The four engine "accumulators"
-      (MXU result reg, VPU resultReg, FpReducer.acc, XLU output) are
-      single-entry registers. Multi-K-tile GEMM has to round-trip
-      through VRegFile between K-tiles because there is no persistent
-      multi-entry accumulator. Add a small SRAM (~8 × 4×4 × Int32) with
-      `add_into(addr, vec)` semantics so MXU accumulates directly per
-      K-tile and VPU can read for the epilogue without touching the
-      VRegFile. This is also the item that unblocks the existing
-      "multi-K-tile hardware epilogue" gap above.
+- [x] **Dedicated PSUM accumulator bank.** Landed. `src/PSUMBank.bsv`
+      is an 8-bucket × 4×4 Int32 SRAM with `write`/`accumulate`/
+      `writeRow`/`accumulateRow`/`readReq`/`readResp`/`peekRow`/
+      `clear` and row-granular access for MXU. Shared between
+      Controller (per-dispatch row deposit via `startPsum`) and SXU
+      (opcodes 15-19: `PSUM_WRITE`, `PSUM_ACCUMULATE`, `PSUM_READ`,
+      `PSUM_READ_ROW`, `PSUM_CLEAR`). The tinygrad renderer uses the
+      bank for multi-K-tile GEMM accumulation, which closes the
+      "Multi-K-tile hardware epilogue" gap above.
 - [ ] **Engine-to-engine forwarding (bypass VRegFile).** Today every
       hand-off is `engine → resultReg → VRegFile → engine`, four
       cycles. Add a muxed forwarding network on engine inputs so
@@ -477,11 +480,13 @@ ratio — the top ones would most change what TinyTPU can run.
       cores re-fetch overlapping weights from HBM for data-parallel
       kernels. An L2 cache or an NoC broadcast primitive amortizes
       weight traffic across cores.
-- [ ] **Generalize `SXU_LOAD_MXU_RESULT` into engine-to-engine read
-      ports.** If we don't do the full forwarding network above, at
-      least make it symmetric: `SXU_LOAD_VPU_RESULT`,
-      `SXU_LOAD_XLU_RESULT` so any engine's output can feed any
-      engine's input without a VRegFile round-trip.
+- [~] **Generalize `SXU_LOAD_MXU_RESULT` into engine-to-engine read
+      ports.** Hardware and TASM support landed:
+      `SXU_LOAD_VPU_RESULT` (13) and `SXU_LOAD_XLU_RESULT` (14) both
+      copy the engine's linger result register into a vreg. Bundle
+      tests cover both. Remaining: tinygrad renderer is not yet using
+      these opcodes to elide VRegFile round-trips in chained kernels
+      (e.g. XLU-then-VPU, VPU chains that store and re-read).
 - [ ] **Per-engine writeback queues on VRegFile.** Writeback bus is a
       single return path; if VPU and XLU both finish in the same
       cycle they compete. Multi-port VRF or small per-engine
