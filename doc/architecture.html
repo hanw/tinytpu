@@ -176,116 +176,224 @@ instruction, then branches to the matching EXEC state; dispatch-style ops
 collect-style ops (VPU/XLU/LOAD/SELECT) block one extra cycle to capture
 results from their unit.
 </div>
-<svg viewBox="0 0 1200 350" preserveAspectRatio="xMidYMid meet">
+<svg viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid meet">
   <defs>
-    <marker id="arrowp" markerWidth="10" markerHeight="10" refX="9" refY="4"
+    <marker id="arrFwd" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
             orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L9,4 L0,8 z" fill="#8b949e"/>
+      <path d="M0,0 L8,3.5 L0,7 z" fill="#8b949e"/>
     </marker>
-    <marker id="arrowHot" markerWidth="10" markerHeight="10" refX="9" refY="4"
+    <marker id="arrGrn" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
             orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L9,4 L0,8 z" fill="#7ee787"/>
+      <path d="M0,0 L8,3.5 L0,7 z" fill="#7ee787"/>
     </marker>
+    <marker id="arrYlw" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3.5 L0,7 z" fill="#f2cc60"/>
+    </marker>
+    <style>
+      .node rect, .node ellipse { stroke-width: 1.2; }
+      .ehead  { stroke: #8b949e; stroke-width: 1.3; fill: none; marker-end: url(#arrFwd); }
+      .ecool  { stroke: #7ee787; stroke-width: 1.5; fill: none; marker-end: url(#arrGrn); }
+      .eguard { stroke: #f2cc60; stroke-width: 1.3; fill: none; marker-end: url(#arrYlw); stroke-dasharray: 5 3; }
+      .eback  { stroke: #8b949e; stroke-width: 1; fill: none; marker-end: url(#arrFwd); stroke-dasharray: 3 4; opacity: 0.65; }
+      .eopcode { font-size: 9px; fill: #d2a8ff; }
+      .econd   { font-size: 9px; fill: #f2cc60; }
+      .ehint   { font-size: 9px; fill: #8b949e; }
+    </style>
   </defs>
 
-  <!-- Central FETCH state -->
-  <g>
-    <ellipse class="box sxu" cx="600" cy="160" rx="80" ry="34"/>
-    <text class="title" x="600" y="158" text-anchor="middle">FETCH</text>
-    <text class="label" x="600" y="175" text-anchor="middle">prog[pc] → curInstr</text>
+  <!-- IDLE (entry) -->
+  <g class="node">
+    <rect class="box" x="540" y="14" width="120" height="34" rx="16" ry="16"/>
+    <text class="title" x="600" y="36" text-anchor="middle">IDLE</text>
+  </g>
+  <path class="ehead" d="M600,48 L600,76"/>
+  <text class="econd" x="608" y="64">start()</text>
+
+  <!-- FETCH hub -->
+  <g class="node">
+    <ellipse class="box sxu" cx="600" cy="96" rx="98" ry="26"/>
+    <text class="title" x="600" y="95" text-anchor="middle">FETCH</text>
+    <text class="label" x="600" y="110" text-anchor="middle">prog[pc] → curInstr</text>
   </g>
 
-  <!-- Execute states, arranged around FETCH -->
-  <g>
-    <rect class="box sxu" x="40"  y="30"  width="160" height="50"/>
-    <text class="title" x="120" y="50" text-anchor="middle">EXEC_LOAD_REQ</text>
-    <text class="label" x="120" y="68" text-anchor="middle">vmem.readReq</text>
+  <!-- Column centers, 9 columns -->
+  <!-- LOAD(120), STORE(260), VPU(400), XLU(540), SELECT(680), MXU-disp(820), WAIT_MXU(960), LD_MXU_R(1090), HALT (right) -->
+  <!-- Rails -->
+  <text class="label" x="38" y="160">dispatch</text>
+  <text class="label" x="38" y="250">step 2</text>
+  <text class="label" x="38" y="340">step 3 / collect</text>
+  <text class="label" x="38" y="430">final collect</text>
+
+  <!-- Column LOAD -->
+  <g class="node">
+    <rect class="box sxu" x="60" y="140" width="120" height="40"/>
+    <text class="title" x="120" y="158" text-anchor="middle">LOAD_REQ</text>
+    <text class="label" x="120" y="172" text-anchor="middle">vmem.readReq</text>
   </g>
-  <g>
-    <rect class="box sxu" x="40"  y="92"  width="160" height="50"/>
-    <text class="title" x="120" y="112" text-anchor="middle">EXEC_LOAD_RESP</text>
-    <text class="label" x="120" y="130" text-anchor="middle">vrf.write (next cycle)</text>
-  </g>
-  <g>
-    <rect class="box sxu" x="40"  y="154" width="160" height="50"/>
-    <text class="title" x="120" y="174" text-anchor="middle">EXEC_STORE</text>
-    <text class="label" x="120" y="192" text-anchor="middle">vrf.read → vmem.write</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="40"  y="216" width="160" height="50"/>
-    <text class="title" x="120" y="236" text-anchor="middle">EXEC_VPU</text>
-    <text class="label" x="120" y="254" text-anchor="middle">vpu.execute(op, s1, s2)</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="220" y="216" width="160" height="50"/>
-    <text class="title" x="300" y="236" text-anchor="middle">EXEC_VPU_COLLECT</text>
-    <text class="label" x="300" y="254" text-anchor="middle">guarded on vpu.isDone</text>
+  <g class="node">
+    <rect class="box sxu" x="60" y="232" width="120" height="40"/>
+    <text class="title" x="120" y="250" text-anchor="middle">LOAD_RESP</text>
+    <text class="label" x="120" y="264" text-anchor="middle">vrf.write ← resp</text>
   </g>
 
-  <g>
-    <rect class="box xlu" x="40"  y="278" width="340" height="56"/>
-    <text class="title" x="210" y="294" text-anchor="middle">EXEC_XLU_*  →  XLU_COLLECT</text>
-    <text class="label" x="210" y="308" text-anchor="middle">BROADCAST  |  BROADCAST_SCALAR  |  BROADCAST_ROW</text>
-    <text class="label" x="210" y="322" text-anchor="middle">BROADCAST_COL  |  TRANSPOSE</text>
+  <!-- Column STORE -->
+  <g class="node">
+    <rect class="box sxu" x="200" y="140" width="120" height="40"/>
+    <text class="title" x="260" y="158" text-anchor="middle">STORE</text>
+    <text class="label" x="260" y="172" text-anchor="middle">vrf → vmem</text>
   </g>
 
-  <g>
-    <rect class="box mxu" x="1000" y="30"  width="160" height="50"/>
-    <text class="title" x="1080" y="50" text-anchor="middle">EXEC_MXU</text>
-    <text class="label" x="1080" y="68" text-anchor="middle">ctrl.start (issue only)</text>
+  <!-- Column VPU -->
+  <g class="node">
+    <rect class="box vpu" x="340" y="140" width="120" height="40"/>
+    <text class="title" x="400" y="158" text-anchor="middle">VPU</text>
+    <text class="label" x="400" y="172" text-anchor="middle">vpu.execute(op, s1, s2)</text>
   </g>
-  <g>
-    <rect class="box mxu" x="1000" y="92"  width="160" height="50"/>
-    <text class="title" x="1080" y="112" text-anchor="middle">WAIT_MXU_STATE</text>
-    <text class="label" x="1080" y="130" text-anchor="middle">stall until ctrl.isDone</text>
-  </g>
-  <g>
-    <rect class="box mxu" x="1000" y="154" width="160" height="50"/>
-    <text class="title" x="1080" y="174" text-anchor="middle">EXEC_LOAD_MXU_RESULT</text>
-    <text class="label" x="1080" y="192" text-anchor="middle">ctrl.results → vrf row 0</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="1000" y="216" width="160" height="50"/>
-    <text class="title" x="1080" y="236" text-anchor="middle">EXEC_SELECT_COPY</text>
-    <text class="label" x="1080" y="254" text-anchor="middle">VPU_COPY (rhs → result)</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="1000" y="278" width="160" height="50"/>
-    <text class="title" x="1080" y="296" text-anchor="middle">EXEC_SELECT</text>
-    <text class="label" x="1080" y="314" text-anchor="middle">→ VPU_COLLECT</text>
+  <g class="node">
+    <rect class="box vpu" x="340" y="232" width="120" height="40"/>
+    <text class="title" x="400" y="250" text-anchor="middle">VPU_COLLECT</text>
+    <text class="label" x="400" y="264" text-anchor="middle">vrf.write ← vpu.result</text>
   </g>
 
-  <g>
-    <rect class="box" x="525" y="260" width="150" height="44"/>
-    <text class="title" x="600" y="280" text-anchor="middle">HALTED</text>
-    <text class="label" x="600" y="296" text-anchor="middle">terminal (SXU_HALT)</text>
+  <!-- Column XLU -->
+  <g class="node">
+    <rect class="box xlu" x="480" y="140" width="120" height="40"/>
+    <text class="title" x="540" y="158" text-anchor="middle">XLU_*</text>
+    <text class="label" x="540" y="172" text-anchor="middle">{BC / BC_SCALAR /</text>
+  </g>
+  <text class="label" x="540" y="188" text-anchor="middle">BC_ROW / BC_COL / TRANSPOSE}</text>
+  <g class="node">
+    <rect class="box xlu" x="480" y="232" width="120" height="40"/>
+    <text class="title" x="540" y="250" text-anchor="middle">XLU_COLLECT</text>
+    <text class="label" x="540" y="264" text-anchor="middle">vrf.write ← xlu.result</text>
   </g>
 
-  <!-- FETCH -> states -->
-  <path class="edge" d="M522,150 L200,55"/>       <!-- LOAD_REQ -->
-  <path class="edge" d="M522,158 L200,118"/>       <!-- LOAD_RESP -->
-  <path class="edge" d="M522,168 L200,175"/>       <!-- STORE -->
-  <path class="edge" d="M522,180 L200,232"/>       <!-- VPU -->
-  <path class="edge" d="M548,192 L260,278"/>       <!-- XLU -->
-  <path class="edge hot" d="M680,152 L1000,55"/>  <!-- MXU -->
-  <path class="edge hot" d="M680,158 L1000,118"/> <!-- WAIT_MXU -->
-  <path class="edge" d="M680,168 L1000,175"/>      <!-- LOAD_MXU_RESULT -->
-  <path class="edge" d="M680,180 L1000,232"/>      <!-- SELECT_COPY -->
-  <path class="edge" d="M600,194 L600,260"/>       <!-- HALTED -->
+  <!-- Column SELECT (3-stage: COPY → SELECT → VPU_COLLECT) -->
+  <g class="node">
+    <rect class="box vpu" x="620" y="140" width="120" height="40"/>
+    <text class="title" x="680" y="158" text-anchor="middle">SELECT_COPY</text>
+    <text class="label" x="680" y="172" text-anchor="middle">VPU_COPY rhs→reg</text>
+  </g>
+  <g class="node">
+    <rect class="box vpu" x="620" y="232" width="120" height="40"/>
+    <text class="title" x="680" y="250" text-anchor="middle">SELECT</text>
+    <text class="label" x="680" y="264" text-anchor="middle">VPU_SELECT(cond,lhs)</text>
+  </g>
+  <g class="node">
+    <rect class="box vpu" x="620" y="324" width="120" height="40"/>
+    <text class="title" x="680" y="342" text-anchor="middle">VPU_COLLECT</text>
+    <text class="label" x="680" y="356" text-anchor="middle">(shared with VPU)</text>
+  </g>
 
-  <!-- Return arrows to FETCH -->
-  <path class="edge" d="M200,68 C320,90 400,110 520,150" stroke-dasharray="3 3"/>
-  <path class="edge" d="M200,130 C320,130 380,150 522,160" stroke-dasharray="3 3"/>
-  <path class="edge" d="M200,192 C320,180 400,170 522,170" stroke-dasharray="3 3"/>
-  <path class="edge" d="M380,232 C440,210 480,180 525,172" stroke-dasharray="3 3"/>
-  <path class="edge" d="M1000,68  C880,90 760,115 678,150" stroke-dasharray="3 3"/>
-  <path class="edge" d="M1000,130 C880,135 760,150 680,160" stroke-dasharray="3 3"/>
-  <path class="edge" d="M1000,178 C880,175 760,170 680,168" stroke-dasharray="3 3"/>
-  <path class="edge" d="M1160,240 C1190,180 1180,160 682,165" stroke-dasharray="3 3"/>
+  <!-- Column MXU-dispatch (issue only, nonblocking) -->
+  <g class="node">
+    <rect class="box mxu" x="760" y="140" width="120" height="40"/>
+    <text class="title" x="820" y="158" text-anchor="middle">MXU</text>
+    <text class="label" x="820" y="172" text-anchor="middle">ctrl.start; pc++</text>
+  </g>
 
-  <text class="label" x="410" y="14" text-anchor="middle">
-    → solid: dispatch next cycle. --- dashed: back to FETCH after completion.
-  </text>
+  <!-- Column WAIT_MXU -->
+  <g class="node">
+    <rect class="box mxu" x="900" y="140" width="120" height="40"/>
+    <text class="title" x="960" y="158" text-anchor="middle">WAIT_MXU</text>
+    <text class="label" x="960" y="172" text-anchor="middle">stall while !ctrl.isDone</text>
+  </g>
+
+  <!-- Column LD_MXU_RESULT -->
+  <g class="node">
+    <rect class="box mxu" x="1040" y="140" width="140" height="40"/>
+    <text class="title" x="1110" y="158" text-anchor="middle">LD_MXU_RESULT</text>
+    <text class="label" x="1110" y="172" text-anchor="middle">ctrl.results → vrf[0]</text>
+  </g>
+
+  <!-- Terminal HALTED -->
+  <g class="node">
+    <rect class="box" x="540" y="500" width="120" height="40" rx="16" ry="16"/>
+    <text class="title" x="600" y="518" text-anchor="middle">HALTED</text>
+    <text class="label" x="600" y="532" text-anchor="middle">terminal</text>
+  </g>
+
+  <!-- ============ FORWARD edges from FETCH ============ -->
+  <!-- LOAD -->
+  <path class="ehead" d="M512,106 C380,108 260,110 168,138"/>
+  <text class="eopcode" x="290" y="128">LOAD_VREG</text>
+  <!-- STORE -->
+  <path class="ehead" d="M518,112 C440,122 360,126 282,138"/>
+  <text class="eopcode" x="380" y="134">STORE_VREG</text>
+  <!-- VPU -->
+  <path class="ehead" d="M548,118 C500,126 450,130 410,138"/>
+  <text class="eopcode" x="470" y="140">DISPATCH_VPU</text>
+  <!-- XLU -->
+  <path class="ehead" d="M600,123 L540,138"/>
+  <text class="eopcode" x="560" y="136">XLU/BC/TRANSPOSE</text>
+  <!-- SELECT -->
+  <path class="ehead" d="M650,119 C660,126 670,130 680,138"/>
+  <text class="eopcode" x="700" y="128">DISPATCH_SELECT</text>
+  <!-- MXU dispatch -->
+  <path class="ehead" d="M680,113 C720,122 770,128 810,138"/>
+  <text class="eopcode" x="770" y="130">DISPATCH_MXU</text>
+  <!-- WAIT_MXU -->
+  <path class="ehead" d="M688,108 C770,122 870,128 950,138"/>
+  <text class="eopcode" x="900" y="124">WAIT_MXU</text>
+  <!-- LD_MXU_R -->
+  <path class="ehead" d="M692,105 C830,110 960,118 1090,138"/>
+  <text class="eopcode" x="1020" y="122">LOAD_MXU_RESULT</text>
+  <!-- HALT -->
+  <path class="ehead" d="M600,122 L600,498"/>
+  <text class="eopcode" x="608" y="250">HALT</text>
+
+  <!-- ============ STEP 2 edges (multi-cycle dispatches) ============ -->
+  <!-- LOAD_REQ -> LOAD_RESP (1 cycle) -->
+  <path class="ehead" d="M120,180 L120,230"/>
+  <text class="ehint" x="128" y="210">next cycle</text>
+  <!-- VPU -> VPU_COLLECT (guarded on isDone) -->
+  <path class="eguard" d="M400,180 L400,230"/>
+  <text class="econd" x="408" y="210">vpu.isDone</text>
+  <!-- XLU_* -> XLU_COLLECT -->
+  <path class="ehead" d="M540,180 L540,230"/>
+  <text class="ehint" x="548" y="210">next cycle</text>
+  <!-- SELECT_COPY -> SELECT -->
+  <path class="ehead" d="M680,180 L680,230"/>
+  <text class="ehint" x="688" y="210">next cycle</text>
+  <!-- SELECT -> VPU_COLLECT -->
+  <path class="eguard" d="M680,272 L680,322"/>
+  <text class="econd" x="688" y="300">vpu.isDone</text>
+  <!-- WAIT_MXU self-loop (stall) -->
+  <path class="eguard" d="M960,136 C1000,110 1000,110 1020,135" />
+  <text class="econd" x="1025" y="110">!ctrl.isDone</text>
+
+  <!-- ============ BACK edges to FETCH ============ -->
+  <!-- single-cycle dispatches -->
+  <path class="eback" d="M178,142 C360,60 440,70 520,92"/>
+  <text class="ehint" x="320" y="72">↘ FETCH (pc++)</text>
+  <path class="eback" d="M320,142 C420,80 480,82 528,94"/>
+  <path class="eback" d="M820,142 C760,84 700,82 674,92"/>
+  <text class="ehint" x="740" y="86">pc++ (MXU runs in background)</text>
+  <path class="eback" d="M960,180 C900,230 720,180 688,120"/>
+  <text class="ehint" x="860" y="240">done → pc++</text>
+  <path class="eback" d="M1110,180 C980,230 700,150 682,114"/>
+
+  <!-- 2-cycle back-edges -->
+  <path class="eback" d="M120,272 C260,360 400,240 520,108"/>
+  <path class="eback" d="M400,272 C440,350 520,220 548,110"/>
+  <path class="eback" d="M540,272 C580,340 620,220 610,118"/>
+  <path class="eback" d="M680,364 C520,430 420,260 520,118"/>
+
+  <!-- HALT is terminal (no back-edge) -->
+
+  <!-- Legend -->
+  <g transform="translate(30,560)">
+    <text class="title" x="0" y="0">Edge legend</text>
+    <line x1="0" y1="14" x2="40" y2="14" class="ehead"/>
+    <text class="label" x="46" y="18">forward dispatch (next cycle)</text>
+    <line x1="210" y1="14" x2="250" y2="14" class="eguard"/>
+    <text class="label" x="256" y="18">guarded (conditional advance)</text>
+    <line x1="460" y1="14" x2="500" y2="14" class="eback"/>
+    <text class="label" x="506" y="18">return to FETCH (pc++)</text>
+    <line x1="680" y1="14" x2="720" y2="14" class="ecool"/>
+    <text class="label" x="726" y="18">(unused in this view)</text>
+  </g>
 </svg>
 </div>
 
@@ -416,161 +524,310 @@ program doesn't demand their result.
 
 
 <div class="panel">
-<div class="cap" style="margin-bottom:10px"><strong>Datapath — TensorCore (one of N on chip).</strong> SXU is the only issuer; arrows show data paths.</div>
+<div class="cap" style="margin-bottom:10px">
+  <strong>Datapath — TensorCore.</strong> Drawn left-to-right like a NeuronCore-style diagram:
+  storage on the left, engines in the middle (one row each), a PSUM-like accumulator on the
+  right feeding the register file back. SXU is the <em>single</em> microsequencer at the top —
+  unlike NeuronCore which gives every engine its own SEQ.
+</div>
 <svg viewBox="0 0 1200 560" preserveAspectRatio="xMidYMid meet">
   <defs>
-    <marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="4"
+    <marker id="arrD" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
             orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L9,4 L0,8 z" fill="#8b949e"/>
+      <path d="M0,0 L8,3.5 L0,7 z" fill="#8b949e"/>
     </marker>
+    <marker id="arrDh" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3.5 L0,7 z" fill="#7ee787"/>
+    </marker>
+    <marker id="arrDc" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3.5 L0,7 z" fill="#d2a8ff"/>
+    </marker>
+    <style>
+      .dp     { stroke: #8b949e; stroke-width: 1.3; fill: none; marker-end: url(#arrD); }
+      .dph    { stroke: #7ee787; stroke-width: 1.6; fill: none; marker-end: url(#arrDh); }
+      .dpc    { stroke: #d2a8ff; stroke-width: 1.2; fill: none; marker-end: url(#arrDc); }
+      .dpwb   { stroke: #f2cc60; stroke-width: 1.2; fill: none; marker-end: url(#arrD); stroke-dasharray: 4 3; }
+      .dprow  { fill: #141820; stroke: #30363d; rx: 4; ry: 4; }
+    </style>
   </defs>
 
-  <!-- Chip-level wrapper -->
+  <!-- Chip wrapper -->
   <rect class="chip" x="10" y="10" width="1180" height="540"/>
-  <text class="title" x="28" y="34">TinyTPUChip</text>
-  <text class="label" x="28" y="50">TensorCore × N, SparseCore, HBMModel, NoC (ring)</text>
+  <text class="title" x="28" y="30">TinyTPUChip  ·  TensorCore  (one of N)</text>
+  <text class="label" x="28" y="44">LTR flow: storage → engines → accumulator → writeback</text>
 
-  <!-- TensorCore frame -->
-  <rect class="chip" x="30" y="70" width="1140" height="470" fill="#141820"/>
-  <text class="title" x="48" y="92">TensorCore</text>
-  <text class="label" x="48" y="108">4×4 lanes, int8 MXU + int32/float32 VPU + XLU</text>
-
-  <!-- SXU -->
+  <!-- SXU bar (shared, unlike NeuronCore per-engine SEQs) -->
   <g>
-    <rect class="box sxu" x="48" y="130" width="210" height="90"/>
-    <text class="title" x="153" y="152" text-anchor="middle">SXU (ScalarUnit)</text>
-    <text class="label" x="153" y="172" text-anchor="middle">256-entry microprogram</text>
-    <text class="label" x="153" y="188" text-anchor="middle">LOAD_VREG / STORE_VREG</text>
-    <text class="label" x="153" y="204" text-anchor="middle">DISPATCH_VPU/MXU/XLU/SELECT</text>
-  </g>
-  <text class="port"  x="153" y="222" text-anchor="middle">waits on vpu.isDone / mxu done</text>
-
-  <!-- VRegFile -->
-  <g>
-    <rect class="box" x="290" y="130" width="160" height="90"/>
-    <text class="title" x="370" y="152" text-anchor="middle">VRegFile</text>
-    <text class="label" x="370" y="172" text-anchor="middle">16 × (4 sublanes × 4 lanes × Int32)</text>
-    <text class="label" x="370" y="188" text-anchor="middle">read vs / vs2</text>
-    <text class="label" x="370" y="204" text-anchor="middle">write vd</text>
+    <rect class="box sxu" x="30" y="58" width="1140" height="40"/>
+    <text class="title" x="600" y="76" text-anchor="middle">SXU  (single microsequencer — shared by all engines)</text>
+    <text class="label" x="600" y="90" text-anchor="middle">
+      FETCH → DECODE → dispatch { LOAD, STORE, DISPATCH_VPU, DISPATCH_XLU_*, DISPATCH_MXU, DISPATCH_SELECT, WAIT_MXU, LOAD_MXU_RESULT, HALT }
+    </text>
   </g>
 
-  <!-- VMEM -->
+  <!-- ================= LEFT: storage column ================= -->
+  <text class="title" x="120" y="118" text-anchor="middle">Storage (SBUF analog)</text>
+
   <g>
-    <rect class="box mem" x="480" y="130" width="170" height="90"/>
-    <text class="title" x="565" y="152" text-anchor="middle">VMEM (unified scratchpad)</text>
-    <text class="label" x="565" y="172" text-anchor="middle">tile = 4×4 × Int32</text>
-    <text class="label" x="565" y="188" text-anchor="middle">PAD_FILL / MATRIX_TILE /</text>
-    <text class="label" x="565" y="204" text-anchor="middle">ROW_BROADCAST preload modes</text>
+    <rect class="box mem" x="40" y="130" width="160" height="60"/>
+    <text class="title" x="120" y="150" text-anchor="middle">VRegFile</text>
+    <text class="label" x="120" y="166" text-anchor="middle">16 regs × (4×4 × Int32)</text>
+    <text class="label" x="120" y="180" text-anchor="middle">engine scratch</text>
+  </g>
+  <g>
+    <rect class="box mem" x="40" y="200" width="160" height="60"/>
+    <text class="title" x="120" y="220" text-anchor="middle">VMEM</text>
+    <text class="label" x="120" y="236" text-anchor="middle">unified tile scratchpad</text>
+    <text class="label" x="120" y="250" text-anchor="middle">PAD_FILL / MATRIX_TILE / …</text>
+  </g>
+  <g>
+    <rect class="box mem" x="40" y="270" width="160" height="60"/>
+    <text class="title" x="120" y="290" text-anchor="middle">WeightSRAM</text>
+    <text class="label" x="120" y="306" text-anchor="middle">MXU-local: 4×4 × Int8 × depth</text>
+    <text class="label" x="120" y="320" text-anchor="middle">weight-stationary</text>
+  </g>
+  <g>
+    <rect class="box mem" x="40" y="340" width="160" height="60"/>
+    <text class="title" x="120" y="360" text-anchor="middle">ActivSRAM</text>
+    <text class="label" x="120" y="376" text-anchor="middle">MXU-local: 4 × Int8 × depth</text>
+    <text class="label" x="120" y="390" text-anchor="middle">per-row vector</text>
   </g>
 
-  <!-- VPU -->
+  <!-- ================= MIDDLE: engine rows ================= -->
+  <!-- Each row has: SEQ stub + engine block -->
+  <!-- Row y-centers: 160 / 230 / 300 / 370 -->
+
+  <!-- Row 1: Tensor Engine analog = MXU (SystolicArray + Controller) -->
   <g>
-    <rect class="box vpu" x="680" y="130" width="230" height="90"/>
-    <text class="title" x="795" y="152" text-anchor="middle">VPU (elementwise + reducers)</text>
-    <text class="label" x="795" y="172" text-anchor="middle">int32 + float32 ALU (ADD/MUL/SUB/</text>
-    <text class="label" x="795" y="188" text-anchor="middle">MAX/MIN/DIV/CMP/AND/OR/XOR/NOT/</text>
-    <text class="label" x="795" y="204" text-anchor="middle">SHL/SHR/RELU/SELECT/COPY/F*)</text>
+    <rect class="dprow" x="250" y="135" width="50" height="50"/>
+    <text class="label" x="275" y="164" text-anchor="middle">SEQ</text>
+  </g>
+  <g>
+    <rect class="box mxu" x="310" y="135" width="420" height="50"/>
+    <text class="title" x="520" y="155" text-anchor="middle">MXU (Tensor Engine)</text>
+    <text class="label" x="520" y="170" text-anchor="middle">SystolicArray 4×4 Int8 MACs  +  Controller FSM  (weight-stationary)</text>
   </g>
 
-  <!-- FpReducer -->
+  <!-- Row 2: Vector Engine analog = VPU -->
   <g>
-    <rect class="box vpu" x="940" y="130" width="200" height="90"/>
-    <text class="title" x="1040" y="152" text-anchor="middle">FpReducer</text>
-    <text class="label" x="1040" y="172" text-anchor="middle">one addFP + one multFP</text>
-    <text class="label" x="1040" y="188" text-anchor="middle">+ compareFP, FSM-walked</text>
-    <text class="label" x="1040" y="204" text-anchor="middle">SUM / PROD / MAX / MIN (shared)</text>
-  </g>
-  <path class="edge hot" d="M910,175 L940,175"/>
-
-  <!-- MXU stack -->
-  <g>
-    <rect class="box mxu" x="48" y="260" width="170" height="74"/>
-    <text class="title" x="133" y="284" text-anchor="middle">SystolicArray</text>
-    <text class="label" x="133" y="302" text-anchor="middle">4×4 Int8 MAC cells</text>
-    <text class="label" x="133" y="318" text-anchor="middle">weight-stationary</text>
+    <rect class="dprow" x="250" y="205" width="50" height="50"/>
+    <text class="label" x="275" y="234" text-anchor="middle">SEQ</text>
   </g>
   <g>
-    <rect class="box mem" x="240" y="260" width="120" height="74"/>
-    <text class="title" x="300" y="284" text-anchor="middle">WeightSRAM</text>
-    <text class="label" x="300" y="302" text-anchor="middle">4×4 × Int8 × depth</text>
-  </g>
-  <g>
-    <rect class="box mem" x="380" y="260" width="120" height="74"/>
-    <text class="title" x="440" y="284" text-anchor="middle">ActivSRAM</text>
-    <text class="label" x="440" y="302" text-anchor="middle">4 × Int8 × depth</text>
-  </g>
-  <g>
-    <rect class="box mxu" x="520" y="260" width="160" height="74"/>
-    <text class="title" x="600" y="284" text-anchor="middle">Controller</text>
-    <text class="label" x="600" y="302" text-anchor="middle">weight-load + drain FSM</text>
-    <text class="label" x="600" y="318" text-anchor="middle">MXU result → SXU_LOAD_MXU_RESULT</text>
+    <rect class="box vpu" x="310" y="205" width="420" height="50"/>
+    <text class="title" x="520" y="225" text-anchor="middle">VPU (Vector Engine)</text>
+    <text class="label" x="520" y="240" text-anchor="middle">int32 + float32 ALU: ADD/MUL/SUB/MAX/MIN/DIV/CMP/AND/OR/XOR/SHL/SHR/RELU/SELECT/COPY/F*</text>
   </g>
 
-  <!-- XLU -->
+  <!-- Row 3: Scalar Engine analog = FpReducer (shared multi-cycle FP reducer) -->
   <g>
-    <rect class="box xlu" x="720" y="260" width="220" height="74"/>
-    <text class="title" x="830" y="284" text-anchor="middle">XLU (cross-lane)</text>
-    <text class="label" x="830" y="302" text-anchor="middle">TRANSPOSE / BROADCAST (scalar/row/col)</text>
-    <text class="label" x="830" y="318" text-anchor="middle">PERMUTE (identity/reverse)</text>
-  </g>
-
-  <!-- Arrows: SXU drives everyone -->
-  <path class="edge" d="M258,175 L290,175"/>
-  <path class="edge" d="M450,175 L480,175"/>
-  <path class="edge" d="M650,175 L680,175"/>
-
-  <path class="edge" d="M153,220 L153,260"/>
-  <path class="edge" d="M440,220 L440,260"/>
-  <path class="edge" d="M830,220 L830,260"/>
-
-  <!-- VMEM <-> VPU data paths -->
-  <path class="edge hot" d="M565,220 L565,240 L795,240 L795,220"/>
-  <path class="edge hot" d="M370,220 L370,240 L450,240 L450,225 L480,225"/>
-
-  <!-- Epilogue path: MXU result → VPU -->
-  <path class="edge" d="M680,297 L700,297 L700,260 L795,260 L795,220"/>
-  <text class="port" x="740" y="256">SXU_LOAD_MXU_RESULT</text>
-
-  <!-- Off-chip -->
-  <g>
-    <rect class="box mem" x="48"  y="380" width="200" height="74"/>
-    <text class="title" x="148" y="404" text-anchor="middle">HBMModel</text>
-    <text class="label" x="148" y="422" text-anchor="middle">configurable latency</text>
-    <text class="label" x="148" y="438" text-anchor="middle">DRAM backing store</text>
+    <rect class="dprow" x="250" y="275" width="50" height="50"/>
+    <text class="label" x="275" y="304" text-anchor="middle">SEQ</text>
   </g>
   <g>
-    <rect class="box xlu" x="280" y="380" width="200" height="74"/>
-    <text class="title" x="380" y="404" text-anchor="middle">ChipNoC (ring)</text>
-    <text class="label" x="380" y="422" text-anchor="middle">single-/two-hop loopback</text>
-    <text class="label" x="380" y="438" text-anchor="middle">(base for collectives)</text>
-  </g>
-  <g>
-    <rect class="box sxu" x="512" y="380" width="180" height="74"/>
-    <text class="title" x="602" y="404" text-anchor="middle">SparseCore</text>
-    <text class="label" x="602" y="422" text-anchor="middle">embedding lookup</text>
-    <text class="label" x="602" y="438" text-anchor="middle">sum-pool reduction</text>
+    <rect class="box vpu" x="310" y="275" width="420" height="50"/>
+    <text class="title" x="520" y="295" text-anchor="middle">FpReducer (Scalar / Reduce Engine)</text>
+    <text class="label" x="520" y="310" text-anchor="middle">1 FP adder + 1 FP multiplier + 1 FP comparator  ·  FSM-walked SUM/PROD/MAX/MIN</text>
   </g>
 
-  <path class="edge" d="M148,380 L148,340 L280,340 L280,417"/>
-  <path class="edge" d="M480,417 L512,417"/>
+  <!-- Row 4: GPSIMD analog = XLU -->
+  <g>
+    <rect class="dprow" x="250" y="345" width="50" height="50"/>
+    <text class="label" x="275" y="374" text-anchor="middle">SEQ</text>
+  </g>
+  <g>
+    <rect class="box xlu" x="310" y="345" width="420" height="50"/>
+    <text class="title" x="520" y="365" text-anchor="middle">XLU (cross-lane / GPSIMD-like)</text>
+    <text class="label" x="520" y="380" text-anchor="middle">TRANSPOSE  ·  BROADCAST (scalar / row / col)  ·  PERMUTE</text>
+  </g>
+
+  <!-- ================= RIGHT: accumulator / writeback ================= -->
+  <text class="title" x="880" y="118" text-anchor="middle">Accumulator (PSUM analog)</text>
+
+  <g>
+    <rect class="box mxu" x="780" y="135" width="200" height="50"/>
+    <text class="title" x="880" y="155" text-anchor="middle">MXU result reg</text>
+    <text class="label" x="880" y="170" text-anchor="middle">Int32 row, drained to VRF row 0</text>
+  </g>
+  <g>
+    <rect class="box vpu" x="780" y="205" width="200" height="50"/>
+    <text class="title" x="880" y="225" text-anchor="middle">VPU resultReg</text>
+    <text class="label" x="880" y="240" text-anchor="middle">4×4 Int32 writeback buffer</text>
+  </g>
+  <g>
+    <rect class="box vpu" x="780" y="275" width="200" height="50"/>
+    <text class="title" x="880" y="295" text-anchor="middle">FpReducer.acc</text>
+    <text class="label" x="880" y="310" text-anchor="middle">broadcast-to-tile on isDone</text>
+  </g>
+  <g>
+    <rect class="box xlu" x="780" y="345" width="200" height="50"/>
+    <text class="title" x="880" y="365" text-anchor="middle">XLU output</text>
+    <text class="label" x="880" y="380" text-anchor="middle">lane-permuted vreg tile</text>
+  </g>
+
+  <!-- =============== Off-chip / chip-level =============== -->
+  <g>
+    <rect class="box mem" x="40" y="430" width="200" height="70"/>
+    <text class="title" x="140" y="452" text-anchor="middle">HBMModel</text>
+    <text class="label" x="140" y="468" text-anchor="middle">configurable-latency DRAM</text>
+    <text class="label" x="140" y="484" text-anchor="middle">backing store</text>
+  </g>
+  <g>
+    <rect class="box xlu" x="270" y="430" width="200" height="70"/>
+    <text class="title" x="370" y="452" text-anchor="middle">ChipNoC (ring)</text>
+    <text class="label" x="370" y="468" text-anchor="middle">base for collectives</text>
+    <text class="label" x="370" y="484" text-anchor="middle">(broadcast / allreduce TBD)</text>
+  </g>
+  <g>
+    <rect class="box sxu" x="500" y="430" width="200" height="70"/>
+    <text class="title" x="600" y="452" text-anchor="middle">SparseCore</text>
+    <text class="label" x="600" y="468" text-anchor="middle">embedding lookup</text>
+    <text class="label" x="600" y="484" text-anchor="middle">sum-pool reduction</text>
+  </g>
+  <g>
+    <rect class="box" x="730" y="430" width="200" height="70" fill="#141820"/>
+    <text class="title" x="830" y="452" text-anchor="middle">Other TensorCores × (N-1)</text>
+    <text class="label" x="830" y="468" text-anchor="middle">(replicated identical core)</text>
+    <text class="label" x="830" y="484" text-anchor="middle">share HBM via NoC</text>
+  </g>
+
+  <!-- =============== EDGES: SXU → engine SEQ stubs =============== -->
+  <path class="dp" d="M275,98 L275,135"/>
+  <path class="dp" d="M275,98 L275,205"/>
+  <path class="dp" d="M275,98 L275,275"/>
+  <path class="dp" d="M275,98 L275,345"/>
+
+  <!-- Storage → engines (reads) : LTR arrows into each engine -->
+  <path class="dph" d="M200,155 C230,155 230,160 310,160"/>
+  <path class="dph" d="M200,230 C230,230 230,230 310,230"/>
+  <path class="dph" d="M200,300 C230,300 230,300 310,300"/>
+  <path class="dph" d="M200,370 C230,370 230,370 310,370"/>
+  <!-- MXU also reads WMEM + AMEM (narrower int8 paths) -->
+  <path class="dp" d="M200,290 C240,250 250,190 310,170"/>
+  <path class="dp" d="M200,360 C240,280 250,195 310,175"/>
+
+  <!-- Engines → Accumulator (writes) -->
+  <path class="dph" d="M730,160 L780,160"/>
+  <path class="dph" d="M730,230 L780,230"/>
+  <path class="dph" d="M730,300 L780,300"/>
+  <path class="dph" d="M730,370 L780,370"/>
+
+  <!-- Accumulator → VRegFile (writeback, dashed yellow) -->
+  <path class="dpwb" d="M780,160 C720,100 500,100 200,155"/>
+  <path class="dpwb" d="M780,230 C720,260 400,260 200,230"/>
+  <path class="dpwb" d="M780,300 C720,320 400,320 200,240"/>
+  <path class="dpwb" d="M780,370 C720,400 400,410 200,240"/>
+
+  <!-- Cross-engine: MXU result → VPU (fused bias+ReLU epilogue) -->
+  <path class="dpc" d="M830,185 C810,195 780,200 730,210"/>
+  <text class="label" x="740" y="204" text-anchor="end" fill="#d2a8ff">SXU_LOAD_MXU_RESULT  (MXU→VPU epilogue)</text>
+
+  <!-- HBM ↔ VMEM -->
+  <path class="dp" d="M140,430 L140,260"/>
+  <path class="dp" d="M130,260 L130,430"/>
+
+  <!-- NoC connects the tensor cores -->
+  <path class="dp" d="M240,465 L270,465"/>
+  <path class="dp" d="M470,465 L500,465"/>
+  <path class="dp" d="M700,465 L730,465"/>
 
   <!-- Legend -->
-  <g transform="translate(720, 370)">
-    <text class="label" x="0" y="0">color legend:</text>
-    <rect class="box sxu" x="0"  y="12" width="18" height="12"/>
-    <text class="label" x="26" y="22">SXU / control</text>
-    <rect class="box vpu" x="0"  y="34" width="18" height="12"/>
-    <text class="label" x="26" y="44">VPU / FpReducer</text>
-    <rect class="box mxu" x="0"  y="56" width="18" height="12"/>
-    <text class="label" x="26" y="66">MXU / systolic</text>
-    <rect class="box xlu" x="160" y="12" width="18" height="12"/>
-    <text class="label" x="186" y="22">XLU / NoC</text>
-    <rect class="box mem" x="160" y="34" width="18" height="12"/>
-    <text class="label" x="186" y="44">SRAM / HBM</text>
-    <rect class="box" x="160" y="56" width="18" height="12"/>
-    <text class="label" x="186" y="66">generic</text>
+  <g transform="translate(960, 430)">
+    <rect class="box" x="0" y="0" width="210" height="70" fill="#141820"/>
+    <text class="title" x="10" y="16">Edge legend</text>
+    <line x1="10"  y1="28" x2="36" y2="28" class="dp"/>
+    <text class="label" x="42" y="32">control / dispatch</text>
+    <line x1="10"  y1="42" x2="36" y2="42" class="dph"/>
+    <text class="label" x="42" y="46">data (read / write)</text>
+    <line x1="10"  y1="56" x2="36" y2="56" class="dpwb"/>
+    <text class="label" x="42" y="60">writeback to VRegFile</text>
+    <line x1="120" y1="56" x2="146" y2="56" class="dpc"/>
+    <text class="label" x="152" y="60">epilogue</text>
   </g>
 </svg>
+</div>
+
+<h2>How TinyTPU stacks up against AWS NeuronCore</h2>
+<div class="panel">
+<p class="cap" style="margin-top:0">
+  Both are "matrix + vector + scalar + SIMD engines reading from a shared scratchpad."
+  The structural differences are all about <em>issue and control</em>: NeuronCore
+  gives every engine its own SEQ and a dedicated PSUM accumulator bank; TinyTPU
+  has <em>one</em> SXU sequencer driving all engines, and reuses the VRegFile
+  for accumulation.
+</p>
+<table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:8px">
+  <thead>
+    <tr style="color:var(--dim); text-align:left">
+      <th style="padding:6px 8px; font-weight:600; width:24%">concept</th>
+      <th style="padding:6px 8px; font-weight:600; width:38%">AWS NeuronCore</th>
+      <th style="padding:6px 8px; font-weight:600; width:38%">TinyTPU TensorCore</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:6px 8px; color:var(--dim)">matrix engine</td>
+        <td style="padding:6px 8px">Tensor Engine (large systolic, mixed-precision)</td>
+        <td style="padding:6px 8px">MXU: 4×4 <code>Int8</code> systolic, Int32 accumulator</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">vector engine</td>
+        <td style="padding:6px 8px">Vector Engine (wide SIMD, FP32 / BF16)</td>
+        <td style="padding:6px 8px">VPU: 4×4 int32/float32 ALU with shared <code>FpReducer</code></td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">scalar / reduce engine</td>
+        <td style="padding:6px 8px">Scalar Engine (ops on single values, softmax-style reductions)</td>
+        <td style="padding:6px 8px">fused into VPU; multi-cycle FP reductions via <code>FpReducer</code></td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">SIMD / custom</td>
+        <td style="padding:6px 8px">GPSIMD Engine (general SIMD; custom kernels, transcendentals)</td>
+        <td style="padding:6px 8px">XLU: cross-lane broadcast / transpose / permute only
+             (no general SIMD — gap vs NeuronCore)</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">sequencer topology</td>
+        <td style="padding:6px 8px"><strong>Per-engine SEQ</strong> — each engine has its own
+             instruction stream; engines run independently</td>
+        <td style="padding:6px 8px"><strong>Single SXU</strong> — one microprogram
+             fans out to all engines; parallelism is only via MXU-dispatch +
+             WAIT_MXU (background issue)</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">shared scratchpad</td>
+        <td style="padding:6px 8px">SBUF — large on-chip buffer, every engine reads/writes</td>
+        <td style="padding:6px 8px">VMEM + VRegFile — same role, smaller footprint</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">accumulator</td>
+        <td style="padding:6px 8px"><strong>PSUM</strong> — dedicated partial-sum buffer shared
+             by Tensor/Vector/Scalar</td>
+        <td style="padding:6px 8px">no dedicated PSUM; MXU result reg drains into
+             VRegFile, VPU has its own resultReg. The
+             <code>SXU_LOAD_MXU_RESULT</code> path is the moral equivalent
+             for single-K-tile epilogues only</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">sync / barrier</td>
+        <td style="padding:6px 8px">dedicated <strong>Sync Engine</strong></td>
+        <td style="padding:6px 8px">none — SXU serialization is the only barrier. No
+             <code>BARRIER</code> / <code>IF</code> / <code>ENDIF</code> yet
+             (in TODO's hardware gaps)</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">off-chip</td>
+        <td style="padding:6px 8px">HBM ↔ SBUF (high-bandwidth)</td>
+        <td style="padding:6px 8px">HBMModel ↔ VMEM (behavioral latency; no explicit
+             spill/fill compiler support yet)</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">multi-device</td>
+        <td style="padding:6px 8px">NeuronCores × N per chip, chips via NeuronLink, collectives in hardware</td>
+        <td style="padding:6px 8px">TinyTPUChip has a ring NoC + SparseCore; no collective
+             primitives wired yet</td></tr>
+  </tbody>
+</table>
+
+<p class="cap" style="margin-top:14px"><strong>Short version:</strong></p>
+<ul>
+  <li>TinyTPU <strong>mirrors the engine taxonomy</strong> — matrix / vector / scalar / SIMD
+      — but <strong>collapses it onto one sequencer</strong>. Everything SXU dispatches runs
+      in sequence; only MXU truly overlaps via the dispatch+wait split.</li>
+  <li>TinyTPU has <strong>no PSUM</strong>. Partial-sum accumulation lives inside
+      Controller for the MXU; epilogue fuses by loading that result back into a VRegFile
+      row that VPU then reads. This limits multi-K-tile chained GEMM epilogues (still a TODO).</li>
+  <li>TinyTPU has <strong>no sync engine and no general-purpose SIMD engine</strong>.
+      Both are ambitions, not primitives today (BARRIER / IF / ENDIF and transcendentals
+      are on the hardware-gap list).</li>
+  <li>To match NeuronCore's parallelism surface, the two structural moves are
+      (a) a second issue slot / small scoreboard on SXU so VPU and XLU can overlap
+      MXU, and (b) a dedicated PSUM bank so epilogues don't need to round-trip
+      through VRegFile.</li>
+</ul>
 </div>
 
 <h2>Concurrency rules — what overlaps</h2>
