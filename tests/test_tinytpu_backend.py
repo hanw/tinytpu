@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _load_vpu_result, _load_xlu_result
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -4836,6 +4836,73 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     # Row 0 doubled; other rows remain zero (cleared via SXU_PSUM_WRITE).
     self.assertEqual(tile[0:4], [2, 4, 6, 8])
     self.assertEqual(tile[4:16], [0] * 12)
+
+  def test_load_vpu_result_copies_linger_register(self):
+    # Exercise SXU_LOAD_VPU_RESULT end-to-end: run a single VPU ADD
+    # (v0 + v1 -> v2), then LOAD_VPU_RESULT into v3. v2 and v3 should
+    # hold identical tiles because vpu.resultReg still contains the
+    # last dispatch's output.
+    sim = os.environ["TINYTPU_SIM"]
+    lhs = [i for i in range(16)]
+    rhs = [100 + i for i in range(16)]
+    bundle = _bundle(
+      _vmem(0, lhs),
+      _vmem(1, rhs),
+      _load(0, 0),
+      _load(1, 1),
+      _vpu(2, 0, _VPU_OPS["ADD"], 1),      # v2 := v0 + v1
+      _load_vpu_result(3),                 # v3 := vpu.result
+      _store(4, 2),
+      _store(5, 3),
+      _halt(),
+      _output_vmem(4),
+      _output_vmem(5),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tiles = [line for line in out.splitlines() if line.startswith("vmem_result")]
+    self.assertEqual(len(tiles), 2)
+    # Both tiles are the same element-wise sum.
+    expected = [lhs[i] + rhs[i] for i in range(16)]
+    got0 = [int(x) for x in tiles[0].split()[1:]]
+    got1 = [int(x) for x in tiles[1].split()[1:]]
+    self.assertEqual(got0, expected)
+    self.assertEqual(got1, expected)
+
+  def test_load_xlu_result_copies_linger_register(self):
+    # Drive one XLU broadcast (row 2 of v0 broadcast to a tile),
+    # collect into v1 via the existing BROADCAST opcode, then ALSO
+    # copy xlu.resultReg into v2 via LOAD_XLU_RESULT. Both vregs
+    # should STORE the same tile.
+    sim = os.environ["TINYTPU_SIM"]
+    # VMEM[0]: row 2 = [10,20,30,40]; other rows arbitrary but distinct.
+    tile = [0] * 16
+    tile[0:4]   = [1, 2, 3, 4]
+    tile[4:8]   = [5, 6, 7, 8]
+    tile[8:12]  = [10, 20, 30, 40]
+    tile[12:16] = [13, 14, 15, 16]
+    bundle = _bundle(
+      _vmem(0, tile),
+      _load(0, 0),
+      # BROADCAST_ROW opcode 10: vregDst=1, vregSrc=0, vregSrc2=row
+      f"2 10 0 1 0 0 2 0 0 0",
+      _load_xlu_result(2),
+      _store(1, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(1),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tiles = [line for line in out.splitlines() if line.startswith("vmem_result")]
+    self.assertEqual(len(tiles), 2)
+    got0 = [int(x) for x in tiles[0].split()[1:]]
+    got1 = [int(x) for x in tiles[1].split()[1:]]
+    # Row 2 broadcast -> every row equals [10,20,30,40].
+    expected = [10, 20, 30, 40] * 4
+    self.assertEqual(got0, expected)
+    self.assertEqual(got1, expected)
 
   def test_psum_read_row_extracts_single_row(self):
     # Accumulate into psum[0] row 2, then PSUM_READ_ROW that into v1
