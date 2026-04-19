@@ -304,12 +304,21 @@ software lowering alone. Ordered roughly by impact on real workloads.
 
 ### Data path & reductions
 
-- [ ] **Float reducer primitives** (`VPU_FSUM_REDUCE{,_COL,_TILE}`,
-      `VPU_FMAX_REDUCE{,_COL,_TILE}`, `VPU_FMIN_REDUCE{,_COL,_TILE}`).
-      Existing integer `VPU_*_REDUCE*` ops treat bits as `Int#(32)`, which
-      corrupts float32 reductions. Currently `_render_reduction_sxu_program`
-      rejects float dtypes. Unlocks float sum/mean/max/min (softmax
-      numerator, cross-entropy, BN stats).
+- [x] **Float reducer tile-scope primitives**
+      `VPU_FSUM_REDUCE_TILE` (opcode 38), `VPU_FMAX_REDUCE_TILE` (39),
+      `VPU_FMIN_REDUCE_TILE` (40). Float sum/max scalar reductions lower
+      end-to-end; float min lowers for single-tile kernels via a
+      negation-around-max pattern rewrite.
+- [ ] **Multi-tile float min combine** — needs a `VPU_FMIN` ALU opcode
+      so the renderer can emit a per-tile reducer + FMIN combine like
+      FMAX/SUM do. Today multi-tile float min reports unsupported.
+- [ ] **Float col-reduce and row-reduce primitives**
+      (`VPU_F{SUM,MAX,MIN}_REDUCE_COL` and `_ROW`). Needed for softmax
+      axis reductions, BN across channels, attention row-max/sum, etc.
+      Tile-scope reducers unblock scalar reductions but axis reductions
+      over larger-than-tile matrices still fall back.
+- [ ] **Float prod reducer** — no opcode; tinyspec `Reduce(Mul, axes)`
+      on float would need a `VPU_FMUL_REDUCE*` family.
 - [ ] **Narrow-dtype VPU lanes**: int8, uint8, int16, uint16, uint32
       elementwise. Current VPU is int32-only on the data path (except
       MXU which is int8). Blocks quantized-int8 inference kernels outside
