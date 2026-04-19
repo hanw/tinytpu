@@ -198,7 +198,10 @@ sim tests.
 - [ ] Non-int8 operand policy
 - [ ] Accumulation overflow tests
 - [ ] Multi-output tile scheduling cleanup
-- [ ] Hardware epilogue for multi-K-tile GEMM (currently falls back to numpy)
+- [x] Hardware epilogue for multi-K-tile GEMM — landed via PSUM
+      bucket bank. Multi-K-tile GEMMs now run `SXU_PSUM_CLEAR` → N ×
+      `DISPATCH_MXU(psum_acc)` → `SXU_PSUM_READ_ROW` → bias/relu →
+      STORE entirely in hardware. No numpy fallback path remains.
 
 ### Dtypes: 25-50 iterations
 
@@ -362,11 +365,12 @@ software lowering alone. Ordered roughly by impact on real workloads.
 
 ### Movement
 
-- [ ] **`PAD` primitive** — `SXU_DISPATCH_XLU_PAD` or extend the copy
-      renderer with a CMPLT+WHERE bounds fill. Needed for conv padding
-      and any non-trivial shape alignment.
-- [ ] **`FLIP` primitive** — reversed-index LOAD path (or an XLU flip
-      opcode). Needed for some conv variants and for tensor flip ops.
+- [~] **`PAD` primitive** — small unrolled pads lower through the
+      `_render_pad_sxu_program` renderer (PAD_FILL VMEM preload).
+      Multi-tile + RANGE-loop pads still open.
+- [~] **`FLIP` primitive** — unrolled flip / non-affine permutes
+      lower through the pad_fill renderer too. Multi-tile FLIP and
+      RANGE-loop FLIP still open.
 - [ ] **`CAT` primitive** — concatenate along an axis. Could be a
       two-source SXU copy program driven by a range split, but no
       primitive exists today.
