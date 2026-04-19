@@ -416,3 +416,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-18	b0ff61e	1	Float min() end-to-end	FMIN_REDUCE_TILE wired via negation-detection	pytest backend: 813 passed	float min single-tile	multi-tile float min needs VPU_FMIN ALU
 2026-04-19	1c163cd	1	VPU_FMIN ALU hardware	per-lane float min opcode	make test-vpu: 35/35; runtime build 1:45	FMIN ALU available for multi-tile combine	wire through renderer + allow multi-tile fmin
 2026-04-19	5a16a9d	1	Multi-tile float min() end-to-end	VPU_FMIN wired as combine opcode	pytest backend: 814 passed	multi-tile float min supported	range-loop reduction pattern (48+ elem)
+2026-04-19	9f90917	1	Float row-reducer opcodes	FSUM/FMAX/FMIN_REDUCE hardware	make test-vpu: 38/38; runtime build 1:48	per-row float reducers available	float col-reducers + wiring
