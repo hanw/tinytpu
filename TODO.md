@@ -314,13 +314,34 @@ software lowering alone. Ordered roughly by impact on real workloads.
       across tiles. Works up to 32 elements; larger sizes hit the
       pre-existing RANGE-loop reduction gap shared with other scalar
       reductions.
-- [ ] **Float col-reduce and row-reduce primitives**
-      (`VPU_F{SUM,MAX,MIN}_REDUCE_COL` and `_ROW`). Needed for softmax
-      axis reductions, BN across channels, attention row-max/sum, etc.
-      Tile-scope reducers unblock scalar reductions but axis reductions
-      over larger-than-tile matrices still fall back.
+- [x] **Float row-reduce primitives** (`VPU_FSUM_REDUCE` 42,
+      `VPU_FMAX_REDUCE` 43, `VPU_FMIN_REDUCE` 44). Per-sublane float
+      reducer ops added; row-sum and row-max are wired through the
+      tinygrad row renderer. Row-min still needs negation-decomp
+      detection in the row path.
+- [ ] **Float col-reduce primitives** (`VPU_F{SUM,MAX,MIN}_REDUCE_COL`).
+      Initial naive parallel implementation blew up bsc elaboration
+      (runtime rebuild 11+ min vs. 1:48 baseline) because each col case
+      branch instantiates `lanes` parallel FP reduction trees. Deferred
+      until we refactor the VPU to use a shared, multi-cycle FP reducer
+      unit that SUM/MAX/MIN all time-share; that also shrinks the tile
+      reducers. See "Build-time / bsc elaboration" note below.
 - [ ] **Float prod reducer** — no opcode; tinyspec `Reduce(Mul, axes)`
       on float would need a `VPU_FMUL_REDUCE*` family.
+
+### Build-time / bsc elaboration
+
+- [ ] **Shared multi-cycle FP reducer unit** — right now every float
+      reducer opcode instantiates its own combinational FP adder/
+      comparator tree inside a `case` branch. This scales linearly in
+      opcode count and super-linearly in `lanes × sublanes`. Refactor:
+      one FP adder + one FP comparator in the VPU, driven by a small
+      FSM that walks the input tile/row/col across multiple cycles.
+      SUM/MAX/MIN tile, row, and col variants all time-share the same
+      silicon. This is the enabling refactor for landing float col-
+      reducers (and later transcendentals) without regressing compile
+      time. Acceptance criterion: adding a new float reducer opcode
+      should add <10s to the runtime rebuild.
 - [ ] **Narrow-dtype VPU lanes**: int8, uint8, int16, uint16, uint32
       elementwise. Current VPU is int32-only on the data path (except
       MXU which is int8). Blocks quantized-int8 inference kernels outside
