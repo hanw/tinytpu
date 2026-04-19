@@ -54,7 +54,12 @@ typedef enum {
    //   SKIP_IF_PRED: if pred, pc += 2 (skip next instr); auto-reset pred
    // Baby step toward BARRIER/IF/ENDIF without adding real branches.
    SXU_SET_PRED_IF_ZERO,
-   SXU_SKIP_IF_PRED
+   SXU_SKIP_IF_PRED,
+   // PSUM_ACCUMULATE_ROW: accumulate row 0 of vregSrc into
+   // psum[vmemAddr][vregDst[1:0]]. VPU-side analog of the row-
+   // granular MXU path — lets a VPU sequence deposit partial results
+   // into a PSUM bucket row without overwriting the other rows.
+   SXU_PSUM_ACCUMULATE_ROW
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -111,6 +116,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
                SXU_EXEC_PSUM_READ_ROW, SXU_EXEC_PSUM_CLEAR,
+               SXU_EXEC_PSUM_ACCUMULATE_ROW,
                SXU_EXEC_SET_PRED, SXU_EXEC_SKIP_IF_PRED,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
@@ -184,6 +190,7 @@ module mkScalarUnit#(
          SXU_PSUM_READ:       pc_state <= SXU_EXEC_PSUM_READ_REQ;
          SXU_PSUM_READ_ROW:   pc_state <= SXU_EXEC_PSUM_READ_ROW;
          SXU_PSUM_CLEAR:      pc_state <= SXU_EXEC_PSUM_CLEAR;
+         SXU_PSUM_ACCUMULATE_ROW: pc_state <= SXU_EXEC_PSUM_ACCUMULATE_ROW;
          SXU_SET_PRED_IF_ZERO: pc_state <= SXU_EXEC_SET_PRED;
          SXU_SKIP_IF_PRED:    pc_state <= SXU_EXEC_SKIP_IF_PRED;
          SXU_HALT: begin
@@ -412,6 +419,21 @@ module mkScalarUnit#(
                cycle, pc, curInstr.vregDst);
 `endif
       vrf.write(truncate(curInstr.vregDst), psum.readResp);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // PSUM_ACCUMULATE_ROW: accumulate row 0 of vregSrc into
+   // psum[addr][row]. Mirror of Controller.psum.accumulateRow but
+   // driven from a vreg (VPU-side path).
+   rule do_psum_accumulate_row (pc_state == SXU_EXEC_PSUM_ACCUMULATE_ROW);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      UInt#(TLog#(sublanes)) row = truncate(curInstr.vregDst);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_ACCUMULATE_ROW pc=%0d addr=%0d row=%0d src=v%0d",
+               cycle, pc, curInstr.vmemAddr, row, curInstr.vregSrc);
+`endif
+      psum.accumulateRow(truncate(curInstr.vmemAddr), row, src[0]);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

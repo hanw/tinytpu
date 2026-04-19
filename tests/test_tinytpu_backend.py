@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -4978,6 +4978,32 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(len(tiles), 1)
     got = [int(x) for x in tiles[0].split()[1:]]
     self.assertEqual(got, forty_two)
+
+  def test_psum_accumulate_row_from_vpu_side(self):
+    # Two PSUM_ACCUMULATE_ROW ops against a freshly-cleared bucket,
+    # both sourcing row 0 of distinct vregs, must leave the sum in the
+    # target row. Other rows of the bucket stay zero.
+    sim = os.environ["TINYTPU_SIM"]
+    tile_a = [1, 2, 3, 4] + [0] * 12
+    tile_b = [10, 20, 30, 40] + [0] * 12
+    bundle = _bundle(
+      _vmem(0, tile_a),
+      _vmem(1, tile_b),
+      _load(0, 0),
+      _load(1, 1),
+      _psum_clear(0),
+      _psum_accumulate_row(0, 0, 2),       # psum[0].row[2] += v0.row[0]
+      _psum_accumulate_row(1, 0, 2),       # psum[0].row[2] += v1.row[0]
+      _psum_read_row(2, 0, 2),             # v2.row[0] := psum[0].row[2]
+      _store(5, 2),
+      _halt(),
+      _output_vmem(5),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile[0:4], [11, 22, 33, 44])
+    self.assertEqual(tile[4:16], [0] * 12)
 
   def test_psum_read_row_extracts_single_row(self):
     # Accumulate into psum[0] row 2, then PSUM_READ_ROW that into v1
