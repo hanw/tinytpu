@@ -36,7 +36,13 @@ typedef enum {
    //   SXU_PSUM_READ(psum_addr, vregDst)        — vreg := tile (1-cycle)
    SXU_PSUM_WRITE,
    SXU_PSUM_ACCUMULATE,
-   SXU_PSUM_READ
+   SXU_PSUM_READ,
+   // PSUM_READ_ROW: read psum[addr][row] (one sublane) into row 0 of
+   // vregDst and zero the other rows. Mirrors LOAD_MXU_RESULT so the
+   // multi-K-tile GEMM epilogue (bias/relu/store) can consume exactly
+   // the accumulated row without the uninitialized-other-rows issue.
+   // Layout: vmemAddr = bucket, vregSrc[1:0] = row, vregDst = target.
+   SXU_PSUM_READ_ROW
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -72,6 +78,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
+               SXU_EXEC_PSUM_READ_ROW,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -139,6 +146,7 @@ module mkScalarUnit#(
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
          SXU_PSUM_ACCUMULATE: pc_state <= SXU_EXEC_PSUM_ACCUMULATE;
          SXU_PSUM_READ:       pc_state <= SXU_EXEC_PSUM_READ_REQ;
+         SXU_PSUM_READ_ROW:   pc_state <= SXU_EXEC_PSUM_READ_ROW;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -365,6 +373,24 @@ module mkScalarUnit#(
                cycle, pc, curInstr.vregDst);
 `endif
       vrf.write(truncate(curInstr.vregDst), psum.readResp);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // PSUM_READ_ROW: combinational peek of psum[addr][row], deposited
+   // in row 0 of vregDst with the other rows zeroed — the same shape
+   // LOAD_MXU_RESULT produces, so downstream bias/relu/STORE steps
+   // can consume one accumulated GEMM row without knowing PSUM exists.
+   rule do_psum_read_row (pc_state == SXU_EXEC_PSUM_READ_ROW);
+      UInt#(TLog#(sublanes)) row = truncate(curInstr.vregSrc);
+      Vector#(lanes, Int#(32)) r = psum.peekRow(truncate(curInstr.vmemAddr), row);
+      Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
+      v[0] = r;
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_READ_ROW pc=%0d addr=%0d row=%0d dst=v%0d",
+               cycle, pc, curInstr.vmemAddr, row, curInstr.vregDst);
+`endif
+      vrf.write(truncate(curInstr.vregDst), v);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule
