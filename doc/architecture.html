@@ -568,6 +568,10 @@ program doesn't demand their result.
   </g>
 
   <!-- ================= LEFT: storage column ================= -->
+  <!-- Order: VRegFile, WeightSRAM, ActivSRAM, VMEM (top → bottom).
+       Places the MXU-local Int8 operand stores (Weight/Activ) next to the
+       top MXU engine row so the feed arrows are short; VMEM at the bottom
+       is the LOAD/STORE backing store and also the bridge to HBM. -->
   <text class="title" x="120" y="118" text-anchor="middle">Storage (SBUF analog)</text>
 
   <g>
@@ -578,21 +582,21 @@ program doesn't demand their result.
   </g>
   <g>
     <rect class="box mem" x="40" y="200" width="160" height="60"/>
-    <text class="title" x="120" y="220" text-anchor="middle">VMEM</text>
-    <text class="label" x="120" y="236" text-anchor="middle">unified tile scratchpad</text>
-    <text class="label" x="120" y="250" text-anchor="middle">PAD_FILL / MATRIX_TILE / …</text>
+    <text class="title" x="120" y="220" text-anchor="middle">WeightSRAM</text>
+    <text class="label" x="120" y="236" text-anchor="middle">MXU-local: 4×4 × Int8 × depth</text>
+    <text class="label" x="120" y="250" text-anchor="middle">weight-stationary</text>
   </g>
   <g>
     <rect class="box mem" x="40" y="270" width="160" height="60"/>
-    <text class="title" x="120" y="290" text-anchor="middle">WeightSRAM</text>
-    <text class="label" x="120" y="306" text-anchor="middle">MXU-local: 4×4 × Int8 × depth</text>
-    <text class="label" x="120" y="320" text-anchor="middle">weight-stationary</text>
+    <text class="title" x="120" y="290" text-anchor="middle">ActivSRAM</text>
+    <text class="label" x="120" y="306" text-anchor="middle">MXU-local: 4 × Int8 × depth</text>
+    <text class="label" x="120" y="320" text-anchor="middle">per-row vector</text>
   </g>
   <g>
     <rect class="box mem" x="40" y="340" width="160" height="60"/>
-    <text class="title" x="120" y="360" text-anchor="middle">ActivSRAM</text>
-    <text class="label" x="120" y="376" text-anchor="middle">MXU-local: 4 × Int8 × depth</text>
-    <text class="label" x="120" y="390" text-anchor="middle">per-row vector</text>
+    <text class="title" x="120" y="360" text-anchor="middle">VMEM</text>
+    <text class="label" x="120" y="376" text-anchor="middle">unified tile scratchpad</text>
+    <text class="label" x="120" y="390" text-anchor="middle">PAD_FILL / MATRIX_TILE / …</text>
   </g>
 
   <!-- ================= MIDDLE: engine rows ================= -->
@@ -707,24 +711,25 @@ program doesn't demand their result.
          - VMEM ↔ VRegFile is a LOAD/STORE path driven by SXU, not a direct
            engine read port.
   -->
-  <!-- MXU reads from WeightSRAM + ActivSRAM (curving up from below) -->
-  <path class="dph" d="M200,300 C250,300 260,200 310,165"/>
-  <text class="label" x="238" y="272" fill="#8b949e">weights</text>
-  <path class="dph" d="M200,370 C260,370 270,210 310,170"/>
-  <text class="label" x="238" y="352" fill="#8b949e">activations</text>
+  <!-- MXU reads from WeightSRAM + ActivSRAM (straight right now that they
+       sit adjacent to MXU's row in the storage column). -->
+  <path class="dph" d="M200,230 C250,230 260,200 310,165"/>
+  <text class="label" x="238" y="224" fill="#8b949e">weights</text>
+  <path class="dph" d="M200,300 C260,300 270,210 310,170"/>
+  <text class="label" x="238" y="286" fill="#8b949e">activations</text>
 
   <!-- VRegFile feeds VPU, FpReducer (via VPU chain), and XLU.
        Drawn as a shared LTR bus from VRegFile right edge. -->
-  <path class="dph" d="M200,155 L310,230"/>
-  <path class="dph" d="M200,180 L310,300"/>
+  <path class="dph" d="M200,150 L310,230"/>
+  <path class="dph" d="M200,165 L310,300"/>
   <path class="dph" d="M200,180 L310,370"/>
-  <text class="label" x="230" y="220" fill="#8b949e">vs / vs2</text>
+  <text class="label" x="230" y="210" fill="#8b949e">vs / vs2</text>
 
-  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) shown as a vertical line
-       between them; not an engine read port. -->
-  <path class="dp" d="M210,200 L210,190"/>
-  <path class="dp" d="M218,190 L218,200"/>
-  <text class="label" x="232" y="197" fill="#8b949e">LOAD/STORE</text>
+  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) routed along the outer
+       edge of the storage column since VMEM now sits below Weight/Activ. -->
+  <path class="dp" d="M60,340 L60,190"/>
+  <path class="dp" d="M68,190 L68,340"/>
+  <text class="label" x="76" y="265" fill="#8b949e">LOAD/STORE</text>
 
   <!-- Engines → Accumulator (writes) -->
   <path class="dph" d="M730,160 L780,160"/>
@@ -742,9 +747,9 @@ program doesn't demand their result.
   <path class="dpc" d="M830,185 C810,195 780,200 730,210"/>
   <text class="label" x="740" y="204" text-anchor="end" fill="#d2a8ff">SXU_LOAD_MXU_RESULT  (MXU→VPU epilogue)</text>
 
-  <!-- HBM ↔ VMEM -->
-  <path class="dp" d="M140,430 L140,260"/>
-  <path class="dp" d="M130,260 L130,430"/>
+  <!-- HBM ↔ VMEM (VMEM is the bottom storage row, adjacent to HBM). -->
+  <path class="dp" d="M140,430 L140,400"/>
+  <path class="dp" d="M130,400 L130,430"/>
 
   <!-- NoC connects the tensor cores -->
   <path class="dp" d="M240,465 L270,465"/>
