@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _load_vpu_result, _load_xlu_result
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -4919,6 +4919,65 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     expected = [10, 20, 30, 40] * 4
     self.assertEqual(got0, expected)
     self.assertEqual(got1, expected)
+
+  def test_skip_if_pred_skips_store_when_pred_set(self):
+    # VMEM[0] = zero tile (pred becomes True after SET_PRED_IF_ZERO v0).
+    # Program intends to skip the first STORE under the predicate and
+    # execute the second unconditionally. Expected: VMEM[3] unchanged
+    # (garbage or prior state), VMEM[4] = 42-tile.
+    sim = os.environ["TINYTPU_SIM"]
+    zero_tile = [0] * 16
+    forty_two = [42] * 16
+    sentinel   = [99] * 16
+    bundle = _bundle(
+      _vmem(0, zero_tile),     # source of zeros -> v0
+      _vmem(1, forty_two),     # source of 42s   -> v1
+      _vmem(3, sentinel),      # initial VMEM[3] = 99; skip path must leave it
+      _load(0, 0),             # v0 := zeros
+      _load(1, 1),             # v1 := 42s
+      _set_pred_if_zero(0),    # pred := (v0[0][0] == 0) -> True
+      _skip_if_pred(),         # pred is True -> skip next instruction
+      _store(3, 1),            # SKIPPED: would write VMEM[3] = 42s
+      _store(4, 1),            # executed: VMEM[4] = 42s
+      _halt(),
+      _output_vmem(3),
+      _output_vmem(4),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tiles = [line for line in out.splitlines() if line.startswith("vmem_result")]
+    self.assertEqual(len(tiles), 2)
+    got_skipped = [int(x) for x in tiles[0].split()[1:]]
+    got_unskipped = [int(x) for x in tiles[1].split()[1:]]
+    self.assertEqual(got_skipped, sentinel,
+                     "SKIP_IF_PRED did not skip the protected STORE")
+    self.assertEqual(got_unskipped, forty_two)
+
+  def test_skip_if_pred_does_not_skip_when_pred_clear(self):
+    # Same shape but v0 holds a nonzero — pred stays False and the
+    # STORE after SKIP_IF_PRED must execute.
+    sim = os.environ["TINYTPU_SIM"]
+    nonzero = [7] + [0] * 15
+    forty_two = [42] * 16
+    sentinel = [99] * 16
+    bundle = _bundle(
+      _vmem(0, nonzero),
+      _vmem(1, forty_two),
+      _vmem(3, sentinel),
+      _load(0, 0),
+      _load(1, 1),
+      _set_pred_if_zero(0),  # pred := (7 == 0) -> False
+      _skip_if_pred(),       # no skip
+      _store(3, 1),          # executed: VMEM[3] = 42s
+      _halt(),
+      _output_vmem(3),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tiles = [line for line in out.splitlines() if line.startswith("vmem_result")]
+    self.assertEqual(len(tiles), 1)
+    got = [int(x) for x in tiles[0].split()[1:]]
+    self.assertEqual(got, forty_two)
 
   def test_psum_read_row_extracts_single_row(self):
     # Accumulate into psum[0] row 2, then PSUM_READ_ROW that into v1
