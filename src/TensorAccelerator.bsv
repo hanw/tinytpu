@@ -5,6 +5,7 @@ import SystolicArray :: *;
 import WeightSRAM :: *;
 import ActivationSRAM :: *;
 import Controller :: *;
+import PSUMBank :: *;
 
 export TensorAccelerator_IFC(..);
 export mkTensorAccelerator;
@@ -33,7 +34,9 @@ module mkTensorAccelerator(TensorAccelerator_IFC#(rows, cols, depth))
    SystolicArray_IFC#(rows, cols) array <- mkSystolicArray;
    WeightSRAM_IFC#(depth, rows, cols) wSRAM <- mkWeightSRAM;
    ActivationSRAM_IFC#(depth, rows) aSRAM <- mkActivationSRAM;
-   Controller_IFC#(rows, cols, depth) ctrl <- mkController(array, wSRAM, aSRAM);
+   // Dummy PSUM bank; TensorAccelerator does not expose PSUM semantics.
+   PSUMBank_IFC#(2, rows, cols)   psum  <- mkPSUMBank;
+   Controller_IFC#(rows, cols, depth) ctrl <- mkController(array, wSRAM, aSRAM, psum);
 
    method Action loadWeightTile(UInt#(TLog#(depth)) addr,
                                 Vector#(rows, Vector#(cols, Int#(8))) wData);

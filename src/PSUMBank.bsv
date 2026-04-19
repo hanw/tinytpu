@@ -23,6 +23,15 @@ package PSUMBank;
 import Vector   :: *;
 import RegFile  :: *;
 
+// Access mode used by engines that can optionally deposit results
+// into a PSUM bucket. `PSUM_OFF` means the engine keeps producing its
+// one-shot result register as before and does not touch PSUM.
+typedef enum {
+   PSUM_OFF,
+   PSUM_WRITE,
+   PSUM_ACCUMULATE
+} PsumMode deriving (Bits, Eq, FShow);
+
 interface PSUMBank_IFC#(numeric type depth,
                         numeric type sublanes,
                         numeric type lanes);
@@ -128,6 +137,7 @@ module mkPSUMBank(PSUMBank_IFC#(depth, sublanes, lanes))
 endmodule
 
 export PSUMBank_IFC(..);
+export PsumMode(..);
 export mkPSUMBank;
 
 endpackage

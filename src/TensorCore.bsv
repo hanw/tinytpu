@@ -54,22 +54,23 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
       Add#(1, sl_, TMul#(rows, rows))    // FpReducer inside VPU reduces rows*rows elems
    );
 
+   // PSUM bucket bank — 8 tile-shaped Int32 accumulators. Shared
+   // between MXU (per-K-tile row accumulate via Controller) and SXU
+   // (via the SXU_PSUM_{WRITE,ACCUMULATE,READ} opcodes). Declared
+   // before Controller so it can be passed as a module argument.
+   PSUMBank_IFC#(8, rows, rows)    psum <- mkPSUMBank;
+
    // MXU sub-system
    SystolicArray_IFC#(rows, cols)     array <- mkSystolicArray;
    WeightSRAM_IFC#(depth, rows, cols) wsram <- mkWeightSRAM;
    ActivationSRAM_IFC#(depth, rows)   asram <- mkActivationSRAM;
-   Controller_IFC#(rows, cols, depth) ctrl  <- mkController(array, wsram, asram);
+   Controller_IFC#(rows, cols, depth) ctrl  <- mkController(array, wsram, asram, psum);
 
    // VPU/XLU sub-system — rows is both sublanes and lanes (square)
    VMEM_IFC#(depth, rows, rows)    vmem <- mkVMEM;
    VRegFile_IFC#(16, rows, rows)   vrf  <- mkVRegFile;
    VPU_IFC#(rows, rows)            vpu  <- mkVPU;
    XLU_IFC#(rows, rows)            xlu  <- mkXLU;
-
-   // PSUM bucket bank — 8 tile-shaped Int32 accumulators. Shared
-   // between MXU (for multi-K-tile accumulate) and SXU (via the new
-   // SXU_PSUM_{WRITE,ACCUMULATE,READ} opcodes).
-   PSUMBank_IFC#(8, rows, rows)    psum <- mkPSUMBank;
 
    // Scalar Unit drives everything
    SXU_IFC#(256, depth, 16, rows, rows) sxu <-

@@ -20,15 +20,16 @@ module mkTbScalarUnit();
    VPU_IFC#(4, 4)          vpu  <- mkVPU;
    XLU_IFC#(4, 4)          xlu  <- mkXLU;
 
+   // PSUM bank shared with Controller and SXU (required by both interfaces;
+   // not exercised in this TB — dedicated PSUM-through-SXU coverage
+   // lives in TbSxuPSUM).
+   PSUMBank_IFC#(4, 4, 4)     psum  <- mkPSUMBank;
+
    // Stub Controller for the SXU (not used by this test, just required by interface)
    SystolicArray_IFC#(4, 4)   arr   <- mkSystolicArray;
    WeightSRAM_IFC#(16, 4, 4)  wsram <- mkWeightSRAM;
    ActivationSRAM_IFC#(16, 4) asram <- mkActivationSRAM;
-   Controller_IFC#(4, 4, 16)  ctrl  <- mkController(arr, wsram, asram);
-
-   // PSUM bank required by SXU interface; not exercised in this TB —
-   // dedicated PSUM-through-SXU coverage lives in TbSxuPSUM.
-   PSUMBank_IFC#(4, 4, 4)     psum  <- mkPSUMBank;
+   Controller_IFC#(4, 4, 16)  ctrl  <- mkController(arr, wsram, asram, psum);
 
    // progDepth=24: room for VPU smoke, legacy broadcast, SELECT, and explicit broadcasts.
    SXU_IFC#(24, 16, 8, 4, 4) sxu <- mkScalarUnit(vmem, vrf, vpu, xlu, ctrl, psum);

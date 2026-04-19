@@ -381,14 +381,28 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // DISPATCH_MXU: trigger Controller, advance pc
+   // DISPATCH_MXU: trigger Controller, advance pc.
+   //
+   // For multi-K-tile accumulation the instruction optionally names a
+   // PSUM deposit target. The fields are re-purposed from otherwise
+   // unused vreg slots so SxuInstr stays the same width:
+   //   vregDst       -> psumAddr (truncated to TLog#(psumDepth))
+   //   vregSrc[1:0]  -> psumRow (bucket row, TLog#(sublanes))
+   //   vregSrc2[1:0] -> psumMode (PSUM_OFF / WRITE / ACCUMULATE)
+   // Existing MXU dispatches pass these as 0, which decodes to
+   // PSUM_OFF and leaves behavior unchanged.
    rule do_mxu (pc_state == SXU_EXEC_MXU);
+      PsumMode mode = unpack(truncate(pack(curInstr.vregSrc2)));
+      UInt#(TLog#(sublanes)) psumRow = truncate(curInstr.vregSrc);
+      UInt#(8) psumAddr = extend(curInstr.vregDst);
 `ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU pc=%0d", cycle, pc);
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU pc=%0d psum_mode=%0d psum_addr=%0d psum_row=%0d",
+               cycle, pc, pack(mode), psumAddr, psumRow);
 `endif
-      ctrl.start(truncate(curInstr.mxuWBase),
-                 truncate(curInstr.mxuABase),
-                 truncate(curInstr.mxuTLen));
+      ctrl.startPsum(truncate(curInstr.mxuWBase),
+                     truncate(curInstr.mxuABase),
+                     truncate(curInstr.mxuTLen),
+                     psumAddr, psumRow, mode);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

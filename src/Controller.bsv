@@ -4,6 +4,7 @@ import Vector :: *;
 import SystolicArray :: *;
 import WeightSRAM :: *;
 import ActivationSRAM :: *;
+import PSUMBank :: *;
 
 export ControlState(..);
 export Controller_IFC(..);
@@ -22,6 +23,15 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Action start(UInt#(TLog#(depth)) weightBase,
                        UInt#(TLog#(depth)) actBase,
                        UInt#(TLog#(depth)) tileLen);
+   // Variant that additionally deposits the dispatch result into a PSUM
+   // bucket row. When `mode == PSUM_OFF` this is equivalent to `start`.
+   // psumAddr is an 8-bit field truncated to the instantiated psum depth.
+   method Action startPsum(UInt#(TLog#(depth)) weightBase,
+                           UInt#(TLog#(depth)) actBase,
+                           UInt#(TLog#(depth)) tileLen,
+                           UInt#(8) psumAddr,
+                           UInt#(TLog#(rows)) psumRow,
+                           PsumMode psumMode);
    method Bool isDone;
    method Vector#(cols, Int#(32)) results;
    method ControlState getState;
@@ -30,13 +40,16 @@ endinterface
 module mkController#(
       SystolicArray_IFC#(rows, cols) array,
       WeightSRAM_IFC#(depth, rows, cols) wSRAM,
-      ActivationSRAM_IFC#(depth, rows) aSRAM
+      ActivationSRAM_IFC#(depth, rows) aSRAM,
+      PSUMBank_IFC#(psumDepth, rows, cols) psum
    )(Controller_IFC#(rows, cols, depth))
    provisos(Add#(1, r_, rows),
             Add#(1, c_, cols),
             Add#(1, d_, depth),
+            Add#(1, pd_, psumDepth),
             Log#(depth, logd),
-            Add#(logd_, TLog#(depth), 32));
+            Add#(logd_, TLog#(depth), 32),
+            Add#(psumTrunc__, TLog#(psumDepth), 8));
 
    Reg#(ControlState) cstate <- mkReg(Idle);
 
@@ -54,6 +67,12 @@ module mkController#(
    Reg#(Bool) firstActRead <- mkReg(False);
 
    Reg#(Vector#(cols, Int#(32))) outputBuf <- mkRegU;
+
+   // PSUM deposit target for the currently running dispatch. Set at
+   // start(Psum)() time; consumed in do_drain.
+   Reg#(UInt#(8))                 psumAddrReg <- mkReg(0);
+   Reg#(UInt#(TLog#(rows)))       psumRowReg  <- mkReg(0);
+   Reg#(PsumMode)                 psumModeReg <- mkReg(PSUM_OFF);
 `ifdef TRACE
    Reg#(UInt#(32)) cycle <- mkReg(0);
 
@@ -114,13 +133,32 @@ module mkController#(
       end
    endrule
 
-   // Phase 4: Collect results
+   // Phase 4: Collect results. Also optionally deposit into a PSUM
+   // bucket row so multi-K-tile GEMM can accumulate in hardware
+   // without round-tripping through VRegFile.
    rule do_drain (cstate == Drain);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=MXU ev=DRAIN", cycle);
 `endif
-      outputBuf <= array.getResults;
+      let r = array.getResults;
+      outputBuf <= r;
       array.clearAll;
+      case (psumModeReg)
+         PSUM_WRITE: begin
+`ifdef TRACE
+            $display("TRACE cycle=%0d unit=MXU ev=PSUM_WRITE addr=%0d row=%0d",
+                     cycle, psumAddrReg, psumRowReg);
+`endif
+            psum.writeRow(truncate(psumAddrReg), psumRowReg, r);
+         end
+         PSUM_ACCUMULATE: begin
+`ifdef TRACE
+            $display("TRACE cycle=%0d unit=MXU ev=PSUM_ACCUMULATE addr=%0d row=%0d",
+                     cycle, psumAddrReg, psumRowReg);
+`endif
+            psum.accumulateRow(truncate(psumAddrReg), psumRowReg, r);
+         end
+      endcase
       cstate <= Done;
    endrule
 
@@ -133,6 +171,25 @@ module mkController#(
       actIdx <= 0;
       streamCycle <= 0;
       firstActRead <= False;
+      psumModeReg <= PSUM_OFF;
+      cstate <= LoadWeights;
+   endmethod
+
+   method Action startPsum(UInt#(TLog#(depth)) weightBase,
+                           UInt#(TLog#(depth)) actBase,
+                           UInt#(TLog#(depth)) tileLen,
+                           UInt#(8) psumAddr,
+                           UInt#(TLog#(rows)) psumRow,
+                           PsumMode psumMode) if (cstate == Idle || cstate == Done);
+      wBase       <= weightBase;
+      aBase       <= actBase;
+      tLen        <= tileLen;
+      actIdx      <= 0;
+      streamCycle <= 0;
+      firstActRead <= False;
+      psumAddrReg <= psumAddr;
+      psumRowReg  <= psumRow;
+      psumModeReg <= psumMode;
       cstate <= LoadWeights;
    endmethod
 

@@ -31,12 +31,12 @@ module mkTbSxuPSUM();
    VPU_IFC#(4, 4)          vpu  <- mkVPU;
    XLU_IFC#(4, 4)          xlu  <- mkXLU;
 
+   PSUMBank_IFC#(8, 4, 4)     psum  <- mkPSUMBank;
+
    SystolicArray_IFC#(4, 4)   arr   <- mkSystolicArray;
    WeightSRAM_IFC#(16, 4, 4)  wsram <- mkWeightSRAM;
    ActivationSRAM_IFC#(16, 4) asram <- mkActivationSRAM;
-   Controller_IFC#(4, 4, 16)  ctrl  <- mkController(arr, wsram, asram);
-
-   PSUMBank_IFC#(8, 4, 4)     psum  <- mkPSUMBank;
+   Controller_IFC#(4, 4, 16)  ctrl  <- mkController(arr, wsram, asram, psum);
 
    SXU_IFC#(16, 16, 8, 4, 4)  sxu <-
       mkScalarUnit(vmem, vrf, vpu, xlu, ctrl, psum);
