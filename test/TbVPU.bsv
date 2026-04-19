@@ -770,7 +770,41 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 65);
+   // Test 32: VPU_FSUM_REDUCE_TILE — float tile sum.
+   // Values 1.0..16.0 (as IEEE 754 bit patterns packed into Int#(32)).
+   // Expected float sum: 136.0 = 0x43080000.
+   rule dispatch_fsum_reduce_tile (cycle == 64);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      Bit#(32) fbits[16] = {
+         32'h3F800000, 32'h40000000, 32'h40400000, 32'h40800000,  // 1,2,3,4
+         32'h40A00000, 32'h40C00000, 32'h40E00000, 32'h41000000,  // 5,6,7,8
+         32'h41100000, 32'h41200000, 32'h41300000, 32'h41400000,  // 9..12
+         32'h41500000, 32'h41600000, 32'h41700000, 32'h41800000}; // 13..16
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            s1[r][c] = unpack(fbits[r * 4 + c]);
+      vpu.execute(VPU_FSUM_REDUCE_TILE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FSUM_REDUCE_TILE", cycle);
+   endrule
+
+   rule check_fsum_reduce_tile (cycle == 65);
+      let res = vpu.result;
+      Bit#(32) expected = 32'h43080000;  // 136.0
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            if (pack(res[r][c]) != expected) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FSUM_REDUCE_TILE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FSUM_REDUCE_TILE got [0][0]=0x%08x (want 0x%08x)",
+            cycle, pack(res[0][0]), expected);
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 67);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
