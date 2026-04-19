@@ -430,3 +430,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	5beb4bb	1	Item10 iter1: SXU_LOAD_VPU/XLU_RESULT opcodes	SxuOpCode + FETCH decode + exec rules + Python/TASM	pytest backend: 831 passed; runtime build 1:48	engine-to-engine read ports scaffold	renderer-level chain use + SXU TB
 2026-04-19	7364877	1	Item10 iter2: TASM for LOAD_VPU/XLU_RESULT	assembler + disassembler + roundtrip tests	pytest tasm: 72 passed (+4)	TASM full coverage of new opcodes	SXU TB + renderer use
 2026-04-19	539a70e	2	Item2 iter1+2: PSUMBank scaffold	mkPSUMBank + TB + Makefile	make test-psumbank: 6/6	PSUM SRAM exists standalone	wire into Controller + SXU opcodes
+2026-04-19	4f3d20d	1	Item2 iter3: reserve PSUM SXU opcodes	SxuOpCode + TASM + Python; runtime still builds	pytest backend: 831 passed; runtime build 1:46	opcodes 15-17 claimed	wire PSUMBank into TensorCore
