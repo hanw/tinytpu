@@ -47,7 +47,14 @@ typedef enum {
    // zero vreg. Lets multi-K-tile GEMM skip the "preload zero tile in
    // VMEM + LOAD into v15 + PSUM_WRITE" dance before each chain.
    // Layout: vmemAddr = bucket. vreg* fields unused.
-   SXU_PSUM_CLEAR
+   SXU_PSUM_CLEAR,
+   // Predicate scaffolding (Architectural Refactor Item #7). A single
+   // Bool pred register plus two opcodes:
+   //   SET_PRED_IF_ZERO vregSrc: pred := (vreg[0][0] == 0)
+   //   SKIP_IF_PRED: if pred, pc += 2 (skip next instr); auto-reset pred
+   // Baby step toward BARRIER/IF/ENDIF without adding real branches.
+   SXU_SET_PRED_IF_ZERO,
+   SXU_SKIP_IF_PRED
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -104,6 +111,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
                SXU_EXEC_PSUM_READ_ROW, SXU_EXEC_PSUM_CLEAR,
+               SXU_EXEC_SET_PRED, SXU_EXEC_SKIP_IF_PRED,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -138,6 +146,9 @@ module mkScalarUnit#(
    Reg#(SxuState)                pc_state <- mkReg(SXU_IDLE);
    Reg#(UInt#(TLog#(progDepth))) pc       <- mkReg(0);
    Reg#(SxuInstr)                curInstr <- mkRegU;
+   // Single-bit predicate for baby conditional execution
+   // (SET_PRED_IF_ZERO / SKIP_IF_PRED).
+   Reg#(Bool)                    pred     <- mkReg(False);
 `ifdef TRACE
    Reg#(UInt#(32))               cycle    <- mkReg(0);
 
@@ -173,6 +184,8 @@ module mkScalarUnit#(
          SXU_PSUM_READ:       pc_state <= SXU_EXEC_PSUM_READ_REQ;
          SXU_PSUM_READ_ROW:   pc_state <= SXU_EXEC_PSUM_READ_ROW;
          SXU_PSUM_CLEAR:      pc_state <= SXU_EXEC_PSUM_CLEAR;
+         SXU_SET_PRED_IF_ZERO: pc_state <= SXU_EXEC_SET_PRED;
+         SXU_SKIP_IF_PRED:    pc_state <= SXU_EXEC_SKIP_IF_PRED;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -400,6 +413,32 @@ module mkScalarUnit#(
 `endif
       vrf.write(truncate(curInstr.vregDst), psum.readResp);
       pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // SET_PRED_IF_ZERO: pred := (vreg[0][0] == 0). Scalar predicate
+   // source is the top-left lane of vregSrc's tile.
+   rule do_set_pred (pc_state == SXU_EXEC_SET_PRED);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      let scalar = src[0][0];
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=SET_PRED_IF_ZERO pc=%0d src=v%0d scalar=%0d",
+               cycle, pc, curInstr.vregSrc, scalar);
+`endif
+      pred <= (scalar == 0);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // SKIP_IF_PRED: if pred, advance pc by 2 (skipping the next
+   // instruction); otherwise advance by 1. Auto-reset pred.
+   rule do_skip_if_pred (pc_state == SXU_EXEC_SKIP_IF_PRED);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=SKIP_IF_PRED pc=%0d pred=%0d",
+               cycle, pc, pred);
+`endif
+      pc <= pred ? (pc + 2) : (pc + 1);
+      pred <= False;
       pc_state <= SXU_FETCH;
    endrule
 
