@@ -925,6 +925,17 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float32", device="TINYTPU").prod(axis=0).numpy()
     np.testing.assert_allclose(result, a.prod(axis=0), rtol=1e-5)
 
+  def test_int32_pad_1d_matches_reference(self):
+    a = np.array([1, 2, 3, 4], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").pad((1, 1)).numpy()
+    np.testing.assert_array_equal(result, np.pad(a, (1, 1)))
+
+  def test_int32_pad_2_1_matches_reference(self):
+    # Tinygrad unrolls small pads to scalar stores.
+    a = np.array([5, 6, 7], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").pad((2, 1)).numpy()
+    np.testing.assert_array_equal(result, np.pad(a, (2, 1)))
+
   def test_sqrt_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
