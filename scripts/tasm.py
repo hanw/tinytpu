@@ -48,6 +48,7 @@ _SXU = {
     "PSUM_ACCUMULATE":        16,
     "PSUM_READ":              17,
     "PSUM_READ_ROW":          18,
+    "PSUM_CLEAR":             19,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 

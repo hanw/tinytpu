@@ -42,7 +42,12 @@ typedef enum {
    // multi-K-tile GEMM epilogue (bias/relu/store) can consume exactly
    // the accumulated row without the uninitialized-other-rows issue.
    // Layout: vmemAddr = bucket, vregSrc[1:0] = row, vregDst = target.
-   SXU_PSUM_READ_ROW
+   SXU_PSUM_READ_ROW,
+   // PSUM_CLEAR: zero a whole bucket in one cycle, without sourcing a
+   // zero vreg. Lets multi-K-tile GEMM skip the "preload zero tile in
+   // VMEM + LOAD into v15 + PSUM_WRITE" dance before each chain.
+   // Layout: vmemAddr = bucket. vreg* fields unused.
+   SXU_PSUM_CLEAR
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -78,7 +83,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
-               SXU_EXEC_PSUM_READ_ROW,
+               SXU_EXEC_PSUM_READ_ROW, SXU_EXEC_PSUM_CLEAR,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -147,6 +152,7 @@ module mkScalarUnit#(
          SXU_PSUM_ACCUMULATE: pc_state <= SXU_EXEC_PSUM_ACCUMULATE;
          SXU_PSUM_READ:       pc_state <= SXU_EXEC_PSUM_READ_REQ;
          SXU_PSUM_READ_ROW:   pc_state <= SXU_EXEC_PSUM_READ_ROW;
+         SXU_PSUM_CLEAR:      pc_state <= SXU_EXEC_PSUM_CLEAR;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -373,6 +379,17 @@ module mkScalarUnit#(
                cycle, pc, curInstr.vregDst);
 `endif
       vrf.write(truncate(curInstr.vregDst), psum.readResp);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // PSUM_CLEAR: zero bucket in one cycle (all rows).
+   rule do_psum_clear (pc_state == SXU_EXEC_PSUM_CLEAR);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_CLEAR pc=%0d addr=%0d",
+               cycle, pc, curInstr.vmemAddr);
+`endif
+      psum.clear(truncate(curInstr.vmemAddr));
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule
