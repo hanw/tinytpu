@@ -309,9 +309,11 @@ software lowering alone. Ordered roughly by impact on real workloads.
       `VPU_FMIN_REDUCE_TILE` (40). Float sum/max scalar reductions lower
       end-to-end; float min lowers for single-tile kernels via a
       negation-around-max pattern rewrite.
-- [ ] **Multi-tile float min combine** — needs a `VPU_FMIN` ALU opcode
-      so the renderer can emit a per-tile reducer + FMIN combine like
-      FMAX/SUM do. Today multi-tile float min reports unsupported.
+- [x] **Multi-tile float min combine** — `VPU_FMIN` ALU opcode (41)
+      added; renderer emits per-tile `FMIN_REDUCE_TILE` plus `VPU_FMIN`
+      across tiles. Works up to 32 elements; larger sizes hit the
+      pre-existing RANGE-loop reduction gap shared with other scalar
+      reductions.
 - [ ] **Float col-reduce and row-reduce primitives**
       (`VPU_F{SUM,MAX,MIN}_REDUCE_COL` and `_ROW`). Needed for softmax
       axis reductions, BN across channels, attention row-max/sum, etc.
