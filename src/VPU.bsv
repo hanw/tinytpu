@@ -9,7 +9,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_SUM_REDUCE_COL, VPU_MAX_REDUCE_COL, VPU_MIN_REDUCE_COL,
                VPU_SUM_REDUCE_TILE, VPU_MAX_REDUCE_TILE, VPU_MIN_REDUCE_TILE,
                VPU_MUL_REDUCE, VPU_MUL_REDUCE_COL, VPU_MUL_REDUCE_TILE,
-               VPU_FSUM_REDUCE_TILE, VPU_FMAX_REDUCE_TILE, VPU_FMIN_REDUCE_TILE }
+               VPU_FSUM_REDUCE_TILE, VPU_FMAX_REDUCE_TILE, VPU_FMIN_REDUCE_TILE,
+               VPU_FMIN }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -262,6 +263,12 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
                   let cmp = compareFP(bits2fp(src1[s][l]), bits2fp(src2[s][l]));
                   row[l] = (cmp == GT || cmp == EQ) ? src1[s][l] : src2[s][l];
+               end
+            end
+            VPU_FMIN: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  let cmp = compareFP(bits2fp(src1[s][l]), bits2fp(src2[s][l]));
+                  row[l] = (cmp == LT || cmp == EQ) ? src1[s][l] : src2[s][l];
                end
             end
             VPU_FCMPLT: begin

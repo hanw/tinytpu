@@ -870,7 +870,37 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 71);
+   // Test 35: VPU_FMIN — per-lane float min.
+   // row0: [3.0, 1.0, 4.0, 2.0] fmin [2.0, 2.0, 2.0, 2.0] -> [2.0, 1.0, 2.0, 2.0]
+   rule dispatch_fmin (cycle == 70);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h40400000);  // 3.0
+      s1[0][1] = unpack(32'h3F800000);  // 1.0
+      s1[0][2] = unpack(32'h40800000);  // 4.0
+      s1[0][3] = unpack(32'h40000000);  // 2.0
+      for (Integer l = 0; l < 4; l = l + 1) s2[0][l] = unpack(32'h40000000);  // 2.0
+      vpu.execute(VPU_FMIN, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FMIN", cycle);
+   endrule
+
+   rule check_fmin (cycle == 71);
+      let res = vpu.result;
+      // Expected row0: [2.0, 1.0, 2.0, 2.0]
+      Bool ok = (pack(res[0][0]) == 32'h40000000
+              && pack(res[0][1]) == 32'h3F800000
+              && pack(res[0][2]) == 32'h40000000
+              && pack(res[0][3]) == 32'h40000000);
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FMIN", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FMIN got [0]=[0x%08x,0x%08x,0x%08x,0x%08x]",
+            cycle, pack(res[0][0]), pack(res[0][1]), pack(res[0][2]), pack(res[0][3]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 73);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
