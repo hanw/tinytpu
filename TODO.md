@@ -405,6 +405,97 @@ software lowering alone. Ordered roughly by impact on real workloads.
       tensors larger than the VMEM working set. Today everything must
       fit in VMEM tiles.
 
+## Architectural Refactors (higher-impact, bigger than opcode additions)
+
+These are the structural improvements that came out of reviewing the
+TensorCore datapath against the NeuronCore reference and thinking
+about what's actually bottlenecked today. Ordered by impact/effort
+ratio — the top ones would most change what TinyTPU can run.
+
+### Tier 1 — parallelism and data movement
+
+- [ ] **Decouple SXU into per-engine command queues.** The single
+      microsequencer is the visible biggest bottleneck: every engine
+      shares one issue slot. MXU already overlaps via
+      `DISPATCH_MXU`+`WAIT_MXU`, but VPU / FpReducer / XLU all
+      serialize even though they touch disjoint state. Split the
+      front-end into an SXU fetch/decode stage feeding four small
+      per-engine FIFOs, each with its own execute-side controller; add
+      a scoreboard keyed on VRegFile destination index for RAW/WAW.
+      Closes the biggest visible gap vs NeuronCore's per-engine SEQs.
+- [ ] **Dedicated PSUM accumulator bank.** The four engine "accumulators"
+      (MXU result reg, VPU resultReg, FpReducer.acc, XLU output) are
+      single-entry registers. Multi-K-tile GEMM has to round-trip
+      through VRegFile between K-tiles because there is no persistent
+      multi-entry accumulator. Add a small SRAM (~8 × 4×4 × Int32) with
+      `add_into(addr, vec)` semantics so MXU accumulates directly per
+      K-tile and VPU can read for the epilogue without touching the
+      VRegFile. This is also the item that unblocks the existing
+      "multi-K-tile hardware epilogue" gap above.
+- [ ] **Engine-to-engine forwarding (bypass VRegFile).** Today every
+      hand-off is `engine → resultReg → VRegFile → engine`, four
+      cycles. Add a muxed forwarding network on engine inputs so
+      `vs`/`vs2` can come straight from the MXU result reg / VPU
+      resultReg / XLU output when SXU emits a `FWD` hint instead of a
+      vreg index. The current `SXU_LOAD_MXU_RESULT` special case is
+      the first half of this feature — generalize it.
+- [ ] **Dual-issue slot for VPU + XLU.** Cheap intermediate step if
+      full per-engine queues are too much: a 2-slot SXU where slot A
+      dispatches VPU/MXU ops and slot B dispatches XLU ops. They're
+      already independent at the hardware level; only SXU's single-issue
+      constraint stops them from overlapping. Immediate win on
+      transpose-then-elementwise kernels (softmax, attention).
+
+### Tier 2 — memory hierarchy and programmability
+
+- [ ] **Double-buffered Weight/ActivSRAM + small DMA engine.** Preload
+      from HBM currently blocks MXU because the operand SRAMs have
+      only one live copy of each tile. Ping-pong the SRAMs and add a
+      DMA unit that stages the *next* tile while MXU drains the
+      current one — also absorbs the NeuronCore-style "Sync Engine"
+      role at a smaller scope.
+- [ ] **Transcendental / programmable SIMD unit.** `sqrt` / `log2` /
+      `exp2` / `sin` are rejected today; NeuronCore covers these with
+      its GPSIMD engine. Three options in increasing generality:
+      (a) polynomial-approximator opcodes with fixed hardware LUTs,
+      (b) a dedicated transcendental unit next to the VPU, (c) a tiny
+      programmable SIMD lane (RISC-V style). (a) is the natural first
+      iteration.
+- [ ] **Predicate register + `SKIP_IF_ZERO` (baby `IF` / `BARRIER`).**
+      Straight-line SXU means no masked writes, no early exits, no
+      conditional epilogues. A single 1-bit predicate and a skip
+      instruction is a cheap step toward the larger `BARRIER` / `IF`
+      / `ENDIF` gap.
+- [ ] **Output-stationary dataflow mode on MXU.** Second mode (in
+      addition to weight-stationary) for depthwise conv / batched
+      inputs with shared weights. Same systolic silicon, different
+      drive pattern in Controller.
+
+### Tier 3 — chip-level scale-out
+
+- [ ] **Shared on-chip L2 between TensorCores.** NoC exists, but
+      cores re-fetch overlapping weights from HBM for data-parallel
+      kernels. An L2 cache or an NoC broadcast primitive amortizes
+      weight traffic across cores.
+- [ ] **Generalize `SXU_LOAD_MXU_RESULT` into engine-to-engine read
+      ports.** If we don't do the full forwarding network above, at
+      least make it symmetric: `SXU_LOAD_VPU_RESULT`,
+      `SXU_LOAD_XLU_RESULT` so any engine's output can feed any
+      engine's input without a VRegFile round-trip.
+- [ ] **Per-engine writeback queues on VRegFile.** Writeback bus is a
+      single return path; if VPU and XLU both finish in the same
+      cycle they compete. Multi-port VRF or small per-engine
+      writeback FIFOs.
+
+### Deferred (called out but probably not next)
+
+- Mixed-precision MXU (bf16/fp16 MACs) — big surgery, unclear ROI
+  without training workloads.
+- Hardware collective primitives on the ring NoC — worth the software
+  plumbing first; hardware once we have multi-core workloads.
+- `ATOMICADD` on VMEM banks — only matters for scatter-add kernels
+  which aren't on our critical path.
+
 ## Milestones
 
 ### Milestone 1: Useful Single-Tile Tensor Programs
