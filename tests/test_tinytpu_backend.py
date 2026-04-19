@@ -802,9 +802,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").cast("int32").numpy()
     np.testing.assert_array_equal(result, a.astype(np.int32))
 
-  def test_float_sum_reduce_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([1.0, 2.0, 3.0, 4.0], dtype="float", device="TINYTPU").sum().numpy()
+  def test_float_sum_reduce_matches_reference(self):
+    # Previously unsupported; now lowers through VPU_FSUM_REDUCE_TILE.
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sum().numpy()
+    np.testing.assert_allclose(result, a.sum(), rtol=1e-6)
 
   def test_float_max_reduce_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
@@ -4590,6 +4592,26 @@ class TestTinyTPUBackend(unittest.TestCase):
     a = np.array([2, 3, 4], dtype=np.int32)
     result = (Tensor(a, dtype="int32", device="TINYTPU").prod() + 1).numpy()
     np.testing.assert_array_equal(result, a.prod() + 1)
+
+  def test_float32_sum_4elem_matches_reference(self):
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    result = Tensor(a, dtype="float32", device="TINYTPU").sum().numpy()
+    np.testing.assert_allclose(result, a.sum(), rtol=1e-6)
+
+  def test_float32_sum_full_tile_matches_reference(self):
+    a = np.arange(1, 17, dtype=np.float32)
+    result = Tensor(a, dtype="float32", device="TINYTPU").sum().numpy()
+    np.testing.assert_allclose(result, a.sum(), rtol=1e-6)
+
+  def test_float32_sum_multi_tile_matches_reference(self):
+    a = np.arange(32, dtype=np.float32) * 0.5
+    result = Tensor(a, dtype="float32", device="TINYTPU").sum().numpy()
+    np.testing.assert_allclose(result, a.sum(), rtol=1e-5)
+
+  def test_float32_sum_signed_matches_reference(self):
+    a = np.array([-1.5, 2.5, -0.25, 3.25], dtype=np.float32)
+    result = Tensor(a, dtype="float32", device="TINYTPU").sum().numpy()
+    np.testing.assert_allclose(result, a.sum(), rtol=1e-6)
 
 
 class TestTinyTPUTilingInference(unittest.TestCase):
