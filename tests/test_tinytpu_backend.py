@@ -4563,6 +4563,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(cond, dtype="bool", device="TINYTPU").where(-3, -7).numpy()
     np.testing.assert_array_equal(result, np.where(cond, -3, -7))
 
+  def test_float32_3d_222_fadd_tt_matches_reference(self):
+    a = (np.arange(8, dtype=np.float32) - 4.0).reshape(2, 2, 2)
+    b = (np.arange(8, dtype=np.float32) * 0.5).reshape(2, 2, 2)
+    ta = Tensor(a, dtype="float32", device="TINYTPU")
+    tb = Tensor(b, dtype="float32", device="TINYTPU")
+    result = (ta + tb).numpy()
+    np.testing.assert_allclose(result, a + b, rtol=1e-5)
+
 
 class TestTinyTPUTilingInference(unittest.TestCase):
   def test_infers_single_tile_shape(self):
