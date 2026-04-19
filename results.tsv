@@ -402,3 +402,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-18	4db8532	1	5-elem prod reduction	varied-length prod	pytest backend: 796 passed	none	none
 2026-04-18	99518cf	1	9-elem float32 fabs	varied-length fabs	pytest backend: 797 passed	none	none
 2026-04-18	6e97914	1	3D int32 shr coverage	2x2x2 shape shr const	pytest backend: 798 passed	none	none
+2026-04-18	b38b9d3	1	WHERE negative consts	negative int branches	pytest backend: 799 passed	none	none
