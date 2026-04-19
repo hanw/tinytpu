@@ -936,6 +936,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="int32", device="TINYTPU").pad((2, 1)).numpy()
     np.testing.assert_array_equal(result, np.pad(a, (2, 1)))
 
+  def test_int32_flip_1d_matches_reference(self):
+    a = np.array([1, 2, 3, 4], dtype=np.int32)
+    result = Tensor(a, dtype="int32", device="TINYTPU").flip(0).numpy()
+    np.testing.assert_array_equal(result, np.flip(a))
+
+
   def test_sqrt_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
