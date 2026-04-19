@@ -14,7 +14,7 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_FMIN,
                VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE,
                VPU_FSUM_REDUCE_COL, VPU_FMAX_REDUCE_COL, VPU_FMIN_REDUCE_COL,
-               VPU_FPROD_REDUCE_TILE }
+               VPU_FPROD_REDUCE_TILE, VPU_FPROD_REDUCE, VPU_FPROD_REDUCE_COL }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -150,6 +150,14 @@ function Float lane_fmin(Vector#(n, Int#(32)) vec)
    return acc;
 endfunction
 
+function Float lane_fprod(Vector#(n, Int#(32)) vec)
+   provisos(Add#(1, n_, n));
+   Float acc = unpack(32'h3F800000);  // 1.0
+   for (Integer i = 0; i < valueOf(n); i = i + 1)
+      acc = tpl_1(multFP(acc, bits2fp(vec[i]), Rnd_Nearest_Even));
+   return acc;
+endfunction
+
 module mkVPU(VPU_IFC#(sublanes, lanes))
    provisos(
       Add#(1, s_, sublanes),
@@ -228,16 +236,18 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
       // elaborated once, not re-elaborated per case branch. One col_f*
       // helper call per column; the helpers themselves (lane_fsum etc.)
       // are shared between row and col paths.
-      Vector#(lanes, Int#(32)) col_fsum = newVector;
-      Vector#(lanes, Int#(32)) col_fmax = newVector;
-      Vector#(lanes, Int#(32)) col_fmin = newVector;
+      Vector#(lanes, Int#(32)) col_fsum  = newVector;
+      Vector#(lanes, Int#(32)) col_fmax  = newVector;
+      Vector#(lanes, Int#(32)) col_fmin  = newVector;
+      Vector#(lanes, Int#(32)) col_fprod = newVector;
       for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
          Vector#(sublanes, Int#(32)) colv = newVector;
          for (Integer sc = 0; sc < valueOf(sublanes); sc = sc + 1)
             colv[sc] = src1[sc][l];
-         col_fsum[l] = unpack(pack(lane_fsum(colv)));
-         col_fmax[l] = unpack(pack(lane_fmax(colv)));
-         col_fmin[l] = unpack(pack(lane_fmin(colv)));
+         col_fsum[l]  = unpack(pack(lane_fsum(colv)));
+         col_fmax[l]  = unpack(pack(lane_fmax(colv)));
+         col_fmin[l]  = unpack(pack(lane_fmin(colv)));
+         col_fprod[l] = unpack(pack(lane_fprod(colv)));
       end
       // Full-tile reductions: reduce the per-column reductions across lanes.
       Int#(32) tile_sum = 0;
@@ -518,6 +528,14 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_FMIN_REDUCE_COL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = col_fmin[l];
+            end
+            VPU_FPROD_REDUCE: begin
+               Int#(32) bits = unpack(pack(lane_fprod(src1[s])));
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) row[l] = bits;
+            end
+            VPU_FPROD_REDUCE_COL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = col_fprod[l];
             end
          endcase
          res[s] = row;
