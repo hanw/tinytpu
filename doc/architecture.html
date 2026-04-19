@@ -718,10 +718,15 @@ program doesn't demand their result.
   <path class="dph" d="M200,285 C250,260 275,195 300,180"/>
   <text class="label" x="204" y="278" fill="#7ee787">activations</text>
 
-  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) along the outer edge. -->
-  <path class="dp" d="M60,340 L60,190"/>
-  <path class="dp" d="M68,190 L68,340"/>
-  <text class="label" x="76" y="265" fill="#8b949e">LOAD/STORE</text>
+  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) routed along the OUTER
+       left edge of the storage column so it bypasses WeightSRAM and
+       ActivSRAM instead of slicing through them. Two parallel L-shapes:
+       inner (x=30) = STORE (VRegFile→VMEM); outer (x=22) = LOAD (VMEM→VRegFile). -->
+  <path class="dp" d="M40,155 L30,155 L30,375 L40,375"/>
+  <path class="dp" d="M40,370 L22,370 L22,160 L40,160"/>
+  <g transform="translate(14,260) rotate(-90)">
+    <text class="label" x="0" y="0" text-anchor="middle" fill="#8b949e">LOAD / STORE</text>
+  </g>
 
   <!-- Engines → Accumulator (writes) : one short LTR arrow per row. -->
   <path class="dph" d="M740,160 L780,160"/>
