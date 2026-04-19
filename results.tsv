@@ -414,3 +414,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-18	ce63210	1	Float max() end-to-end	FMAX_REDUCE_TILE wired + -inf pad + tests	pytest backend: 811 passed	float max() supported	FMIN reducer
 2026-04-18	41e66ed	1	VPU_FMIN_REDUCE_TILE hardware	float tile-min opcode	make test-vpu: 34/34; runtime build 1:45	third float reducer available	tinygrad wiring
 2026-04-18	b0ff61e	1	Float min() end-to-end	FMIN_REDUCE_TILE wired via negation-detection	pytest backend: 813 passed	float min single-tile	multi-tile float min needs VPU_FMIN ALU
+2026-04-19	1c163cd	1	VPU_FMIN ALU hardware	per-lane float min opcode	make test-vpu: 35/35; runtime build 1:45	FMIN ALU available for multi-tile combine	wire through renderer + allow multi-tile fmin
