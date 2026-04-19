@@ -72,6 +72,26 @@ interface SXU_IFC#(numeric type progDepth,
    method Bool isDone;
 endinterface
 
+// Classify each opcode by which execution engine it consumes. The MXU
+// dispatches are already overlapped with the main FSM (DISPATCH_MXU
+// advances past WAIT_MXU), but XLU dispatches still stall the main
+// FSM even though the XLU is physically independent. Exposing this
+// classification is the first step toward a dual-issue SXU front-end
+// that can overlap XLU work with the rest of the program.
+function Bool sxu_is_xlu_slot(SxuOpCode op);
+   case (op)
+      SXU_DISPATCH_XLU_BROADCAST,
+      SXU_BROADCAST_SCALAR,
+      SXU_BROADCAST_ROW,
+      SXU_BROADCAST_COL,
+      SXU_DISPATCH_XLU_TRANSPOSE,
+      SXU_LOAD_XLU_RESULT:
+         return True;
+      default:
+         return False;
+   endcase
+endfunction
+
 typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_STORE, SXU_EXEC_VPU, SXU_EXEC_VPU_COLLECT,
                SXU_EXEC_XLU_BROADCAST, SXU_EXEC_XLU_COLLECT,
