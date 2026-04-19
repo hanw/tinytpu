@@ -27,7 +27,7 @@ package FpReducer;
 import Vector :: *;
 import FloatingPoint :: *;
 
-typedef enum { FPR_SUM, FPR_MAX, FPR_MIN } FpReducerOp
+typedef enum { FPR_SUM, FPR_MAX, FPR_MIN, FPR_PROD } FpReducerOp
    deriving (Bits, Eq, FShow);
 
 interface FpReducer_IFC#(numeric type n);
@@ -60,15 +60,18 @@ module mkFpReducer(FpReducer_IFC#(n))
    rule step (busy && !done);
       let i = idx_r;
       Float next = fpr_bits2fp(buf_r[i]);
-      // Compute sum/max/min candidates in parallel (bsc shares the compareFP
-      // call), then select. Keeping the final mux simple keeps elaboration
-      // bounded and sidesteps BSV's strict definite-initialization rule.
-      Float sum_acc = tpl_1(addFP(acc, next, Rnd_Nearest_Even));
-      let   cmp     = compareFP(acc, next);
-      Float max_acc = (cmp == GT || cmp == EQ) ? acc : next;
-      Float min_acc = (cmp == LT || cmp == EQ) ? acc : next;
-      Float new_acc = (op_r == FPR_SUM) ? sum_acc :
-                      (op_r == FPR_MAX) ? max_acc : min_acc;
+      // Compute sum/prod/max/min candidates in parallel (bsc shares the FP
+      // adder/multiplier/comparator), then select via the op register.
+      // Keeping the final mux simple sidesteps BSV's strict definite-
+      // initialization rule for the Float record.
+      Float sum_acc  = tpl_1(addFP (acc, next, Rnd_Nearest_Even));
+      Float prod_acc = tpl_1(multFP(acc, next, Rnd_Nearest_Even));
+      let   cmp      = compareFP(acc, next);
+      Float max_acc  = (cmp == GT || cmp == EQ) ? acc : next;
+      Float min_acc  = (cmp == LT || cmp == EQ) ? acc : next;
+      Float new_acc  = (op_r == FPR_SUM)  ? sum_acc  :
+                       (op_r == FPR_PROD) ? prod_acc :
+                       (op_r == FPR_MAX)  ? max_acc  : min_acc;
       acc <= new_acc;
       if (i + 1 == fromInteger(valueOf(n))) begin
          done <= True;

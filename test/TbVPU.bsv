@@ -844,6 +844,34 @@ module mkTbVPU();
 
    // Test 34: VPU_FMIN_REDUCE_TILE — float tile min.
    // Values 1.0..16.0, expected min = 1.0 = 0x3F800000.
+   // Test 42: VPU_FPROD_REDUCE_TILE — float tile product via shared FpReducer.
+   // Values [2.0, 3.0, 4.0, 1.0*13] -> 24.0 = 0x41C00000.
+   rule dispatch_fprod_reduce_tile (cycle == 200);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(unpack(32'h3F800000)));  // 1.0 fill
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h40000000);  // 2.0
+      s1[0][1] = unpack(32'h40400000);  // 3.0
+      s1[0][2] = unpack(32'h40800000);  // 4.0
+      vpu.execute(VPU_FPROD_REDUCE_TILE, s1, s2);
+      $display("Cycle %0d: dispatched VPU_FPROD_REDUCE_TILE", cycle);
+   endrule
+
+   rule check_fprod_reduce_tile (cycle == 220);
+      let res = vpu.result;
+      Bit#(32) expected = 32'h41C00000;  // 24.0
+      Bool ok = True;
+      for (Integer r = 0; r < 4; r = r + 1)
+         for (Integer c = 0; c < 4; c = c + 1)
+            if (pack(res[r][c]) != expected) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_FPROD_REDUCE_TILE", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_FPROD_REDUCE_TILE got [0][0]=0x%08x (want 0x%08x)",
+            cycle, pack(res[0][0]), expected);
+         failed <= failed + 1;
+      end
+   endrule
+
    rule dispatch_fmin_reduce_tile (cycle == 150);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
@@ -1078,7 +1106,7 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 180);
+   rule finish (cycle == 230);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

@@ -13,7 +13,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_FSUM_REDUCE_TILE, VPU_FMAX_REDUCE_TILE, VPU_FMIN_REDUCE_TILE,
                VPU_FMIN,
                VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE,
-               VPU_FSUM_REDUCE_COL, VPU_FMAX_REDUCE_COL, VPU_FMIN_REDUCE_COL }
+               VPU_FSUM_REDUCE_COL, VPU_FMAX_REDUCE_COL, VPU_FMIN_REDUCE_COL,
+               VPU_FPROD_REDUCE_TILE }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -187,14 +188,16 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
       Bool use_fp_tile_reducer =
              (op == VPU_FSUM_REDUCE_TILE)
           || (op == VPU_FMAX_REDUCE_TILE)
-          || (op == VPU_FMIN_REDUCE_TILE);
+          || (op == VPU_FMIN_REDUCE_TILE)
+          || (op == VPU_FPROD_REDUCE_TILE);
       if (use_fp_tile_reducer) begin
          Vector#(TMul#(sublanes, lanes), Int#(32)) flat = newVector;
          for (Integer sf = 0; sf < valueOf(sublanes); sf = sf + 1)
             for (Integer lf = 0; lf < valueOf(lanes); lf = lf + 1)
                flat[sf * valueOf(lanes) + lf] = src1[sf][lf];
-         FpReducerOp frop = (op == VPU_FSUM_REDUCE_TILE) ? FPR_SUM :
-                             (op == VPU_FMAX_REDUCE_TILE) ? FPR_MAX : FPR_MIN;
+         FpReducerOp frop = (op == VPU_FSUM_REDUCE_TILE)  ? FPR_SUM  :
+                             (op == VPU_FMAX_REDUCE_TILE)  ? FPR_MAX  :
+                             (op == VPU_FMIN_REDUCE_TILE)  ? FPR_MIN  : FPR_PROD;
          fpr.start(frop, flat);
          fp_busy <= True;
       end else begin

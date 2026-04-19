@@ -120,7 +120,18 @@ module mkTbFpReducer();
       armed <= True;
    endrule
 
-   rule finish_ok (!armed && test_id == 6);
+   // Test 6: PROD of [2.0, 3.0, 4.0] + 13 one-pads -> 24.0 = 0x41C00000
+   rule launch_6 (!armed && test_id == 6);
+      let a = unpack(32'h40000000); // 2.0
+      let b = unpack(32'h40400000); // 3.0
+      let c = unpack(32'h40800000); // 4.0
+      fpr.start(FPR_PROD, v4_pad(a, b, c, unpack(32'h3F800000), unpack(32'h3F800000)));
+      // Note: only a,b,c are the "real" elements; slot 3 is 1.0 (identity).
+      expected <= 32'h41C00000;  // 24.0
+      armed <= True;
+   endrule
+
+   rule finish_ok (!armed && test_id == 7);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
