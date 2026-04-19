@@ -399,3 +399,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-18	1dbeead	1	3D int32 mul-const	2x2x2 int32 x*c	pytest backend: 793 passed	none	none
 2026-04-18	e4f477f	1	1x4 col-sum coverage	single-row col-sum	pytest backend: 794 passed	none	none
 2026-04-18	820356f	1	4x1 row-sum coverage	single-col row-sum	pytest backend: 795 passed	none	none
+2026-04-18	4db8532	1	5-elem prod reduction	varied-length prod	pytest backend: 796 passed	none	none
