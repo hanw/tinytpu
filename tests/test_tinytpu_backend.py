@@ -100,6 +100,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a_np, dtype="int32", device="TINYTPU") @ Tensor(w_np, dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, a_np @ w_np)
 
+  def test_multi_k_tile_gemm_bias_relu_through_psum(self):
+    # Stress the multi-K-tile GEMM hardware epilogue path introduced
+    # by iters 11-13: randomized int8 weights + int32 activations with
+    # num_k_tiles>1 and both bias and relu in the epilogue. All tiles
+    # go through SXU_PSUM_CLEAR -> N MXU-psum_acc -> PSUM_READ_ROW ->
+    # VPU_ADD(bias) -> VPU_RELU -> STORE in hardware.
+    rng = np.random.default_rng(42)
+    a_np = rng.integers(-8, 9, size=(4, 8), dtype=np.int32)
+    w_np = rng.integers(-8, 9, size=(8, 8), dtype=np.int32)
+    b_np = rng.integers(-30, 30, size=(8,), dtype=np.int32)
+    a_t = Tensor(a_np, dtype="int32", device="TINYTPU")
+    w_t = Tensor(w_np, dtype="int32", device="TINYTPU")
+    b_t = Tensor(b_np, dtype="int32", device="TINYTPU")
+    result = ((a_t @ w_t) + b_t).relu().numpy()
+    np.testing.assert_array_equal(result, np.maximum(a_np @ w_np + b_np, 0))
+
   def test_activation_out_of_int8_range_raises(self):
     a_np = np.array([[128, 0, 0, 0]], dtype=np.int32)
     w_np = np.eye(4, dtype=np.int32)
