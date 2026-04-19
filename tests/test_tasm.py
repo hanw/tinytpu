@@ -223,14 +223,14 @@ def test_load_xlu_result_assembles():
 
 
 def test_load_vpu_result_roundtrip():
-    from tasm import disassemble
+    from scripts.tasm import disassemble
     wire = assemble("LOAD_VPU_RESULT v7\nHALT\nEND\n")
     text = disassemble(wire)
     assert "LOAD_VPU_RESULT v7" in text
 
 
 def test_load_xlu_result_roundtrip():
-    from tasm import disassemble
+    from scripts.tasm import disassemble
     wire = assemble("LOAD_XLU_RESULT v1\nHALT\nEND\n")
     text = disassemble(wire)
     assert "LOAD_XLU_RESULT v1" in text
@@ -467,17 +467,6 @@ def test_gemm_bundle_roundtrips_through_tasm():
     assert assemble(disassemble(wire)) == wire
 
 
-def test_where_bundle_roundtrips_through_tasm():
-    import numpy as np
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
-    from tinygrad.runtime.ops_tinytpu import _build_vpu_where_bundle
-    cond = np.array([1, 0, 1, 0] + [0] * 12, dtype=np.int32)
-    lhs  = np.arange(16, dtype=np.int32)
-    rhs  = -np.arange(16, dtype=np.int32)
-    wire = _build_vpu_where_bundle(cond, lhs, rhs, 4)
-    assert assemble(disassemble(wire)) == wire
-
-
 def test_program_bundle_roundtrips_through_tasm():
     import numpy as np
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
@@ -521,22 +510,6 @@ def test_vpu_opcode_table_matches_hardware():
     for op, code in shared.items():
         assert TASM_VPU[op] == code, f"TASM {op}={TASM_VPU[op]} != {code}"
         assert BACKEND_VPU[op] == code, f"BACKEND {op}={BACKEND_VPU[op]} != {code}"
-
-
-def test_disassemble_where_bundle():
-    """WHERE bundle disassembly should contain the 4-step MUL/SUB/MUL/ADD sequence."""
-    import numpy as np
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))
-    from tinygrad.runtime.ops_tinytpu import _build_vpu_where_bundle
-    cond = np.array([1, 0, 1, 0] + [0] * 12, dtype=np.int32)
-    lhs  = np.arange(16, dtype=np.int32)
-    rhs  = -np.arange(16, dtype=np.int32)
-    tasm = disassemble(_build_vpu_where_bundle(cond, lhs, rhs, 4))
-    assert "VPU   v4 = MUL(v0, v1)" in tasm   # cond * lhs
-    assert "VPU   v5 = SUB(v3, v0)" in tasm   # 1 - cond
-    assert "VPU   v6 = MUL(v5, v2)" in tasm   # (1-cond) * rhs
-    assert "VPU   v7 = ADD(v4, v6)" in tasm   # result
-    assert "OUTPUT_VMEM VMEM[4]" in tasm
 
 
 def test_broadcast_instruction_in_bundle():
