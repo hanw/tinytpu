@@ -9,7 +9,7 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_SUM_REDUCE_COL, VPU_MAX_REDUCE_COL, VPU_MIN_REDUCE_COL,
                VPU_SUM_REDUCE_TILE, VPU_MAX_REDUCE_TILE, VPU_MIN_REDUCE_TILE,
                VPU_MUL_REDUCE, VPU_MUL_REDUCE_COL, VPU_MUL_REDUCE_TILE,
-               VPU_FSUM_REDUCE_TILE, VPU_FMAX_REDUCE_TILE }
+               VPU_FSUM_REDUCE_TILE, VPU_FMAX_REDUCE_TILE, VPU_FMIN_REDUCE_TILE }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -390,6 +390,23 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                Int#(32) fmax_bits = fp2bits(level[0]);
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = fmax_bits;
+            end
+            VPU_FMIN_REDUCE_TILE: begin
+               // Mirror of FMAX: keep the LT operand. Kept inside the case
+               // branch for elaboration scoping.
+               Integer n = valueOf(sublanes) * valueOf(lanes);
+               Vector#(TMul#(sublanes, lanes), Float) level = newVector;
+               for (Integer s = 0; s < valueOf(sublanes); s = s + 1)
+                  for (Integer c = 0; c < valueOf(lanes); c = c + 1)
+                     level[s * valueOf(lanes) + c] = bits2fp(src1[s][c]);
+               for (Integer stride = 1; stride < n; stride = stride * 2)
+                  for (Integer i = 0; i + stride < n; i = i + 2 * stride) begin
+                     let cmp = compareFP(level[i], level[i + stride]);
+                     level[i] = (cmp == LT || cmp == EQ) ? level[i] : level[i + stride];
+                  end
+               Int#(32) fmin_bits = fp2bits(level[0]);
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = fmin_bits;
             end
          endcase
          res[s] = row;
