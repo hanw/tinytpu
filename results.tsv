@@ -404,3 +404,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-18	6e97914	1	3D int32 shr coverage	2x2x2 shape shr const	pytest backend: 798 passed	none	none
 2026-04-18	b38b9d3	1	WHERE negative consts	negative int branches	pytest backend: 799 passed	none	none
 2026-04-18	e5a5ade	1	3D float32 fadd tt	2x2x2 float add tt	pytest backend: 800 passed	none	none
+2026-04-18	3bc77bc	1	Reduce+const post-op for MAX	max() + const now lowers	pytest backend: 801 passed	none	none
