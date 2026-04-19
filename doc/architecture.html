@@ -49,9 +49,9 @@
     padding: 24px;
   }
   svg { display: block; width: 100%; height: auto; background: var(--panel); border-radius: 8px; border: 1px solid var(--line); }
-  text { font: 12px ui-sans-serif, sans-serif; fill: var(--ink); }
-  .title { font-weight: 700; font-size: 13px; }
-  .label { font-size: 11px; fill: var(--dim); }
+  text { font: 10px ui-sans-serif, sans-serif; fill: var(--ink); }
+  .title { font-weight: 700; font-size: 11px; }
+  .label { font-size: 9px; fill: var(--dim); }
   .edge { stroke: var(--dim); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
   .edge.hot { stroke: var(--accent3); stroke-width: 2; }
   .edge.fb { stroke: var(--accent4); stroke-dasharray: 4 3; }
@@ -176,7 +176,7 @@ instruction, then branches to the matching EXEC state; dispatch-style ops
 collect-style ops (VPU/XLU/LOAD/SELECT) block one extra cycle to capture
 results from their unit.
 </div>
-<svg viewBox="0 0 1200 320" preserveAspectRatio="xMidYMid meet">
+<svg viewBox="0 0 1200 350" preserveAspectRatio="xMidYMid meet">
   <defs>
     <marker id="arrowp" markerWidth="10" markerHeight="10" refX="9" refY="4"
             orient="auto" markerUnits="strokeWidth">
@@ -223,8 +223,10 @@ results from their unit.
   </g>
 
   <g>
-    <rect class="box xlu" x="40"  y="278" width="340" height="32"/>
-    <text class="title" x="210" y="298" text-anchor="middle">EXEC_XLU_{BROADCAST | BROADCAST_SCALAR | BROADCAST_ROW | BROADCAST_COL | TRANSPOSE} → XLU_COLLECT</text>
+    <rect class="box xlu" x="40"  y="278" width="340" height="56"/>
+    <text class="title" x="210" y="294" text-anchor="middle">EXEC_XLU_*  →  XLU_COLLECT</text>
+    <text class="label" x="210" y="308" text-anchor="middle">BROADCAST  |  BROADCAST_SCALAR  |  BROADCAST_ROW</text>
+    <text class="label" x="210" y="322" text-anchor="middle">BROADCAST_COL  |  TRANSPOSE</text>
   </g>
 
   <g>
@@ -248,8 +250,9 @@ results from their unit.
     <text class="label" x="1080" y="254" text-anchor="middle">VPU_COPY (rhs → result)</text>
   </g>
   <g>
-    <rect class="box vpu" x="1000" y="278" width="160" height="32"/>
-    <text class="title" x="1080" y="298" text-anchor="middle">EXEC_SELECT → VPU_COLLECT</text>
+    <rect class="box vpu" x="1000" y="278" width="160" height="50"/>
+    <text class="title" x="1080" y="296" text-anchor="middle">EXEC_SELECT</text>
+    <text class="label" x="1080" y="314" text-anchor="middle">→ VPU_COLLECT</text>
   </g>
 
   <g>
@@ -300,7 +303,7 @@ program doesn't demand their result.
   <g>
     <line x1="90" y1="30" x2="1180" y2="30" stroke="#30363d" stroke-width="1"/>
     <text class="label" x="80" y="26" text-anchor="end">cycle</text>
-    <g font-size="10" fill="#8b949e">
+    <g font-size="9" fill="#8b949e">
       <text x="110" y="22">0</text><text x="170" y="22">1</text>
       <text x="230" y="22">2</text><text x="290" y="22">3</text>
       <text x="350" y="22">4</text><text x="410" y="22">5</text>
@@ -335,68 +338,68 @@ program doesn't demand their result.
 
   <!-- SXU row -->
   <text class="title" x="80" y="60" text-anchor="end">SXU</text>
-  <rect class="box sxu" x="110" y="44" width="60" height="30"/><text x="140" y="62" text-anchor="middle" font-size="10">FETCH</text>
-  <rect class="box sxu" x="170" y="44" width="60" height="30"/><text x="200" y="62" text-anchor="middle" font-size="10">EXEC_MXU</text>
-  <rect class="box sxu" x="230" y="44" width="60" height="30"/><text x="260" y="62" text-anchor="middle" font-size="10">FETCH</text>
-  <rect class="box sxu" x="290" y="44" width="60" height="30"/><text x="320" y="62" text-anchor="middle" font-size="10">LOAD_REQ</text>
-  <rect class="box sxu" x="350" y="44" width="60" height="30"/><text x="380" y="62" text-anchor="middle" font-size="10">LOAD_RESP</text>
-  <rect class="box sxu" x="410" y="44" width="60" height="30"/><text x="440" y="62" text-anchor="middle" font-size="10">FETCH</text>
-  <rect class="box vpu" x="470" y="44" width="60" height="30"/><text x="500" y="62" text-anchor="middle" font-size="10">EXEC_VPU</text>
-  <rect class="box vpu" x="530" y="44" width="60" height="30"/><text x="560" y="62" text-anchor="middle" font-size="10">VPU_COLL</text>
-  <rect class="box sxu" x="590" y="44" width="60" height="30"/><text x="620" y="62" text-anchor="middle" font-size="10">FETCH</text>
-  <rect class="box vpu" x="650" y="44" width="60" height="30"/><text x="680" y="62" text-anchor="middle" font-size="10">EXEC_VPU</text>
-  <rect class="box vpu" x="710" y="44" width="60" height="30"/><text x="740" y="62" text-anchor="middle" font-size="10">VPU_COLL</text>
-  <rect class="box sxu" x="770" y="44" width="60" height="30"/><text x="800" y="62" text-anchor="middle" font-size="10">FETCH</text>
+  <rect class="box sxu" x="110" y="44" width="60" height="30"/><text x="140" y="62" text-anchor="middle" font-size="9">FETCH</text>
+  <rect class="box sxu" x="170" y="44" width="60" height="30"/><text x="200" y="62" text-anchor="middle" font-size="9">EXEC_MXU</text>
+  <rect class="box sxu" x="230" y="44" width="60" height="30"/><text x="260" y="62" text-anchor="middle" font-size="9">FETCH</text>
+  <rect class="box sxu" x="290" y="44" width="60" height="30"/><text x="320" y="62" text-anchor="middle" font-size="9">LOAD_REQ</text>
+  <rect class="box sxu" x="350" y="44" width="60" height="30"/><text x="380" y="62" text-anchor="middle" font-size="9">LOAD_RESP</text>
+  <rect class="box sxu" x="410" y="44" width="60" height="30"/><text x="440" y="62" text-anchor="middle" font-size="9">FETCH</text>
+  <rect class="box vpu" x="470" y="44" width="60" height="30"/><text x="500" y="62" text-anchor="middle" font-size="9">EXEC_VPU</text>
+  <rect class="box vpu" x="530" y="44" width="60" height="30"/><text x="560" y="62" text-anchor="middle" font-size="9">VPU_COLL</text>
+  <rect class="box sxu" x="590" y="44" width="60" height="30"/><text x="620" y="62" text-anchor="middle" font-size="9">FETCH</text>
+  <rect class="box vpu" x="650" y="44" width="60" height="30"/><text x="680" y="62" text-anchor="middle" font-size="9">EXEC_VPU</text>
+  <rect class="box vpu" x="710" y="44" width="60" height="30"/><text x="740" y="62" text-anchor="middle" font-size="9">VPU_COLL</text>
+  <rect class="box sxu" x="770" y="44" width="60" height="30"/><text x="800" y="62" text-anchor="middle" font-size="9">FETCH</text>
   <rect class="box mxu" x="830" y="44" width="240" height="30" stroke-dasharray="3 3"/>
-  <text x="950" y="62" text-anchor="middle" font-size="10">WAIT_MXU (stalls)</text>
-  <rect class="box sxu" x="1070" y="44" width="60" height="30"/><text x="1100" y="62" text-anchor="middle" font-size="10">FETCH</text>
-  <rect class="box mxu" x="1130" y="44" width="60" height="30"/><text x="1160" y="62" text-anchor="middle" font-size="10">LD_MXU_R</text>
+  <text x="950" y="62" text-anchor="middle" font-size="9">WAIT_MXU (stalls)</text>
+  <rect class="box sxu" x="1070" y="44" width="60" height="30"/><text x="1100" y="62" text-anchor="middle" font-size="9">FETCH</text>
+  <rect class="box mxu" x="1130" y="44" width="60" height="30"/><text x="1160" y="62" text-anchor="middle" font-size="9">LD_MXU_R</text>
 
   <!-- MXU row -->
   <text class="title" x="80" y="108" text-anchor="end">MXU</text>
   <rect x="110" y="92" width="60" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="140" y="110" text-anchor="middle" font-size="10" fill="#8b949e">idle</text>
+  <text x="140" y="110" text-anchor="middle" font-size="9" fill="#8b949e">idle</text>
   <rect class="box mxu" x="170" y="92" width="900" height="30"/>
-  <text x="620" y="110" text-anchor="middle" font-size="11">
+  <text x="620" y="110" text-anchor="middle" font-size="10">
     <tspan font-weight="700">MXU pipeline</tspan>
     <tspan fill="#8b949e">  (weight stream → systolic propagate → drain)</tspan>
   </text>
   <rect x="1070" y="92" width="60" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="1100" y="110" text-anchor="middle" font-size="10" fill="#8b949e">done</text>
+  <text x="1100" y="110" text-anchor="middle" font-size="9" fill="#8b949e">done</text>
 
   <!-- VPU row -->
   <text class="title" x="80" y="156" text-anchor="end">VPU</text>
   <rect x="110" y="140" width="360" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="290" y="158" text-anchor="middle" font-size="10" fill="#8b949e">idle (MXU busy in parallel)</text>
+  <text x="290" y="158" text-anchor="middle" font-size="9" fill="#8b949e">idle (MXU busy in parallel)</text>
   <rect class="box vpu" x="470" y="140" width="60" height="30"/>
-  <text x="500" y="158" text-anchor="middle" font-size="10">FADD</text>
+  <text x="500" y="158" text-anchor="middle" font-size="9">FADD</text>
   <rect x="530" y="140" width="120" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="590" y="158" text-anchor="middle" font-size="10" fill="#8b949e">writeback</text>
+  <text x="590" y="158" text-anchor="middle" font-size="9" fill="#8b949e">writeback</text>
   <rect class="box vpu" x="650" y="140" width="60" height="30"/>
-  <text x="680" y="158" text-anchor="middle" font-size="10">FRELU</text>
+  <text x="680" y="158" text-anchor="middle" font-size="9">FRELU</text>
   <rect x="710" y="140" width="420" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="900" y="158" text-anchor="middle" font-size="10" fill="#8b949e">idle</text>
+  <text x="900" y="158" text-anchor="middle" font-size="9" fill="#8b949e">idle</text>
 
   <!-- FpReducer row (illustrative: when dispatched, SXU stalls in VPU_COLLECT) -->
   <text class="title" x="80" y="204" text-anchor="end">FpReducer</text>
   <rect x="110" y="188" width="1050" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="640" y="206" text-anchor="middle" font-size="10" fill="#8b949e">
+  <text x="640" y="206" text-anchor="middle" font-size="9" fill="#8b949e">
     (idle this kernel — FSM walks N cycles when a float SUM/PROD/MAX/MIN reducer is dispatched; SXU stalls in VPU_COLLECT until fpr.isDone)
   </text>
 
   <!-- XLU row -->
   <text class="title" x="80" y="252" text-anchor="end">XLU</text>
   <rect x="110" y="236" width="1050" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="640" y="254" text-anchor="middle" font-size="10" fill="#8b949e">
+  <text x="640" y="254" text-anchor="middle" font-size="9" fill="#8b949e">
     (idle this kernel — transpose / scalar / row / col broadcast dispatch 1-cycle with a 1-cycle collect when used)
   </text>
 
   <!-- VMEM row -->
   <text class="title" x="80" y="300" text-anchor="end">VMEM</text>
   <rect class="box mem" x="290" y="284" width="60" height="30"/>
-  <text x="320" y="302" text-anchor="middle" font-size="10">read</text>
+  <text x="320" y="302" text-anchor="middle" font-size="9">read</text>
   <rect class="box mem" x="350" y="284" width="60" height="30"/>
-  <text x="380" y="302" text-anchor="middle" font-size="10">resp</text>
+  <text x="380" y="302" text-anchor="middle" font-size="9">resp</text>
   <rect x="410" y="284" width="770" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
 
   <!-- Annotation lines -->
@@ -628,52 +631,60 @@ program doesn't demand their result.
 
 <div class="panel">
 <div class="cap" style="margin-bottom:10px"><strong>Reducer opcode map</strong> — which opcode handles each shape × op</div>
-<svg viewBox="0 0 560 210" preserveAspectRatio="xMidYMid meet">
-  <g transform="translate(20,10)">
-    <text class="label" x="100" y="10">scalar</text>
-    <text class="label" x="200" y="10">row (axis=1)</text>
-    <text class="label" x="320" y="10">col (axis=0)</text>
-    <text class="label" x="440" y="10">multi-tile combine</text>
-
-    <text class="label" x="0" y="40">int sum</text>
-    <text x="100" y="40">SUM_REDUCE_TILE</text>
-    <text x="200" y="40">SUM_REDUCE</text>
-    <text x="320" y="40">SUM_REDUCE_COL</text>
-    <text x="440" y="40">ADD</text>
-
-    <text class="label" x="0" y="64">int max/min/prod</text>
-    <text x="100" y="64">{MAX,MIN,MUL}_REDUCE_TILE</text>
-    <text x="200" y="64">{MAX,MIN,MUL}_REDUCE</text>
-    <text x="320" y="64">{MAX,MIN,MUL}_REDUCE_COL</text>
-    <text x="440" y="64">MAX/MIN/MUL</text>
-
-    <text class="label" x="0" y="94">float sum</text>
-    <text x="100" y="94" fill="#d2a8ff">FSUM_REDUCE_TILE*</text>
-    <text x="200" y="94">FSUM_REDUCE</text>
-    <text x="320" y="94">FSUM_REDUCE_COL</text>
-    <text x="440" y="94">FADD</text>
-
-    <text class="label" x="0" y="118">float max</text>
-    <text x="100" y="118" fill="#d2a8ff">FMAX_REDUCE_TILE*</text>
-    <text x="200" y="118">FMAX_REDUCE</text>
-    <text x="320" y="118">FMAX_REDUCE_COL</text>
-    <text x="440" y="118">FMAX</text>
-
-    <text class="label" x="0" y="142">float min</text>
-    <text x="100" y="142" fill="#d2a8ff">FMIN_REDUCE_TILE*</text>
-    <text x="200" y="142">FMIN_REDUCE</text>
-    <text x="320" y="142">FMIN_REDUCE_COL</text>
-    <text x="440" y="142">FMIN</text>
-
-    <text class="label" x="0" y="166">float prod</text>
-    <text x="100" y="166" fill="#d2a8ff">FPROD_REDUCE_TILE*</text>
-    <text x="200" y="166">FPROD_REDUCE</text>
-    <text x="320" y="166">FPROD_REDUCE_COL</text>
-    <text x="440" y="166">FMUL</text>
-
-    <text class="label" x="0" y="198">* = multi-cycle via shared FpReducer</text>
-  </g>
-</svg>
+<table style="width:100%; border-collapse:collapse; font-size:11px">
+  <thead>
+    <tr style="color:var(--dim); text-align:left">
+      <th style="padding:4px 6px; font-weight:600">op</th>
+      <th style="padding:4px 6px; font-weight:600">scalar</th>
+      <th style="padding:4px 6px; font-weight:600">row (ax=1)</th>
+      <th style="padding:4px 6px; font-weight:600">col (ax=0)</th>
+      <th style="padding:4px 6px; font-weight:600">combine</th>
+    </tr>
+  </thead>
+  <tbody style="color:var(--ink)">
+    <tr><td style="padding:3px 6px; color:var(--dim)">int sum</td>
+        <td style="padding:3px 6px"><code>SUM_REDUCE_TILE</code></td>
+        <td style="padding:3px 6px"><code>SUM_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>SUM_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>ADD</code></td></tr>
+    <tr><td style="padding:3px 6px; color:var(--dim)">int max</td>
+        <td style="padding:3px 6px"><code>MAX_REDUCE_TILE</code></td>
+        <td style="padding:3px 6px"><code>MAX_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>MAX_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>MAX</code></td></tr>
+    <tr><td style="padding:3px 6px; color:var(--dim)">int min</td>
+        <td style="padding:3px 6px"><code>MIN_REDUCE_TILE</code></td>
+        <td style="padding:3px 6px"><code>MIN_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>MIN_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>MIN</code></td></tr>
+    <tr><td style="padding:3px 6px; color:var(--dim)">int prod</td>
+        <td style="padding:3px 6px"><code>MUL_REDUCE_TILE</code></td>
+        <td style="padding:3px 6px"><code>MUL_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>MUL_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>MUL</code></td></tr>
+    <tr><td style="padding:3px 6px; color:var(--dim)">float sum</td>
+        <td style="padding:3px 6px"><code style="color:var(--accent2)">FSUM_REDUCE_TILE*</code></td>
+        <td style="padding:3px 6px"><code>FSUM_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>FSUM_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>FADD</code></td></tr>
+    <tr><td style="padding:3px 6px; color:var(--dim)">float max</td>
+        <td style="padding:3px 6px"><code style="color:var(--accent2)">FMAX_REDUCE_TILE*</code></td>
+        <td style="padding:3px 6px"><code>FMAX_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>FMAX_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>FMAX</code></td></tr>
+    <tr><td style="padding:3px 6px; color:var(--dim)">float min</td>
+        <td style="padding:3px 6px"><code style="color:var(--accent2)">FMIN_REDUCE_TILE*</code></td>
+        <td style="padding:3px 6px"><code>FMIN_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>FMIN_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>FMIN</code></td></tr>
+    <tr><td style="padding:3px 6px; color:var(--dim)">float prod</td>
+        <td style="padding:3px 6px"><code style="color:var(--accent2)">FPROD_REDUCE_TILE*</code></td>
+        <td style="padding:3px 6px"><code>FPROD_REDUCE</code></td>
+        <td style="padding:3px 6px"><code>FPROD_REDUCE_COL</code></td>
+        <td style="padding:3px 6px"><code>FMUL</code></td></tr>
+  </tbody>
+</table>
+<div class="cap" style="margin-top:8px; font-size:10px">* = multi-cycle via shared FpReducer</div>
 </div>
 
 </div>
