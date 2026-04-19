@@ -808,9 +808,26 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").sum().numpy()
     np.testing.assert_allclose(result, a.sum(), rtol=1e-6)
 
-  def test_float_max_reduce_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([1.0, 2.0, 3.0, 4.0], dtype="float", device="TINYTPU").max().numpy()
+  def test_float_max_reduce_matches_reference(self):
+    # Previously unsupported; now lowers through VPU_FMAX_REDUCE_TILE.
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").max().numpy()
+    np.testing.assert_allclose(result, a.max(), rtol=1e-6)
+
+  def test_float_max_reduce_full_tile_matches_reference(self):
+    a = (np.arange(16, dtype=np.float32) - 8.0)
+    result = Tensor(a, dtype="float32", device="TINYTPU").max().numpy()
+    np.testing.assert_allclose(result, a.max(), rtol=1e-6)
+
+  def test_float_max_reduce_multi_tile_matches_reference(self):
+    a = (np.arange(32, dtype=np.float32) - 16.0) * 0.5
+    result = Tensor(a, dtype="float32", device="TINYTPU").max().numpy()
+    np.testing.assert_allclose(result, a.max(), rtol=1e-6)
+
+  def test_float_max_reduce_all_negative_matches_reference(self):
+    a = np.array([-4.0, -1.5, -3.0, -2.25], dtype=np.float32)
+    result = Tensor(a, dtype="float32", device="TINYTPU").max().numpy()
+    np.testing.assert_allclose(result, a.max(), rtol=1e-6)
 
   def test_float_min_reduce_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
