@@ -422,3 +422,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	31df073	2	FpReducer integration + SXU handshake	tile fp reducers now multi-cycle via shared unit	pytest backend: 817 passed; runtime build 1:29 (-19s)	architecture shift landed; compile time improves	retire row fp reducer cases + add col reducers
 2026-04-19	a94595c	1	Float col-reducer opcodes	FSUM/FMAX/FMIN_REDUCE_COL with hoisted precompute	make test-vpu: 41/41; runtime build 1:36 (+7s)	float col-reducers in HW	tinygrad lowering for float col reductions
 2026-04-19	4ebea13	1	Float col-reductions end-to-end	FSUM/FMAX_REDUCE_COL wired through col renderer	pytest backend: 820 passed	float axis=0 sum/max supported	float col-min needs negation rewrite
+2026-04-19	bf1f0f3	1	Float row/col min via negation rewrite	shared helper applied in scalar/row/col renderers	pytest backend: 824 passed	full float min axis support	float prod reducers
