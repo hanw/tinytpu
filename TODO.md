@@ -297,6 +297,80 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [ ] `CUSTOMFUNCTION`
 - [ ] `PROGRAM` / `SOURCE` / `BINARY` metadata handling
 
+## Major Hardware Capability Gaps vs tinyspec
+
+These are the remaining hardware-level gaps that cannot be solved by
+software lowering alone. Ordered roughly by impact on real workloads.
+
+### Data path & reductions
+
+- [ ] **Float reducer primitives** (`VPU_FSUM_REDUCE{,_COL,_TILE}`,
+      `VPU_FMAX_REDUCE{,_COL,_TILE}`, `VPU_FMIN_REDUCE{,_COL,_TILE}`).
+      Existing integer `VPU_*_REDUCE*` ops treat bits as `Int#(32)`, which
+      corrupts float32 reductions. Currently `_render_reduction_sxu_program`
+      rejects float dtypes. Unlocks float sum/mean/max/min (softmax
+      numerator, cross-entropy, BN stats).
+- [ ] **Narrow-dtype VPU lanes**: int8, uint8, int16, uint16, uint32
+      elementwise. Current VPU is int32-only on the data path (except
+      MXU which is int8). Blocks quantized-int8 inference kernels outside
+      the MXU, and uint dtypes entirely.
+- [ ] **Mixed-precision MXU**: MXU is int8-only today. No bf16/fp16 MAC
+      unit, no fp32 accumulator path for floating GEMM. Float32 GEMM
+      currently can't lower at all.
+
+### Transcendental / math
+
+- [ ] **`Exp2`/`Log2`/`Sin` hardware** (polynomial approx or LUT-based VPU
+      ops `VPU_EXP2`, `VPU_LOG2`, `VPU_SIN`). Without these, the tinyspec
+      decompositions for `Sqrt = Exp2(0.5 * Log2(x))`, `Pow`, `Tanh`,
+      `Sigmoid`, and softmax normalization all reject at the renderer.
+      Single biggest blocker for any non-trivial activation on-device.
+
+### Movement
+
+- [ ] **`PAD` primitive** — `SXU_DISPATCH_XLU_PAD` or extend the copy
+      renderer with a CMPLT+WHERE bounds fill. Needed for conv padding
+      and any non-trivial shape alignment.
+- [ ] **`FLIP` primitive** — reversed-index LOAD path (or an XLU flip
+      opcode). Needed for some conv variants and for tensor flip ops.
+- [ ] **`CAT` primitive** — concatenate along an axis. Could be a
+      two-source SXU copy program driven by a range split, but no
+      primitive exists today.
+- [ ] **General `Permute`** — only `permute(1,0)` (transpose) is wired
+      through `SXU_DISPATCH_XLU_TRANSPOSE`. Non-transpose axis reorders
+      for ≥3D tensors have no hardware path.
+
+### GEMM & matmul
+
+- [ ] **Multi-K-tile hardware epilogue** — `SXU_LOAD_MXU_RESULT` only
+      handles single-K-tile GEMMs. Multi-K-tile GEMM still falls back to
+      numpy for bias/relu after the last K-tile. Needs a hardware
+      accumulator path that the epilogue can consume after the K loop.
+
+### Control flow & ordering
+
+- [ ] **`BARRIER` / `IF` / `ENDIF` / `AFTER` SXU ops** — SXU today is a
+      straight-line sequencer. No conditional execution, no explicit
+      ordering barriers for RAW hazards across dispatches.
+- [ ] **`ATOMICADD` unit on VMEM banks** — no RMW lane on the VMEM write
+      port. Required for scatter-add style kernels.
+
+### Multi-device & parallelism
+
+- [ ] **Collective primitives** (broadcast/scatter/gather/allreduce/
+      reduce\_scatter) expressed as NoC-backed hardware ops. NoC exists
+      at the ring level but is not exposed as a tinyspec-shaped primitive.
+- [ ] **`REPLICATED` / multi-device `COPY` model** — the compiler has no
+      concept of cross-chip axis today.
+- [ ] **`THREEFRY` PRNG datapath** — no ARX unit. All random init
+      currently falls back to host.
+
+### Memory planning
+
+- [ ] **VMEM spill/fill to HBM** — compiler-managed spill path for
+      tensors larger than the VMEM working set. Today everything must
+      fit in VMEM tiles.
+
 ## Milestones
 
 ### Milestone 1: Useful Single-Tile Tensor Programs
