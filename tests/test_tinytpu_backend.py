@@ -841,12 +841,15 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float32", device="TINYTPU").min().numpy()
     np.testing.assert_allclose(result, a.min(), rtol=1e-6)
 
-  def test_float_min_reduce_multi_tile_reports_unsupported(self):
-    # Multi-tile float min needs a VPU_FMIN ALU combine opcode which
-    # hasn't been implemented yet.
-    with self.assertRaises(NotImplementedError):
-      a = np.arange(32, dtype=np.float32)
-      Tensor(a, dtype="float32", device="TINYTPU").min().numpy()
+  def test_float_min_reduce_multi_tile_matches_reference(self):
+    a = np.arange(32, dtype=np.float32) - 16.0
+    result = Tensor(a, dtype="float32", device="TINYTPU").min().numpy()
+    np.testing.assert_allclose(result, a.min(), rtol=1e-6)
+
+  def test_float_min_reduce_all_negative_matches_reference(self):
+    a = np.array([-0.5, -3.5, -1.0, -2.0], dtype=np.float32)
+    result = Tensor(a, dtype="float32", device="TINYTPU").min().numpy()
+    np.testing.assert_allclose(result, a.min(), rtol=1e-6)
 
   def test_sqrt_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):

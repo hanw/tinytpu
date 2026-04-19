@@ -88,6 +88,7 @@ _VPU = {
     "FSUM_REDUCE_TILE": 38,
     "FMAX_REDUCE_TILE": 39,
     "FMIN_REDUCE_TILE": 40,
+    "FMIN":            41,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
