@@ -34,6 +34,19 @@ interface PSUMBank_IFC#(numeric type depth,
    method Vector#(sublanes, Vector#(lanes, Int#(32))) readResp;
    method Vector#(sublanes, Vector#(lanes, Int#(32))) peek(UInt#(TLog#(depth)) addr);
    method Action clear(UInt#(TLog#(depth)) addr);
+   // Row-granular access. One MXU dispatch produces a single lanes-wide
+   // row (`Vector#(lanes, Int#(32))`), so writing / accumulating a whole
+   // tile in one shot would force Controller to buffer every row first.
+   // These let MXU touch one row at a time without disturbing the other
+   // rows of the same bucket.
+   method Action writeRow(UInt#(TLog#(depth)) addr,
+                          UInt#(TLog#(sublanes)) row,
+                          Vector#(lanes, Int#(32)) data);
+   method Action accumulateRow(UInt#(TLog#(depth)) addr,
+                               UInt#(TLog#(sublanes)) row,
+                               Vector#(lanes, Int#(32)) data);
+   method Vector#(lanes, Int#(32)) peekRow(UInt#(TLog#(depth)) addr,
+                                           UInt#(TLog#(sublanes)) row);
 endinterface
 
 module mkPSUMBank(PSUMBank_IFC#(depth, sublanes, lanes))
@@ -86,6 +99,30 @@ module mkPSUMBank(PSUMBank_IFC#(depth, sublanes, lanes))
    method Action clear(UInt#(TLog#(depth)) addr);
       Vector#(sublanes, Vector#(lanes, Int#(32))) zeros = replicate(replicate(0));
       mem.upd(addr, zeros);
+   endmethod
+
+   method Action writeRow(UInt#(TLog#(depth)) addr,
+                          UInt#(TLog#(sublanes)) row,
+                          Vector#(lanes, Int#(32)) data);
+      let t = mem.sub(addr);
+      t[row] = data;
+      mem.upd(addr, t);
+   endmethod
+
+   method Action accumulateRow(UInt#(TLog#(depth)) addr,
+                               UInt#(TLog#(sublanes)) row,
+                               Vector#(lanes, Int#(32)) data);
+      let t = mem.sub(addr);
+      Vector#(lanes, Int#(32)) sum = newVector;
+      for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+         sum[l] = t[row][l] + data[l];
+      t[row] = sum;
+      mem.upd(addr, t);
+   endmethod
+
+   method Vector#(lanes, Int#(32)) peekRow(UInt#(TLog#(depth)) addr,
+                                           UInt#(TLog#(sublanes)) row);
+      return mem.sub(addr)[row];
    endmethod
 
 endmodule
