@@ -44,6 +44,9 @@ $(BUILDDIR)/mkTbVRegFile.bexe: $(BUILDDIR)/TbVRegFile.bo
 $(BUILDDIR)/mkTbVPU.bexe: $(BUILDDIR)/TbVPU.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbVPU $(BUILDDIR)/mkTbVPU.ba
 
+$(BUILDDIR)/mkTbFpReducer.bexe: $(BUILDDIR)/TbFpReducer.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbFpReducer $(BUILDDIR)/mkTbFpReducer.ba
+
 $(BUILDDIR)/mkTbScalarUnit.bexe: $(BUILDDIR)/TbScalarUnit.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbScalarUnit $(BUILDDIR)/mkTbScalarUnit.ba
 
@@ -95,6 +98,9 @@ test-vregfile: $(BUILDDIR)/mkTbVRegFile.bexe
 test-vpu: $(BUILDDIR)/mkTbVPU.bexe
 	$<
 
+test-fpreducer: $(BUILDDIR)/mkTbFpReducer.bexe
+	$<
+
 test-sxu: $(BUILDDIR)/mkTbScalarUnit.bexe
 	$<
 
@@ -138,6 +144,7 @@ $(BUILDDIR)/TbXLU.bo: $(BUILDDIR)/XLU.bo
 $(BUILDDIR)/TbVMEM.bo: $(BUILDDIR)/VMEM.bo
 $(BUILDDIR)/TbVRegFile.bo: $(BUILDDIR)/VRegFile.bo
 $(BUILDDIR)/TbVPU.bo: $(BUILDDIR)/VPU.bo
+$(BUILDDIR)/TbFpReducer.bo: $(BUILDDIR)/FpReducer.bo
 $(BUILDDIR)/ScalarUnit.bo: $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo
 $(BUILDDIR)/TbScalarUnit.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo
 $(BUILDDIR)/TensorCore.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo
@@ -149,6 +156,6 @@ $(BUILDDIR)/TinyTPUChip.bo: $(BUILDDIR)/TensorCore.bo $(BUILDDIR)/SparseCore.bo 
 $(BUILDDIR)/TbTinyTPUChip.bo: $(BUILDDIR)/TinyTPUChip.bo
 $(BUILDDIR)/TbTinyTPURuntime.bo: $(BUILDDIR)/TensorCore.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-sxu test-tc test-sc test-hbm test-noc test-chip runtime-tb runtime-tb-trace test-trace
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-fpreducer test-sxu test-tc test-sc test-hbm test-noc test-chip runtime-tb runtime-tb-trace test-trace
 clean:
 	rm -rf $(BUILDDIR)
