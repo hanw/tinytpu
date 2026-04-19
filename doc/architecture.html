@@ -699,14 +699,32 @@ program doesn't demand their result.
   <path class="dp" d="M275,98 L275,275"/>
   <path class="dp" d="M275,98 L275,345"/>
 
-  <!-- Storage → engines (reads) : LTR arrows into each engine -->
-  <path class="dph" d="M200,155 C230,155 230,160 310,160"/>
-  <path class="dph" d="M200,230 C230,230 230,230 310,230"/>
-  <path class="dph" d="M200,300 C230,300 230,300 310,300"/>
-  <path class="dph" d="M200,370 C230,370 230,370 310,370"/>
-  <!-- MXU also reads WMEM + AMEM (narrower int8 paths) -->
-  <path class="dp" d="M200,290 C240,250 250,190 310,170"/>
-  <path class="dp" d="M200,360 C240,280 250,195 310,175"/>
+  <!-- Storage → engines (reads). Each engine reads from the storage block
+       that actually feeds it:
+         - MXU: WeightSRAM + ActivSRAM (Int8 operands) — NOT VRegFile/VMEM
+         - VPU: VRegFile (vs, vs2) — FpReducer is fed through VPU.execute()
+         - XLU: VRegFile
+         - VMEM ↔ VRegFile is a LOAD/STORE path driven by SXU, not a direct
+           engine read port.
+  -->
+  <!-- MXU reads from WeightSRAM + ActivSRAM (curving up from below) -->
+  <path class="dph" d="M200,300 C250,300 260,200 310,165"/>
+  <text class="label" x="238" y="272" fill="#8b949e">weights</text>
+  <path class="dph" d="M200,370 C260,370 270,210 310,170"/>
+  <text class="label" x="238" y="352" fill="#8b949e">activations</text>
+
+  <!-- VRegFile feeds VPU, FpReducer (via VPU chain), and XLU.
+       Drawn as a shared LTR bus from VRegFile right edge. -->
+  <path class="dph" d="M200,155 L310,230"/>
+  <path class="dph" d="M200,180 L310,300"/>
+  <path class="dph" d="M200,180 L310,370"/>
+  <text class="label" x="230" y="220" fill="#8b949e">vs / vs2</text>
+
+  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) shown as a vertical line
+       between them; not an engine read port. -->
+  <path class="dp" d="M210,200 L210,190"/>
+  <path class="dp" d="M218,190 L218,200"/>
+  <text class="label" x="232" y="197" fill="#8b949e">LOAD/STORE</text>
 
   <!-- Engines → Accumulator (writes) -->
   <path class="dph" d="M730,160 L780,160"/>
