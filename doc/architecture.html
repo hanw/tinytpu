@@ -600,49 +600,34 @@ program doesn't demand their result.
   </g>
 
   <!-- ================= MIDDLE: engine rows ================= -->
-  <!-- Each row has: SEQ stub + engine block -->
-  <!-- Row y-centers: 160 / 230 / 300 / 370 -->
+  <!-- No per-engine SEQ stubs: TinyTPU uses one shared SXU (top bar) and
+       that contrast with NeuronCore is already called out in the prose +
+       comparison table. Keeping the middle clean makes the buses readable. -->
 
   <!-- Row 1: Tensor Engine analog = MXU (SystolicArray + Controller) -->
   <g>
-    <rect class="dprow" x="250" y="135" width="50" height="50"/>
-    <text class="label" x="275" y="164" text-anchor="middle">SEQ</text>
-  </g>
-  <g>
-    <rect class="box mxu" x="310" y="135" width="420" height="50"/>
+    <rect class="box mxu" x="300" y="135" width="440" height="50"/>
     <text class="title" x="520" y="155" text-anchor="middle">MXU (Tensor Engine)</text>
     <text class="label" x="520" y="170" text-anchor="middle">SystolicArray 4×4 Int8 MACs  +  Controller FSM  (weight-stationary)</text>
   </g>
 
   <!-- Row 2: Vector Engine analog = VPU -->
   <g>
-    <rect class="dprow" x="250" y="205" width="50" height="50"/>
-    <text class="label" x="275" y="234" text-anchor="middle">SEQ</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="310" y="205" width="420" height="50"/>
+    <rect class="box vpu" x="300" y="205" width="440" height="50"/>
     <text class="title" x="520" y="225" text-anchor="middle">VPU (Vector Engine)</text>
     <text class="label" x="520" y="240" text-anchor="middle">int32 + float32 ALU: ADD/MUL/SUB/MAX/MIN/DIV/CMP/AND/OR/XOR/SHL/SHR/RELU/SELECT/COPY/F*</text>
   </g>
 
   <!-- Row 3: Scalar Engine analog = FpReducer (shared multi-cycle FP reducer) -->
   <g>
-    <rect class="dprow" x="250" y="275" width="50" height="50"/>
-    <text class="label" x="275" y="304" text-anchor="middle">SEQ</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="310" y="275" width="420" height="50"/>
+    <rect class="box vpu" x="300" y="275" width="440" height="50"/>
     <text class="title" x="520" y="295" text-anchor="middle">FpReducer (Scalar / Reduce Engine)</text>
     <text class="label" x="520" y="310" text-anchor="middle">1 FP adder + 1 FP multiplier + 1 FP comparator  ·  FSM-walked SUM/PROD/MAX/MIN</text>
   </g>
 
   <!-- Row 4: GPSIMD analog = XLU -->
   <g>
-    <rect class="dprow" x="250" y="345" width="50" height="50"/>
-    <text class="label" x="275" y="374" text-anchor="middle">SEQ</text>
-  </g>
-  <g>
-    <rect class="box xlu" x="310" y="345" width="420" height="50"/>
+    <rect class="box xlu" x="300" y="345" width="440" height="50"/>
     <text class="title" x="520" y="365" text-anchor="middle">XLU (cross-lane / GPSIMD-like)</text>
     <text class="label" x="520" y="380" text-anchor="middle">TRANSPOSE  ·  BROADCAST (scalar / row / col)  ·  PERMUTE</text>
   </g>
@@ -697,55 +682,65 @@ program doesn't demand their result.
     <text class="label" x="830" y="484" text-anchor="middle">share HBM via NoC</text>
   </g>
 
-  <!-- =============== EDGES: SXU → engine SEQ stubs =============== -->
-  <path class="dp" d="M275,98 L275,135"/>
-  <path class="dp" d="M275,98 L275,205"/>
-  <path class="dp" d="M275,98 L275,275"/>
-  <path class="dp" d="M275,98 L275,345"/>
+  <!-- =============== EDGES =============== -->
+  <!-- Dispatch bus: single vertical line from SXU bar down the left side
+       of the engine column, with one tee per engine. TinyTPU has one SXU;
+       drawing one bus (instead of four SEQ stubs) reflects that. -->
+  <path class="dp" d="M260,98 L260,370"/>
+  <path class="dp" d="M260,160 L300,160"/>
+  <path class="dp" d="M260,230 L300,230"/>
+  <path class="dp" d="M260,300 L300,300"/>
+  <path class="dp" d="M260,370 L300,370"/>
+  <text class="label" x="266" y="130">dispatch</text>
 
-  <!-- Storage → engines (reads). Each engine reads from the storage block
-       that actually feeds it:
-         - MXU: WeightSRAM + ActivSRAM (Int8 operands) — NOT VRegFile/VMEM
-         - VPU: VRegFile (vs, vs2) — FpReducer is fed through VPU.execute()
-         - XLU: VRegFile
-         - VMEM ↔ VRegFile is a LOAD/STORE path driven by SXU, not a direct
-           engine read port.
-  -->
-  <!-- MXU reads from WeightSRAM + ActivSRAM (straight right now that they
-       sit adjacent to MXU's row in the storage column). -->
-  <path class="dph" d="M200,230 C250,230 260,200 310,165"/>
-  <text class="label" x="238" y="224" fill="#8b949e">weights</text>
-  <path class="dph" d="M200,300 C260,300 270,210 310,170"/>
-  <text class="label" x="238" y="286" fill="#8b949e">activations</text>
+  <!-- Read bus for VRegFile → VPU / FpReducer / XLU. Short stub from
+       VRegFile right edge down to a vertical bus just left of the engines,
+       then tees into the three consuming engines. (MXU does not read
+       VRegFile directly.) -->
+  <path class="dph" d="M200,160 L280,160"/>
+  <path class="dph" d="M280,160 L280,370"/>
+  <path class="dph" d="M280,230 L300,230"/>
+  <path class="dph" d="M280,300 L300,300"/>
+  <path class="dph" d="M280,370 L300,370"/>
+  <text class="label" x="285" y="398" fill="#7ee787">vs / vs2</text>
 
-  <!-- VRegFile feeds VPU, FpReducer (via VPU chain), and XLU.
-       Drawn as a shared LTR bus from VRegFile right edge. -->
-  <path class="dph" d="M200,150 L310,230"/>
-  <path class="dph" d="M200,165 L310,300"/>
-  <path class="dph" d="M200,180 L310,370"/>
-  <text class="label" x="230" y="210" fill="#8b949e">vs / vs2</text>
+  <!-- MXU Int8 operand feeds: short diagonals from WeightSRAM and
+       ActivSRAM directly into MXU's row. -->
+  <path class="dph" d="M200,225 C240,210 260,180 300,160"/>
+  <text class="label" x="204" y="218" fill="#7ee787">weights</text>
+  <path class="dph" d="M200,285 C250,250 270,185 300,165"/>
+  <text class="label" x="204" y="278" fill="#7ee787">activations</text>
 
-  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) routed along the outer
-       edge of the storage column since VMEM now sits below Weight/Activ. -->
+  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) along the outer edge. -->
   <path class="dp" d="M60,340 L60,190"/>
   <path class="dp" d="M68,190 L68,340"/>
   <text class="label" x="76" y="265" fill="#8b949e">LOAD/STORE</text>
 
-  <!-- Engines → Accumulator (writes) -->
-  <path class="dph" d="M730,160 L780,160"/>
-  <path class="dph" d="M730,230 L780,230"/>
-  <path class="dph" d="M730,300 L780,300"/>
-  <path class="dph" d="M730,370 L780,370"/>
+  <!-- Engines → Accumulator (writes) : one short LTR arrow per row. -->
+  <path class="dph" d="M740,160 L780,160"/>
+  <path class="dph" d="M740,230 L780,230"/>
+  <path class="dph" d="M740,300 L780,300"/>
+  <path class="dph" d="M740,370 L780,370"/>
 
-  <!-- Accumulator → VRegFile (writeback, dashed yellow) -->
-  <path class="dpwb" d="M780,160 C720,100 500,100 200,155"/>
-  <path class="dpwb" d="M780,230 C720,260 400,260 200,230"/>
-  <path class="dpwb" d="M780,300 C720,320 400,320 200,240"/>
-  <path class="dpwb" d="M780,370 C720,400 400,410 200,240"/>
+  <!-- Accumulator → VRegFile writeback. Instead of four curves slicing
+       across the engine rows, funnel every accumulator into a vertical
+       return bus just right of the accumulator column, run it up above
+       the engines (y=120), back left across the top, and drop it onto
+       VRegFile's right edge. One visual path, four logical writers. -->
+  <path class="dpwb" d="M980,160 L1000,160"/>
+  <path class="dpwb" d="M980,230 L1000,230"/>
+  <path class="dpwb" d="M980,300 L1000,300"/>
+  <path class="dpwb" d="M980,370 L1000,370"/>
+  <path class="dpwb" d="M1000,370 L1000,120"/>
+  <path class="dpwb" d="M1000,120 L205,120"/>
+  <path class="dpwb" d="M205,120 L205,150"/>
+  <text class="label" x="1006" y="244" fill="#f2cc60">writeback</text>
+  <text class="label" x="600" y="114" text-anchor="middle" fill="#f2cc60">writeback to VRegFile  (vd)</text>
 
-  <!-- Cross-engine: MXU result → VPU (fused bias+ReLU epilogue) -->
-  <path class="dpc" d="M830,185 C810,195 780,200 730,210"/>
-  <text class="label" x="740" y="204" text-anchor="end" fill="#d2a8ff">SXU_LOAD_MXU_RESULT  (MXU→VPU epilogue)</text>
+  <!-- MXU → VPU epilogue: short arrow between the MXU result reg and the
+       VPU resultReg inside the accumulator column. -->
+  <path class="dpc" d="M880,185 L880,205"/>
+  <text class="label" x="888" y="200" fill="#d2a8ff">SXU_LOAD_MXU_RESULT</text>
 
   <!-- HBM ↔ VMEM (VMEM is the bottom storage row, adjacent to HBM). -->
   <path class="dp" d="M140,430 L140,400"/>
