@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -4805,6 +4805,37 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       sim.chmod(sim.stat().st_mode | stat.S_IEXEC)
       with self.assertRaisesRegex(RuntimeError, "simulator did not report `status ok`"):
         _run_bundle(str(sim), "4\n")
+
+  def test_mxu_psum_accumulate_via_bundle(self):
+    # End-to-end hardware test of the PSUM accumulator path: two MXU
+    # dispatches (WRITE then ACCUMULATE) with identity weights and
+    # [1,2,3,4] activations should land [2,4,6,8] in bucket 0 row 0.
+    # Other rows are covered by the preceding SXU_PSUM_WRITE that
+    # clears the tile from a zero vreg.
+    sim = os.environ["TINYTPU_SIM"]
+    zero_tile = [0] * 16
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    bundle = _bundle(
+      _vmem(0, zero_tile),
+      _wmem(0, ident_weights),
+      _amem(0, [1, 2, 3, 4]),
+      _load(0, 0),                              # v0 := VMEM[0] (zeros)
+      "2 15 0 0 0 0 0 0 0 0",                   # PSUM_WRITE psum[0] := v0
+      _mxu_psum_acc(0, 0, 1, 0, 0),             # MXU psum[0].row=0 += act*W
+      _wait_mxu(),
+      _mxu_psum_acc(0, 0, 1, 0, 0),             # second dispatch same target
+      _wait_mxu(),
+      _psum_read(1, 0),                         # v1 := psum[0]
+      _store(5, 1),                             # VMEM[5] := v1
+      _halt(),
+      _output_vmem(5),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Row 0 doubled; other rows remain zero (cleared via SXU_PSUM_WRITE).
+    self.assertEqual(tile[0:4], [2, 4, 6, 8])
+    self.assertEqual(tile[4:16], [0] * 12)
 
 
 if __name__ == "__main__":
