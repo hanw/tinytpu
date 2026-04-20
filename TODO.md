@@ -364,11 +364,18 @@ software lowering alone. Ordered roughly by impact on real workloads.
       `code_for_op` declares `Ops.EXP2`/`LOG2`/`SIN`/`SQRT` as supported so
       the xexp2/xlog2/xsin/xpow decompositions are skipped, and dedicated
       SXU_PROGRAM renderers emit LOAD+VPU+STORE per tile (SQRT as a
-      LOG2→FMUL→EXP2 microprogram). Accuracy follows degree-2/5 Taylor:
-      EXP2 ~16% low at 4.0, LOG2 exact at powers of two, SIN tight for
-      `|x| ≤ π/2`. Next tightening step: Remez-optimised coefficients
-      inside TranscUnit (no opcode change), and a mod-2π+quadrant-fold
-      preamble in `_render_sin_sxu_program` for wide-angle sin.
+      LOG2→FMUL→EXP2 microprogram).
+      Composite activations built on top: `_render_scaled_exp2_sxu_program`
+      covers `Tensor.exp()` (exp2 over scalar-const MUL/ADD);
+      `_render_sigmoid_sxu_program` covers `Tensor.sigmoid()` (FMUL+EXP2+
+      FADD+FRECIP). Elementwise fallback now rejects any kernel containing
+      EXP2/LOG2/SIN/SQRT so missing composite renderers fail loud instead
+      of silently dropping the transcendental.
+      Accuracy follows degree-2/5 Taylor: EXP2 ~16% low at 4.0, LOG2 exact
+      at powers of two, SIN tight for `|x| ≤ π/2`. Next tightening steps:
+      Remez-optimised coefficients inside TranscUnit, a mod-2π+quadrant-
+      fold preamble for wide-angle sin, and a `tanh` composite renderer
+      (matches `ADD(MUL(CONST, sigmoid(MUL(x, CONST))), CONST)`).
 
 ### Movement
 
