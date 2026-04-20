@@ -530,3 +530,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	selfsq-fix	1	Item#10 iter: self-square renderer bug fix	x**4 no longer silently returns x**2 via false-match; regression guard added	backend 871/871 (+1)	self-square rejects power>=4	x**4+ dedicated renderer
 2026-04-20	swish	1	Item#10 iter: swish/silu renderer	x*sigmoid(x) via 6-step FMUL/EXP2/FADD/FRECIP/FMUL microprogram per tile	backend 872/872 (+1)	Tensor.silu() end-to-end	more activations
 2026-04-20	guards	1	Item#10 iter: tighten abs+relu guards	rejected silent mis-lowering of hardtanh (as RELU) and softsign (as abs); regression tests added	backend 874/874 (+2)	refuse wrong results	clip/hardtanh dedicated renderers
+2026-04-20	softsign	1	Item#10 iter: softsign renderer	x/(1+|x|) via 6-step microprogram per tile	backend 874/874 (+2)	Tensor.softsign() end-to-end	hardtanh/clip dedicated
