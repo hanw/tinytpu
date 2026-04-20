@@ -182,7 +182,47 @@ module mkTbTranscUnit();
       phase <= 8;
    endrule
 
-   rule done_rule (phase == 8);
+   // -- Range-reduction helpers: tr_trunc / tr_fp_to_int / tr_pow2_int --
+   // These are pure combinational functions. Check a handful of inputs
+   // in one cycle so future integration with EXP2 range reduction has
+   // a known-good baseline.
+   rule check_helpers (phase == 8);
+      Bool ok = True;
+      // trunc(3.7) == 3.0 (0x40400000)
+      Float t1 = tr_trunc(unpack(32'h406CCCCD));  // 3.7
+      if (pack(t1) != 32'h40400000) ok = False;
+      // trunc(-2.3) == -2.0 (0xC0000000)
+      Float t2 = tr_trunc(unpack(32'hC0133333));  // -2.3
+      if (pack(t2) != 32'hC0000000) ok = False;
+      // trunc(0.5) == 0.0
+      Float t3 = tr_trunc(unpack(32'h3F000000));
+      if (pack(t3) != 32'h00000000) ok = False;
+      // trunc(-0.9) == 0.0
+      Float t4 = tr_trunc(unpack(32'hBF666666));
+      if (pack(t4) != 32'h00000000) ok = False;
+      // fp_to_int(3.0) == 3
+      if (tr_fp_to_int(unpack(32'h40400000)) != 3) ok = False;
+      // fp_to_int(-5.0) == -5
+      if (tr_fp_to_int(unpack(32'hC0A00000)) != -5) ok = False;
+      // pow2_int(0) == 1.0
+      if (pack(tr_pow2_int(0)) != 32'h3F800000) ok = False;
+      // pow2_int(3) == 8.0
+      if (pack(tr_pow2_int(3)) != 32'h41000000) ok = False;
+      // pow2_int(-2) == 0.25
+      if (pack(tr_pow2_int(-2)) != 32'h3E800000) ok = False;
+
+      if (ok) begin
+         $display("Cycle %0d: PASS range-reduction helpers", cycle);
+         passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL range-reduction helpers (trunc/fp_to_int/pow2_int)",
+                  cycle);
+         failed <= failed + 1;
+      end
+      phase <= 9;
+   endrule
+
+   rule done_rule (phase == 9);
       $display("Results: %0d passed, %0d failed", passed, failed);
       $finish(failed == 0 ? 0 : 1);
    endrule

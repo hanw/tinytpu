@@ -58,6 +58,60 @@ function Int#(32) tr_fp2bits(Float x);
    return unpack(pack(x));
 endfunction
 
+// Truncate toward zero: zero out fractional mantissa bits of x.
+// Scaffolding for EXP2 range reduction. For |x| < 1 the result is 0;
+// for |x| >= 2^24 the input is assumed already integer (sfd preserved);
+// for 0 <= e < 24 the low (23 - e) mantissa bits are cleared.
+function Float tr_trunc(Float x);
+   Bit#(8) raw_exp = x.exp;
+   Int#(9) e = unpack(zeroExtend(raw_exp)) - 127;
+   Bool is_small = (raw_exp < 127);     // |x| < 1
+   Bool is_big   = (raw_exp >= 151);    // |x| >= 2^24: already integer
+   Bit#(5)  frac_bits = truncate(pack(23 - e));            // 0..23
+   Bit#(32) mask32    = ~((32'h1 << frac_bits) - 32'h1);
+   Bit#(23) keep_mask = truncate(mask32);
+   Bit#(23) trunc_sfd = x.sfd & keep_mask;
+   Float r;
+   r.sign = is_small ? False : x.sign;
+   r.exp  = is_small ? 8'h00 : x.exp;
+   r.sfd  = is_small ? 23'h0 : (is_big ? x.sfd : trunc_sfd);
+   return r;
+endfunction
+
+// Convert a Float that represents an integer to Int#(32) (truncate
+// toward zero for non-integer inputs, same semantics as VPU F2I but
+// duplicated to keep TranscUnit self-contained).
+function Int#(32) tr_fp_to_int(Float f);
+   Bit#(8) raw_exp = f.exp;
+   Int#(9) exp_val = unpack(zeroExtend(raw_exp)) - 127;
+   Bool is_zero = (raw_exp == 0 && f.sfd == 0);
+   Bool too_small = (exp_val < 0);
+   UInt#(32) mantissa = (zeroExtend(1'b1) << 23) | unpack(zeroExtend(f.sfd));
+   Bit#(5) shift_r = truncate(pack(23 - exp_val));
+   Bit#(5) shift_l = truncate(pack(exp_val - 23));
+   UInt#(32) mag = (exp_val >= 23) ? (mantissa << shift_l)
+                                    : (mantissa >> shift_r);
+   Int#(32) result = unpack(pack(mag));
+   Int#(32) signed_result = f.sign ? (-result) : result;
+   return (is_zero || too_small) ? 0 : signed_result;
+endfunction
+
+// Construct 2^n as Float for integer n. n outside [-126, 127] saturates
+// to 0 / +inf respectively (the only n values TranscUnit will pass in
+// live inside [-126, 127] by far).
+function Float tr_pow2_int(Int#(32) n);
+   Int#(32) biased = n + 127;
+   Bool overflow  = (biased > 255);
+   Bool underflow = (biased <= 0);
+   Bit#(8) exp_bits = overflow ? 8'hFF
+                                : (underflow ? 8'h00 : truncate(pack(biased)));
+   Float r;
+   r.sign = False;
+   r.exp  = exp_bits;
+   r.sfd  = 23'h0;
+   return r;
+endfunction
+
 module mkTranscUnit(TranscUnit_IFC#(n))
    provisos(
       Add#(1, n_, n)
@@ -249,5 +303,8 @@ endmodule
 export TranscOp(..);
 export TranscUnit_IFC(..);
 export mkTranscUnit;
+export tr_trunc;
+export tr_fp_to_int;
+export tr_pow2_int;
 
 endpackage
