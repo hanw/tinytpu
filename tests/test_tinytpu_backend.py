@@ -1064,6 +1064,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = 1.0 / (1.0 + np.exp(-a))
     np.testing.assert_allclose(result, expected, atol=0.01)
 
+  def test_sigmoid_wide_range_matches_reference(self):
+    # With EXP2 range reduction sigmoid stays accurate across a wide
+    # range — previously only |x| ≤ 0.7 worked.
+    a = np.linspace(-4.0, 4.0, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sigmoid().numpy()
+    expected = 1.0 / (1.0 + np.exp(-a))
+    np.testing.assert_allclose(result, expected, atol=0.01)
+
   def test_sigmoid_multi_tile_matches_reference(self):
     # 32 elements crossing a tile boundary to exercise the renderer's
     # per-tile replication of the FMUL+EXP2+FADD+FRECIP chain.
