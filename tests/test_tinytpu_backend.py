@@ -1141,6 +1141,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     self.assertTrue(np.all(result > 0))
     np.testing.assert_allclose(result, np.sqrt(a), rtol=0.03)
 
+  def test_rsqrt_matches_reference(self):
+    # Tensor.rsqrt() = RECIPROCAL(SQRT(x)). The dedicated rsqrt renderer
+    # emits a LOG2 -> FMUL(-0.5) -> EXP2 microprogram, saving one
+    # divide vs naive 1/sqrt(x). Powers of 4 are exact.
+    a = np.array([1.0, 4.0, 16.0, 0.25], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").rsqrt().numpy()
+    np.testing.assert_allclose(result, 1.0 / np.sqrt(a), rtol=0.03)
+
   def test_sqrt_wide_range_matches_reference(self):
     # Spot-check a wider set: perfect squares exact, others within 3%.
     a = np.array([1.0, 4.0, 9.0, 16.0, 0.25, 0.5, 2.0], dtype=np.float32)
