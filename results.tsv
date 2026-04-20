@@ -506,3 +506,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	3235c02	1	Item#6 iter: wide sigmoid test	atol=0.01 over [-4, 4]	pytest 1002 passed (+1)	sigmoid wide-range accuracy locked	-
 2026-04-19	924faf2	1	Item#6 iter: scaled_log2 + Tensor.log	_render_scaled_log2 matches MUL(LOG2, const); Tensor.log tests	pytest 1003 passed (+1)	natural log end-to-end	more renderers or hw work
 2026-04-19	c8c1621	1	Item#4 iter: scoreboard live state	xlu_busy/xlu_dst set in XLU dispatch rules and cleared on collect	test-sxu 6/6; pytest 1003 passed	scoreboard observable	RAW hazard + 2-slot arbiter
+2026-04-19	f58ee9f	1	Item#6 iter: multi-tile tanh test	32-elem [-2.5, 2.5] atol=0.01	pytest 1004 passed (+1)	multi-tile tanh proven	TODO refresh
