@@ -163,17 +163,14 @@ module mkScalarUnit#(
    // (SET_PRED_IF_ZERO / SKIP_IF_PRED).
    Reg#(Bool)                    pred     <- mkReg(False);
 
-   // Dual-issue scaffolding (Architectural Refactor Item #4).
-   // `xlu_busy` tracks whether an XLU dispatch is still in flight so
-   // future iters can let the main FSM skip ahead when the next
-   // instruction doesn't depend on the XLU result. Today the FSM is
-   // still single-issue, so this register is always cleared at
-   // EXEC_*_COLLECT time — it's the first piece of the scoreboard
-   // that will gate a second issue slot.
+   // Dual-issue scoreboard (Architectural Refactor Item #4).
+   // xlu_busy tracks whether an XLU dispatch is in flight (set on
+   // EXEC_XLU_* dispatch, cleared on EXEC_XLU_COLLECT). xlu_dst holds
+   // the target vreg so a future arbiter rule can stall on RAW against
+   // a subsequent reader. The main FSM is still single-issue — the
+   // scoreboard is observable today; a parallel issue slot lands in a
+   // follow-up iter.
    Reg#(Bool)                    xlu_busy <- mkReg(False);
-   // Target vreg of the most recent XLU dispatch. A subsequent
-   // instruction that reads from this vreg must stall until the XLU
-   // result is written back — this is the RAW hazard detector.
    Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
 `ifdef TRACE
    Reg#(UInt#(32))               cycle    <- mkReg(0);
@@ -291,6 +288,8 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=XLU ev=BROADCAST src_lane=%0d", cycle, srcLane);
 `endif
       xlu.executeBroadcast(src, srcLane);
+      xlu_busy <= True;
+      xlu_dst  <= curInstr.vregDst;
       pc_state <= SXU_EXEC_XLU_COLLECT;
    endrule
 
@@ -303,6 +302,8 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=SXU ev=BROADCAST_SCALAR pc=%0d src=v%0d row=%0d col=%0d", cycle, pc, curInstr.vregSrc, srcRow, srcCol);
 `endif
       xlu.executeBroadcastScalar(src, srcRow, srcCol);
+      xlu_busy <= True;
+      xlu_dst  <= curInstr.vregDst;
       pc_state <= SXU_EXEC_XLU_COLLECT;
    endrule
 
@@ -313,6 +314,8 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=SXU ev=BROADCAST_ROW pc=%0d src=v%0d row=%0d", cycle, pc, curInstr.vregSrc, srcRow);
 `endif
       xlu.executeBroadcastRow(src, srcRow);
+      xlu_busy <= True;
+      xlu_dst  <= curInstr.vregDst;
       pc_state <= SXU_EXEC_XLU_COLLECT;
    endrule
 
@@ -323,6 +326,8 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=SXU ev=BROADCAST_COL pc=%0d src=v%0d col=%0d", cycle, pc, curInstr.vregSrc, srcCol);
 `endif
       xlu.executeBroadcastCol(src, srcCol);
+      xlu_busy <= True;
+      xlu_dst  <= curInstr.vregDst;
       pc_state <= SXU_EXEC_XLU_COLLECT;
    endrule
 
@@ -332,16 +337,20 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=SXU ev=XLU_TRANSPOSE pc=%0d src=v%0d", cycle, pc, curInstr.vregSrc);
 `endif
       xlu.executeTranspose(src);
+      xlu_busy <= True;
+      xlu_dst  <= curInstr.vregDst;
       pc_state <= SXU_EXEC_XLU_COLLECT;
    endrule
 
-   // Collect XLU result (1-cycle latency), write to vregDst, advance pc
+   // Collect XLU result (1-cycle latency), write to vregDst, advance pc.
+   // Clears xlu_busy/xlu_dst — the scoreboard is now idle again.
    rule do_xlu_collect (pc_state == SXU_EXEC_XLU_COLLECT);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=XLU_COLLECT pc=%0d", cycle, pc);
       $display("TRACE cycle=%0d unit=XLU ev=RESULT", cycle);
 `endif
       vrf.write(truncate(curInstr.vregDst), xlu.result);
+      xlu_busy <= False;
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule
