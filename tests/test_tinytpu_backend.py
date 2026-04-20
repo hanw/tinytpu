@@ -1149,6 +1149,16 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 2.0).numpy()
     np.testing.assert_array_equal(result, a ** 2.0)
 
+  def test_silu_matches_reference(self):
+    # swish / silu = x * sigmoid(x). tinygrad's UOp graph chains a
+    # self-multiply around the sigmoid pattern, which the sigmoid
+    # renderer alone won't match. Dedicated swish renderer emits the
+    # full FMUL/EXP2/FADD/FRECIP/FMUL microprogram per tile.
+    a = np.array([-3., -2., -1., 0., 1., 2., 3.], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").silu().numpy()
+    expected = a / (1.0 + np.exp(-a))
+    np.testing.assert_allclose(result, expected, atol=0.005)
+
   def test_cube_matches_reference(self):
     # Tensor(x) ** 3 lowers as MUL(x, MUL(x, x)) — a three-way self-
     # multiply that neither the elementwise nor self-square renderer
