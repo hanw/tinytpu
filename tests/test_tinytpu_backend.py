@@ -627,7 +627,7 @@ class TestTinyTPUBackend(unittest.TestCase):
     a = np.array([1.1, 1.25, 1.5, 1.75, 2.5, 3.0, 3.5, 5.0,
                   0.25, 0.4, 0.6, 0.8, 10.0, 12.0, 16.0, 20.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").log2().numpy()
-    np.testing.assert_allclose(result, np.log2(a), atol=0.05)
+    np.testing.assert_allclose(result, np.log2(a), atol=0.04)
 
   def test_frecip_2x3_matches_reference(self):
     a = np.array([[1.0, 2.0, 4.0], [0.5, 8.0, 16.0]], dtype=np.float32)
