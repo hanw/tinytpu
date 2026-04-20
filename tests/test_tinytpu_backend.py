@@ -1020,6 +1020,24 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_array_equal(result, np.flip(a))
 
 
+  def test_cos_matches_reference(self):
+    # tinygrad lowers cos(x) = sin(-x + π/2), which the scaled_sin
+    # renderer picks up (FMUL + FADD + SIN chain). Remez SIN peak
+    # error is 1.2e-4 so the overall kernel is tight.
+    a = np.array([0.0, np.pi/6, np.pi/4, np.pi/3], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").cos().numpy()
+    expected = np.cos(a)
+    np.testing.assert_allclose(result, expected, atol=1e-3)
+
+  def test_cos_full_tile_matches_reference(self):
+    # 16-lane tile over [0, π/2]: after the -x + π/2 shift the SIN
+    # argument stays in [0, π/2] ⊂ the Remez fit range. Tight band.
+    # Wider cos ranges need SIN range reduction (tracked separately).
+    a = np.linspace(0.0, np.pi / 2, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").cos().numpy()
+    expected = np.cos(a)
+    np.testing.assert_allclose(result, expected, atol=2e-3)
+
   def test_tanh_small_inputs_matches_reference(self):
     # tanh(x) = 2*sigmoid(2x) - 1 ≈ 2/(1+exp(-2x)) - 1. The hardware
     # pipeline is FMUL(v0, -2.885) + EXP2 + FADD + FRECIP + FMUL(2) +
