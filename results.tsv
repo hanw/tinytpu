@@ -512,3 +512,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	memory	1	Project memory refresh (iters 1-27)	capture Item#5 + Item#8 dispatch + Item#6 done + scoreboard live	memory-only	cold-resume point updated	finish Item#8/#4
 2026-04-19	be1bd4a	1	Item#6 iter: tighten log2 tolerance	atol 0.05 -> 0.04 on non-power inputs	pytest 1004 passed	log2 accuracy band matches Remez	various follow-ups
 2026-04-19	0da0d10	1	Item#6 iter: rsqrt renderer	RECIPROCAL(SQRT) → LOG2+FMUL(-0.5)+EXP2	pytest 1005 passed (+1)	Tensor.rsqrt() end-to-end	x**2 renderer for self-MUL
+2026-04-19	vfy	1	iter 31: final verification	BSV 48+6+9+2+1+1+2+3+3+7+5=87 tests; Python 1005 passed (+1 skipped)	all suites green	end of 40-push partial	Item#8 FSM remaining
