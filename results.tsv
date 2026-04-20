@@ -532,3 +532,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	guards	1	Item#10 iter: tighten abs+relu guards	rejected silent mis-lowering of hardtanh (as RELU) and softsign (as abs); regression tests added	backend 874/874 (+2)	refuse wrong results	clip/hardtanh dedicated renderers
 2026-04-20	softsign	1	Item#10 iter: softsign renderer	x/(1+|x|) via 6-step microprogram per tile	backend 874/874 (+2)	Tensor.softsign() end-to-end	hardtanh/clip dedicated
 2026-04-20	mean	1	Item#10 iter: float reduction post-op	float mean() no longer mis-types post-reduce scalar mul as integer; FMUL/FADD used	backend 875/875 (+1)	Tensor.mean() on float works	var/std still unsupported
+2026-04-20	colmean	1	Item#10 iter: col-reduce post-op scaling	float mean(axis=0) fused FMUL now appended inside col-reduce kernel; dedicated broadcast-const VMEM slot past reserved range	backend 876/876 (+1)	Tensor.mean(axis=0) works	mean(axis=1) + var/std
