@@ -357,11 +357,18 @@ software lowering alone. Ordered roughly by impact on real workloads.
 
 ### Transcendental / math
 
-- [ ] **`Exp2`/`Log2`/`Sin` hardware** (polynomial approx or LUT-based VPU
-      ops `VPU_EXP2`, `VPU_LOG2`, `VPU_SIN`). Without these, the tinyspec
-      decompositions for `Sqrt = Exp2(0.5 * Log2(x))`, `Pow`, `Tanh`,
-      `Sigmoid`, and softmax normalization all reject at the renderer.
-      Single biggest blocker for any non-trivial activation on-device.
+- [x] **`Exp2`/`Log2`/`Sin` hardware** — landed via the shared multi-cycle
+      `mkTranscUnit` (one FP adder + one FP multiplier, per-lane sequential
+      Horner). `VPU_EXP2` (opcode 51), `VPU_LOG2` (52), `VPU_SIN` (53) all
+      dispatch through the walker; VPU `isDone` gates SXU collect. Tinygrad
+      `code_for_op` declares `Ops.EXP2`/`LOG2`/`SIN`/`SQRT` as supported so
+      the xexp2/xlog2/xsin/xpow decompositions are skipped, and dedicated
+      SXU_PROGRAM renderers emit LOAD+VPU+STORE per tile (SQRT as a
+      LOG2→FMUL→EXP2 microprogram). Accuracy follows degree-2/5 Taylor:
+      EXP2 ~16% low at 4.0, LOG2 exact at powers of two, SIN tight for
+      `|x| ≤ π/2`. Next tightening step: Remez-optimised coefficients
+      inside TranscUnit (no opcode change), and a mod-2π+quadrant-fold
+      preamble in `_render_sin_sxu_program` for wide-angle sin.
 
 ### Movement
 
