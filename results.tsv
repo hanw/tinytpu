@@ -494,3 +494,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	7a141cc	1	Item#6 iter: tanh renderer fix	guard multistep divide; use const directly (no double 2×)	pytest 993 passed; Tensor.tanh() lowers to dedicated renderer	tanh works for |x|≤0.3	EXP2 range reduction for wide tanh
 2026-04-19	fb2d8f7	1	Item#6 iter: scaled_sin renderer for Tensor.cos	sin(s·x+t) renderer; Tensor.cos() now routes to dedicated kernel	pytest 995 passed (+2)	cos end-to-end on Remez range	wide-angle SIN reduction
 2026-04-19	32ac920	1	TODO refresh after iters 1-11	995 Python + 80 BSV; next-steps ranked; iters landed listed	docs-only	state mirrored in TODO	next hw iter
+2026-04-19	b9a1082	1	Item#6 iter: tighten sigmoid tolerances	atol 0.05→0.01 small-input; 0.25→0.05 multi-tile	pytest 995 passed	sigmoid Remez gain locked	EXP2 range reduction
