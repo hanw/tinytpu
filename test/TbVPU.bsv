@@ -15,7 +15,7 @@ module mkTbVPU();
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 600) begin $display("FAIL: timeout"); $finish(1); end
+      if (cycle > 700) begin $display("FAIL: timeout"); $finish(1); end
    endrule
 
    // Test 1: VPU_ADD
@@ -1256,7 +1256,50 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 490);
+   // Test 47: VPU_SIN — sin(x) via degree-5 Taylor.
+   // Inputs: [0.0, 0.5236, 1.5708, -0.5236] (0, π/6, π/2, -π/6)
+   // → expected [0.0, 0.5, 1.0, -0.5]. Taylor degree-5 is nearly exact
+   //   for |x| <= π/2 (error < 0.001).
+   rule dispatch_sin (cycle == 440);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h00000000);  // 0.0
+      s1[0][1] = unpack(32'h3F060A92);  // π/6  ≈ 0.5235988
+      s1[0][2] = unpack(32'h3FC90FDB);  // π/2  ≈ 1.5707964
+      s1[0][3] = unpack(32'hBF060A92);  // -π/6
+      vpu.execute(VPU_SIN, s1, s2);
+      $display("Cycle %0d: dispatched VPU_SIN", cycle);
+   endrule
+
+   rule check_sin (cycle == 540 && vpu.isDone);
+      let res = vpu.result;
+      Float got_0 = unpack(pack(res[0][0]));
+      Float got_1 = unpack(pack(res[0][1]));
+      Float got_2 = unpack(pack(res[0][2]));
+      Float got_3 = unpack(pack(res[0][3]));
+      Float lo_0  = unpack(32'hBD800000);  // -0.0625
+      Float hi_0  = unpack(32'h3D800000);  //  0.0625
+      Float lo_1  = unpack(32'h3EF33333);  //  0.475
+      Float hi_1  = unpack(32'h3F066666);  //  0.525
+      Float lo_2  = unpack(32'h3F70A3D7);  //  0.94
+      Float hi_2  = unpack(32'h3F826666);  //  1.02
+      Float lo_3  = unpack(32'hBF066666);  // -0.525
+      Float hi_3  = unpack(32'hBEF33333);  // -0.475
+      Bool ok = True;
+      if (compareFP(got_0, lo_0) == LT || compareFP(got_0, hi_0) == GT) ok = False;
+      if (compareFP(got_1, lo_1) == LT || compareFP(got_1, hi_1) == GT) ok = False;
+      if (compareFP(got_2, lo_2) == LT || compareFP(got_2, hi_2) == GT) ok = False;
+      if (compareFP(got_3, lo_3) == LT || compareFP(got_3, hi_3) == GT) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_SIN", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_SIN got [0x%08x,0x%08x,0x%08x,0x%08x]",
+            cycle, pack(res[0][0]), pack(res[0][1]), pack(res[0][2]), pack(res[0][3]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 600);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

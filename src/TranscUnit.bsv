@@ -20,7 +20,7 @@ package TranscUnit;
 import Vector         :: *;
 import FloatingPoint  :: *;
 
-typedef enum { TR_EXP2, TR_LOG2 } TranscOp deriving (Bits, Eq, FShow);
+typedef enum { TR_EXP2, TR_LOG2, TR_SIN } TranscOp deriving (Bits, Eq, FShow);
 
 // Integer-to-float conversion for the small signed exponent that falls
 // out of LOG2's range reduction. Only ever handles values in [-126, 127],
@@ -77,7 +77,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    Reg#(UInt#(3))       step     <- mkReg(0);
    Reg#(Float)          y_r      <- mkRegU;
    Reg#(Float)          acc_r    <- mkRegU;
-   Reg#(Float)          e_r      <- mkRegU;   // LOG2: exponent-as-float
+   Reg#(Float)          e_r      <- mkRegU;   // LOG2: exp-as-float; SIN: original x
 
    Float ln2_c    = unpack(32'h3F317218);  // ln(2)           ≈ 0.6931472
    Float half_c   = unpack(32'h3F000000);  // 0.5
@@ -85,90 +85,111 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    Float neg_one  = unpack(32'hBF800000);  // -1.0
    Float log2e_c  = unpack(32'h3FB8AA3B);  // 1/ln(2)         ≈ 1.4426950
    Float neg_half_log2e = unpack(32'hBF389A43);  // -1/(2*ln(2)) ≈ -0.7213475
+   Float sin_c2   = unpack(32'hBE2AAAAB);  // -1/6            ≈ -0.1666667
+   Float sin_c4   = unpack(32'h3C088889);  //  1/120          ≈  0.0083333
 
-   // EXP2 per-lane schedule (5 steps, exact at x=0):
+   // Per-op step schedules. Each step runs at most one FP op (FMUL or FADD)
+   // so one multiplier + one adder suffice. EXP2 finishes at step 4; LOG2
+   // and SIN use steps 0..5.
+   //
+   // EXP2 (exact at x=0):
    //   0:  y_r   = x * ln2
    //   1:  acc_r = y_r * 0.5
    //   2:  acc_r = acc_r + 1
    //   3:  acc_r = acc_r * y_r
-   //   4:  buf[i] = acc_r + 1; advance or done
+   //   4:  buf[i] = acc_r + 1
    //
-   // LOG2 per-lane schedule (5 steps, exact at x=1, range-reduced):
+   // LOG2 (exact at powers of 2, range-reduced):
    //   0:  split x = m * 2^e, m in [1,2); y_r = m, e_r = float(e)
-   //   1:  y_r = m - 1        (u in [0, 1); FADD)
-   //   2:  acc_r = y_r * c2   (c2 = -0.5 / ln2; FMUL)
-   //   3:  acc_r = acc_r + c1 (c1 =  1    / ln2; FADD)
-   //   4:  buf[i] = acc_r * y_r + e_r? — but we need both an FMUL and an
-   //       FADD in step 4. Split into two sub-steps: 4 then 5.
-   //   4:  acc_r = acc_r * y_r  (FMUL)
-   //   5:  buf[i] = acc_r + e_r; advance or done
+   //   1:  y_r = m - 1 → u
+   //   2:  acc_r = y_r * (-0.5/ln2)
+   //   3:  acc_r = acc_r + (1/ln2)
+   //   4:  acc_r = acc_r * y_r
+   //   5:  buf[i] = acc_r + e_r
    //
-   // To keep the FSM uniform at 6 steps, EXP2 ignores step 5 and finishes
-   // in step 4; LOG2 uses steps 0..5.
+   // SIN (degree-5 Taylor, exact at x=0; ~0.5 rad error at |x|=π):
+   //   0:  e_r = x (save); y_r = x * x   (x² in y_r)
+   //   1:  acc_r = y_r * sin_c4           (sin_c4 = 1/120)
+   //   2:  acc_r = acc_r + sin_c2         (sin_c2 = -1/6)
+   //   3:  acc_r = acc_r * y_r            (back to scaled x²)
+   //   4:  acc_r = acc_r + 1
+   //   5:  buf[i] = acc_r * e_r           (final *x)
    rule step_rule (busy && !done);
       Float x    = tr_bits2fp(buf_r[lane_idx]);
       case (step)
          0: begin
-            if (op_r == TR_EXP2) begin
-               y_r <= tpl_1(multFP(x, ln2_c, Rnd_Nearest_Even));
-            end else begin
-               // LOG2: decompose buf_r[i] into (e_unbiased, mantissa).
-               // Reuse sign bit in case x ≤ 0 (LOG2(-x) is ill-defined;
-               // we still produce a bit pattern so the unit never stalls).
-               Bit#(32) xb = pack(buf_r[lane_idx]);
-               Int#(9)  e_unbiased = unpack(extend(xb[30:23])) - 127;
-               Bit#(32) m_bits = {1'b0, 8'd127, xb[22:0]};
-               y_r <= unpack(m_bits);               // m in [1, 2)
-               e_r <= tr_i9_to_float(e_unbiased);
-            end
+            case (op_r)
+               TR_EXP2: y_r <= tpl_1(multFP(x, ln2_c, Rnd_Nearest_Even));
+               TR_LOG2: begin
+                  Bit#(32) xb = pack(buf_r[lane_idx]);
+                  Int#(9)  e_unbiased = unpack(extend(xb[30:23])) - 127;
+                  Bit#(32) m_bits = {1'b0, 8'd127, xb[22:0]};
+                  y_r <= unpack(m_bits);
+                  e_r <= tr_i9_to_float(e_unbiased);
+               end
+               TR_SIN: begin
+                  e_r <= x;                                     // save x
+                  y_r <= tpl_1(multFP(x, x, Rnd_Nearest_Even)); // x²
+               end
+            endcase
             step <= 1;
          end
          1: begin
-            if (op_r == TR_EXP2) begin
-               acc_r <= tpl_1(multFP(y_r, half_c, Rnd_Nearest_Even));
-            end else begin
-               y_r <= tpl_1(addFP(y_r, neg_one, Rnd_Nearest_Even));  // u = m-1
-            end
+            case (op_r)
+               TR_EXP2: acc_r <= tpl_1(multFP(y_r, half_c, Rnd_Nearest_Even));
+               TR_LOG2: y_r   <= tpl_1(addFP(y_r, neg_one, Rnd_Nearest_Even));
+               TR_SIN:  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
+            endcase
             step <= 2;
          end
          2: begin
-            if (op_r == TR_EXP2) begin
-               acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
-            end else begin
-               acc_r <= tpl_1(multFP(y_r, neg_half_log2e, Rnd_Nearest_Even));
-            end
+            case (op_r)
+               TR_EXP2: acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+               TR_LOG2: acc_r <= tpl_1(multFP(y_r, neg_half_log2e, Rnd_Nearest_Even));
+               TR_SIN:  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
+            endcase
             step <= 3;
          end
          3: begin
-            if (op_r == TR_EXP2) begin
-               acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
-            end else begin
-               acc_r <= tpl_1(addFP(acc_r, log2e_c, Rnd_Nearest_Even));
-            end
+            case (op_r)
+               TR_EXP2: acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+               TR_LOG2: acc_r <= tpl_1(addFP(acc_r, log2e_c, Rnd_Nearest_Even));
+               TR_SIN:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+            endcase
             step <= 4;
          end
          4: begin
-            if (op_r == TR_EXP2) begin
-               Float final_f = tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
-               Vector#(n, Int#(32)) next_buf = buf_r;
-               next_buf[lane_idx] = tr_fp2bits(final_f);
-               buf_r <= next_buf;
-               step  <= 0;
-               if (lane_idx + 1 == fromInteger(valueOf(n))) begin
-                  done <= True;
-                  busy <= False;
-               end else begin
-                  lane_idx <= lane_idx + 1;
+            case (op_r)
+               TR_EXP2: begin
+                  Float final_f = tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+                  Vector#(n, Int#(32)) next_buf = buf_r;
+                  next_buf[lane_idx] = tr_fp2bits(final_f);
+                  buf_r <= next_buf;
+                  step  <= 0;
+                  if (lane_idx + 1 == fromInteger(valueOf(n))) begin
+                     done <= True;
+                     busy <= False;
+                  end else begin
+                     lane_idx <= lane_idx + 1;
+                  end
                end
-            end else begin
-               // LOG2 step 4: FMUL acc_r * y_r (Horner middle term).
-               acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
-               step  <= 5;
-            end
+               TR_LOG2: begin
+                  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+                  step  <= 5;
+               end
+               TR_SIN: begin
+                  acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+                  step  <= 5;
+               end
+            endcase
          end
          5: begin
-            // LOG2 step 5: final FADD with exponent, writeback.
-            Float final_f = tpl_1(addFP(acc_r, e_r, Rnd_Nearest_Even));
+            Float final_f;
+            case (op_r)
+               TR_LOG2: final_f = tpl_1(addFP(acc_r, e_r, Rnd_Nearest_Even));
+               TR_SIN:  final_f = tpl_1(multFP(acc_r, e_r, Rnd_Nearest_Even));
+               default: final_f = acc_r;  // unreachable for TR_EXP2
+            endcase
             Vector#(n, Int#(32)) next_buf = buf_r;
             next_buf[lane_idx] = tr_fp2bits(final_f);
             buf_r <= next_buf;
