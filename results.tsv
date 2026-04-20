@@ -517,3 +517,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	674a2f8	1	Item iter: self-square renderer	Tensor(x)**2 via dedicated MUL(v,v) kernel	pytest 1006 passed (+1)	x**2 end-to-end	composite activations
 2026-04-20	94d09e9	1	Iter 34: TODO end-of-push refresh	capture landings + rerank follow-ups for next session	docs-only	state mirrored in TODO	next session
 2026-04-20	vfy	1	Iter 35: final verification	BSV 87 tests + Python 1006 passed; 40-iter push wraps	all suites green	end of 40-iter push	next session resumes cold from memory
+2026-04-20	4d4a074	1	Item#8 iter: PE accumulator-hold for OS	startOS preserves PE accumulator across dispatches; clearArray method; start/startPsum pre-clear	test-ctrl-os 1/1; all adjacent green	accumulator-hold genuinely distinct from WS	SXU opcode for MXU_CLEAR
