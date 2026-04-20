@@ -7,6 +7,7 @@ import ActivationSRAM :: *;
 import PSUMBank :: *;
 
 export ControlState(..);
+export DataflowMode(..);
 export Controller_IFC(..);
 export mkController;
 
@@ -18,6 +19,19 @@ typedef enum {
    Drain,
    Done
 } ControlState deriving (Bits, Eq, FShow);
+
+// Dataflow mode. WS is the existing weight-stationary behavior: load
+// the tile of weights once into the systolic array, stream activations
+// through, drain results. OS (output-stationary) will later be used
+// for depthwise conv and attention kernels where weights vary per step
+// but partial sums accumulate in-place. For now only WS is implemented;
+// startOS() accepts OS but executes WS until the PE accumulator mode
+// lands. The enum + start path being in place is scaffolding for the
+// Architectural Refactor Item #8.
+typedef enum {
+   DF_WEIGHT_STATIONARY,
+   DF_OUTPUT_STATIONARY
+} DataflowMode deriving (Bits, Eq, FShow);
 
 interface Controller_IFC#(numeric type rows, numeric type cols, numeric type depth);
    method Action start(UInt#(TLog#(depth)) weightBase,
@@ -35,6 +49,10 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Bool isDone;
    method Vector#(cols, Int#(32)) results;
    method ControlState getState;
+   // Currently selected dataflow mode (set via startOS in future iters;
+   // exposed now so SXU/tests can observe Controller state without
+   // changing the start/startPsum signatures).
+   method DataflowMode getDataflowMode;
 endinterface
 
 module mkController#(
@@ -73,6 +91,10 @@ module mkController#(
    Reg#(UInt#(8))                 psumAddrReg <- mkReg(0);
    Reg#(UInt#(TLog#(rows)))       psumRowReg  <- mkReg(0);
    Reg#(PsumMode)                 psumModeReg <- mkReg(PSUM_OFF);
+   // Dataflow mode register. Always DF_WEIGHT_STATIONARY today; once
+   // an OS start path lands this flips in startOS() for the duration
+   // of a dispatch.
+   Reg#(DataflowMode)             dfModeReg   <- mkReg(DF_WEIGHT_STATIONARY);
 `ifdef TRACE
    Reg#(UInt#(32)) cycle <- mkReg(0);
 
@@ -203,6 +225,10 @@ module mkController#(
 
    method ControlState getState;
       return cstate;
+   endmethod
+
+   method DataflowMode getDataflowMode;
+      return dfModeReg;
    endmethod
 
 endmodule
