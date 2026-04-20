@@ -473,3 +473,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	5ebb511	1	Item#5 iter 1: WeightSRAMDB ping-pong scaffold	mkWeightSRAMDB 2-bank module + write-to-inactive + swap + TB	make test-wsram-db 3/3; backend 848 unchanged	ping-pong SRAM exists standalone	wire into Controller
 2026-04-19	7279c39	1	Item#5 iter 2: ActivationSRAMDB ping-pong	mkActivationSRAMDB 2-bank + swap + TB	make test-asram-db 3/3; backend 848 unchanged	ping-pong available for both operands	wire into Controller
 2026-04-19	1cbb1f6	1	Item#4 iter 2: SXU dual-issue scoreboard state	xlu_busy + xlu_dst registers	make test-sxu 6/6; no behavior change	scoreboard state available for future dual-issue FSM	arbiter rule
+2026-04-19	8b42c44	1	Item#6 iter: multi-tile EXP2 regression	test_exp2_two_tile_matches_reference	pytest backend 849 passed (+1)	multi-tile exp2 through TranscUnit proven	larger tiles
