@@ -594,34 +594,41 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations (updated 2026-04-19 late)
+## Recommended Next Iterations (updated 2026-04-20, end of 40-iter push)
 
-Current state: 995 Python tests + 80 BSV unit tests (VPU 48 + FpReducer 7
-+ PSUMBank 9 + SXU 6 + SxuPSUM 2 + CtrlPSUM 1 + CtrlOS 1 + WSRAMDB 3 +
-ASRAMDB 3 + TranscUnit 4). Transcendentals are now Remez-tuned (EXP2 4×,
-SIN 40×, COS 27×, LOG2 8× peak-error reduction). Tensor.cos() lowers
-end-to-end via a new `_render_scaled_sin` renderer. Tensor.tanh() works
-for |x| ≤ 0.35 via `_render_tanh_sxu_program` (wider inputs blocked by
-EXP2's no-range-reduction).
+Current state: 1006 Python tests + 87 BSV unit tests (VPU 48 +
+FpReducer 7 + PSUMBank 9 + SXU 6 + SxuPSUM 2 + CtrlPSUM 1 + CtrlOS 1 +
+CtrlDB 2 + WSRAMDB 3 + ASRAMDB 3 + TranscUnit 5).
 
-Item #8 (OS MXU) now has Controller.startOS() + SXU DISPATCH_MXU_OS
-opcode wiring; dispatch path is live but PE accumulator-hold and
-operand-swap FSM remain stubs.
+Landings in this push:
+- Item #6 (Transcendentals): DONE with Remez + range reduction for
+  EXP2/LOG2/SIN/COS. Tensor.exp, tanh, sigmoid, cos, log, sqrt, rsqrt
+  all accurate across wide ranges.
+- Item #8 (OS MXU): DISPATCH PATH LIVE via Controller.startOS() + SXU
+  DISPATCH_MXU_OS opcode. PE accumulator-hold FSM pending.
+- Item #5 (DB SRAM): CONTROLLER INTEGRATION. `.plain` sub-interface
+  lets Controller consume DB SRAMs; preload-parallel pattern proven
+  in TbCtrlDB. DMA stub + TensorCore default-wiring pending.
+- Item #4 (Dual-issue): SCOREBOARD LIVE. `xlu_busy` / `xlu_dst` set
+  on dispatch, cleared on collect. Parallel rule + RAW-stall pending.
+- Renderer additions: Tensor.cos, Tensor.log, Tensor.rsqrt,
+  Tensor.square, multi-tile wide-input tanh/exp/sigmoid/cos/sin tests.
 
-Highest-leverage follow-ups:
-1. **EXP2 range reduction inside TranscUnit** — unlocks wide-input
-   tanh/exp/sigmoid by splitting x = n + f and multiplying poly(f)
-   by 2^n via exponent-bit adjustment. Biggest accuracy lever left.
-2. **SIN range reduction** — mod-2π + quadrant fold preamble, either
-   renderer-side (ops-heavy) or hardware-side. Unlocks wide-angle sin/cos.
-3. **Finish Item #5** — wire DB SRAMs into Controller behind a
-   preload-parallel mode + DMA stub.
-4. **Finish Item #8** — PE accumulator-hold + operand-swap FSM so
-   DISPATCH_MXU_OS actually delivers the second dataflow mode.
-5. **Finish Item #4** — 2-slot issue arbiter consuming the existing
-   xlu_busy/xlu_dst scoreboard.
-6. **Engine-to-engine forwarding in renderers** — make tinygrad emit
-   SXU_LOAD_VPU_RESULT / LOAD_XLU_RESULT to elide VRegFile round-trips.
+Highest-leverage follow-ups (ranked):
+1. **Finish Item #8** — PE accumulator-hold mode in SystolicArray +
+   Controller FSM variant swapping operand roles so DISPATCH_MXU_OS
+   delivers a genuinely distinct dataflow. ~6-8 iters.
+2. **Finish Item #4** — parallel XLU issue rule + RAW-hazard stall
+   consuming the existing scoreboard. ~4-6 iters.
+3. **Finish Item #5** — DMA stub issuing background writes, plus
+   TensorCore wiring to use DB SRAMs by default. ~4-6 iters.
+4. **Engine-to-engine forwarding in renderers** — emit
+   SXU_LOAD_VPU_RESULT / LOAD_XLU_RESULT to elide VRegFile round-trips
+   in chained kernels. ~3 iters.
+5. **Composite activations**: softplus (log(1+exp(x))), gelu
+   (uses tanh), x**3 (MUL(x, MUL(x, x))). ~2-3 iters each.
+6. **Narrow-dtype int8 VPU** — big scope. Blocks quantized INT8
+   inference kernels outside the MXU. ~8-10 iters.
 
 ## Prior Recommended Next Iterations (2026-04-12)
 
