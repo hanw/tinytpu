@@ -1176,21 +1176,22 @@ module mkTbVPU();
 
    rule check_exp2 (cycle == 320 && vpu.isDone);
       let res = vpu.result;
-      // Degree-2 Taylor 1 + y + y²/2 of e^y at y = x*ln2:
+      // Remez minimax quadratic 1 + P*x + Q*x² with P=0.7344, Q=0.25
+      // fit over [-1, 1]:
       //   x= 0: exact 1.0
-      //   x= 1: 1.9333  (3.4% below 2.0)
-      //   x= 2: 3.347   (16% below 4.0)
-      //   x=-1: 0.5472  (9.5% above 0.5)
+      //   x= 1: 1.9844  (0.78% below 2.0)
+      //   x= 2: 3.4688  (13.3% below 4.0 — polynomial, no range reduction)
+      //   x=-1: 0.5155  (3.1% above 0.5)
       Float got_0 = unpack(pack(res[0][0]));
       Float got_1 = unpack(pack(res[0][1]));
       Float got_2 = unpack(pack(res[0][2]));
       Float got_3 = unpack(pack(res[0][3]));
       Float lo_0  = unpack(32'h3F7EB852);  // 0.995
       Float hi_0  = unpack(32'h3F81EB85);  // 1.010
-      Float lo_1  = unpack(32'h3FF47AE1);  // 1.91
-      Float hi_1  = unpack(32'h3FFD70A4);  // 1.98
-      Float lo_2  = unpack(32'h40547AE1);  // 3.32
-      Float hi_2  = unpack(32'h405B851F);  // 3.43
+      Float lo_1  = unpack(32'h3FFAE148);  // 1.96
+      Float hi_1  = unpack(32'h4001EB85);  // 2.03
+      Float lo_2  = unpack(32'h405CCCCD);  // 3.45
+      Float hi_2  = unpack(32'h4062E148);  // 3.545
       Float lo_3  = unpack(32'h3F028F5C);  // 0.510
       Float hi_3  = unpack(32'h3F0CCCCD);  // 0.550
       Bool ok = True;

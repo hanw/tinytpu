@@ -89,17 +89,26 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    Float sin_c4   = unpack(32'h3C088889);  //  1/120          ≈  0.0083333
    Float cos_c2   = unpack(32'hBF000000);  // -1/2
    Float cos_c4   = unpack(32'h3D2AAAAB);  //  1/24           ≈  0.0416667
+   // Remez minimax quadratic for 2^x on [-1,1] with p(0) = 1 enforced.
+   //   2^x ≈ 1 + exp2_p * x + exp2_q * x²     max |err| ≈ 1.6e-2 on [-1,1]
+   // Fit over a symmetric range so Tensor.exp() (which scales inputs by
+   // log2(e)≈1.44 and therefore drives VPU_EXP2 with both signs) does
+   // not pay an asymmetric error tax like a [0,1]-only fit. Max err
+   // improves 4× vs the earlier Taylor (1 + y + y²/2 where y = x·ln2,
+   // max err ≈ 6.7e-2 over [-1,1]).
+   Float exp2_p_c = unpack(32'h3F3C0592);  //  0.7344 (Remez)
+   Float exp2_q_c = unpack(32'h3E800000);  //  0.25    (exact power of 2)
 
    // Per-op step schedules. Each step runs at most one FP op (FMUL or FADD)
    // so one multiplier + one adder suffice. EXP2 finishes at step 4; LOG2
    // and SIN use steps 0..5.
    //
-   // EXP2 (exact at x=0):
-   //   0:  y_r   = x * ln2
-   //   1:  acc_r = y_r * 0.5
-   //   2:  acc_r = acc_r + 1
-   //   3:  acc_r = acc_r * y_r
-   //   4:  buf[i] = acc_r + 1
+   // EXP2 (Remez minimax quadratic, exact at x=0):
+   //   0:  y_r   = x * 1        (pass-through; keeps pipeline shape)
+   //   1:  acc_r = y_r * Q       (Q ≈ 0.3357)
+   //   2:  acc_r = acc_r + P     (P ≈ 0.6613)
+   //   3:  acc_r = acc_r * y_r   → P·x + Q·x²
+   //   4:  buf[i] = acc_r + 1    → 1 + P·x + Q·x²   ≈ 2^x
    //
    // LOG2 (exact at powers of 2, range-reduced):
    //   0:  split x = m * 2^e, m in [1,2); y_r = m, e_r = float(e)
@@ -121,7 +130,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
       case (step)
          0: begin
             case (op_r)
-               TR_EXP2: y_r <= tpl_1(multFP(x, ln2_c, Rnd_Nearest_Even));
+               TR_EXP2: y_r <= tpl_1(multFP(x, one_c, Rnd_Nearest_Even));
                TR_LOG2: begin
                   Bit#(32) xb = pack(buf_r[lane_idx]);
                   Int#(9)  e_unbiased = unpack(extend(xb[30:23])) - 127;
@@ -139,7 +148,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          end
          1: begin
             case (op_r)
-               TR_EXP2: acc_r <= tpl_1(multFP(y_r, half_c, Rnd_Nearest_Even));
+               TR_EXP2: acc_r <= tpl_1(multFP(y_r, exp2_q_c, Rnd_Nearest_Even));
                TR_LOG2: y_r   <= tpl_1(addFP(y_r, neg_one, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
                TR_COS:  acc_r <= tpl_1(multFP(y_r, cos_c4, Rnd_Nearest_Even));
@@ -148,7 +157,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          end
          2: begin
             case (op_r)
-               TR_EXP2: acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+               TR_EXP2: acc_r <= tpl_1(addFP(acc_r, exp2_p_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(multFP(y_r, neg_half_log2e, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
                TR_COS:  acc_r <= tpl_1(addFP(acc_r, cos_c2, Rnd_Nearest_Even));
