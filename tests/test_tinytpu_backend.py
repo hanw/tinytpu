@@ -1141,6 +1141,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     self.assertTrue(np.all(result > 0))
     np.testing.assert_allclose(result, np.sqrt(a), rtol=0.03)
 
+  def test_square_matches_reference(self):
+    # Tensor(x) ** 2 lowers as MUL(x, x) with a single PARAM. The
+    # elementwise renderer expects two PARAMs so it rejects; dedicated
+    # self-square renderer emits LOAD + FMUL(v, v) + STORE.
+    a = np.array([2.0, 3.0, 4.0, 5.0], dtype=np.float32)
+    result = (Tensor(a, dtype="float", device="TINYTPU") ** 2.0).numpy()
+    np.testing.assert_array_equal(result, a ** 2.0)
+
   def test_rsqrt_matches_reference(self):
     # Tensor.rsqrt() = RECIPROCAL(SQRT(x)). The dedicated rsqrt renderer
     # emits a LOG2 -> FMUL(-0.5) -> EXP2 microprogram, saving one
