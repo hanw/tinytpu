@@ -457,3 +457,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	f9e8c31	1	Item#6 iter 3: VPU_EXP2 runtime bundle test	end-to-end sim test through TranscUnit walker	pytest backend: 842 passed (+1)	EXP2 end-to-end proven	tinygrad Exp2 UOp lowering
 2026-04-19	f700fb4	1	Item#6 iter 4: tinygrad Exp2 lowering	_render_exp2_sxu_program + code_for_op[EXP2] + 2 tensor tests	pytest backend: 843 passed (+2 new, -1 stale)	tinygrad Exp2 lowers to HW	LOG2 + SIN
 2026-04-19	8177872	1	Item#6 iter 5: VPU_LOG2 opcode via TranscUnit	TR_LOG2 + VpuOp 52 + range reduction + VPU TB test	make test-vpu 46/46; backend 843; runtime build 2:47	second transcendental opcode	TASM + Python + tinygrad lowering
+2026-04-19	713cb5b	1	Item#6 iter 6: LOG2 TASM + Python + tinygrad lowering	_vpu_log2 + shared _render_unary_transcendental + 2 Tensor tests	pytest backend 844 + tasm 78 = 922 passed	tinygrad Log2 end-to-end	Sin
