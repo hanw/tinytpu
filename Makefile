@@ -47,6 +47,9 @@ $(BUILDDIR)/mkTbVPU.bexe: $(BUILDDIR)/TbVPU.bo
 $(BUILDDIR)/mkTbFpReducer.bexe: $(BUILDDIR)/TbFpReducer.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbFpReducer $(BUILDDIR)/mkTbFpReducer.ba
 
+$(BUILDDIR)/mkTbTranscUnit.bexe: $(BUILDDIR)/TbTranscUnit.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbTranscUnit $(BUILDDIR)/mkTbTranscUnit.ba
+
 $(BUILDDIR)/mkTbPSUMBank.bexe: $(BUILDDIR)/TbPSUMBank.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbPSUMBank $(BUILDDIR)/mkTbPSUMBank.ba
 
@@ -119,6 +122,9 @@ test-vpu: $(BUILDDIR)/mkTbVPU.bexe
 test-fpreducer: $(BUILDDIR)/mkTbFpReducer.bexe
 	$<
 
+test-transcunit: $(BUILDDIR)/mkTbTranscUnit.bexe
+	$<
+
 test-psumbank: $(BUILDDIR)/mkTbPSUMBank.bexe
 	$<
 
@@ -182,6 +188,7 @@ $(BUILDDIR)/TbVRegFile.bo: $(BUILDDIR)/VRegFile.bo
 $(BUILDDIR)/VPU.bo: $(BUILDDIR)/FpReducer.bo $(BUILDDIR)/TranscUnit.bo
 $(BUILDDIR)/TbVPU.bo: $(BUILDDIR)/VPU.bo
 $(BUILDDIR)/TbFpReducer.bo: $(BUILDDIR)/FpReducer.bo
+$(BUILDDIR)/TbTranscUnit.bo: $(BUILDDIR)/TranscUnit.bo
 $(BUILDDIR)/TbPSUMBank.bo: $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbWeightSRAMDB.bo: $(BUILDDIR)/WeightSRAMDB.bo
 $(BUILDDIR)/TbActivationSRAMDB.bo: $(BUILDDIR)/ActivationSRAMDB.bo
