@@ -536,3 +536,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	rowmean	1	Item#10 iter: row-reduce post-op scaling	float mean(axis=1) fused FMUL now appended inside row-reduce kernel	backend 877/877 (+1)	Tensor.mean(axis=1) works	
 2026-04-20	pre-red-guard	1	Item#10 iter: guard pre-reduction unary in reduce renderer	RECIPROCAL/EXP2/LOG2/SIN/SQRT in reduction chain now rejects kernel instead of dropping unary	backend 879/879 (+3)	no silent wrong reductions	fused reduce+unary support
 2026-04-20	wherecmp-guard	1	Item#10 iter: guard pre-reduction WHERE/CMP	abs()/clip() before reduction no longer silently drop; reducer rejects conditional logic	backend 880/880 (+1)	no silent abs-sum bug	fused reduce+abs support
+2026-04-20	log-guard	1	Item#10 iter: tighten scaled-log2 input	log(x+5) silently rendered as log(x) — now requires plain LOAD input	backend 881/881 (+1)	no silent log shift drop	compound log/exp renderers
