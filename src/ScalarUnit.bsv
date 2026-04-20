@@ -287,8 +287,13 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // DISPATCH_XLU_BROADCAST: read source vreg, broadcast selected lane.
-   rule do_xlu_broadcast (pc_state == SXU_EXEC_XLU_BROADCAST);
+   // XLU dispatches are now dual-issue: they fire on the dispatch cycle,
+   // advance pc + return to FETCH immediately, and a background collect
+   // rule writes the XLU result to vregDst one cycle later. Issue is
+   // guarded by !xlu_busy so a new XLU op can't be dispatched while
+   // another is still outstanding (structural hazard). A RAW stall on
+   // readers of xlu_dst lands in the next iter.
+   rule do_xlu_broadcast (pc_state == SXU_EXEC_XLU_BROADCAST && !xlu_busy);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(lanes)) srcLane = truncate(curInstr.vregSrc2);
 `ifdef TRACE
@@ -298,10 +303,11 @@ module mkScalarUnit#(
       xlu.executeBroadcast(src, srcLane);
       xlu_busy <= True;
       xlu_dst  <= curInstr.vregDst;
-      pc_state <= SXU_EXEC_XLU_COLLECT;
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_broadcast_scalar (pc_state == SXU_EXEC_XLU_BROADCAST_SCALAR);
+   rule do_xlu_broadcast_scalar (pc_state == SXU_EXEC_XLU_BROADCAST_SCALAR && !xlu_busy);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(4) sel = curInstr.vregSrc2;
       UInt#(TLog#(sublanes)) srcRow = truncate(sel >> valueOf(TLog#(lanes)));
@@ -312,10 +318,11 @@ module mkScalarUnit#(
       xlu.executeBroadcastScalar(src, srcRow, srcCol);
       xlu_busy <= True;
       xlu_dst  <= curInstr.vregDst;
-      pc_state <= SXU_EXEC_XLU_COLLECT;
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_broadcast_row (pc_state == SXU_EXEC_XLU_BROADCAST_ROW);
+   rule do_xlu_broadcast_row (pc_state == SXU_EXEC_XLU_BROADCAST_ROW && !xlu_busy);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(sublanes)) srcRow = truncate(curInstr.vregSrc2);
 `ifdef TRACE
@@ -324,10 +331,11 @@ module mkScalarUnit#(
       xlu.executeBroadcastRow(src, srcRow);
       xlu_busy <= True;
       xlu_dst  <= curInstr.vregDst;
-      pc_state <= SXU_EXEC_XLU_COLLECT;
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_broadcast_col (pc_state == SXU_EXEC_XLU_BROADCAST_COL);
+   rule do_xlu_broadcast_col (pc_state == SXU_EXEC_XLU_BROADCAST_COL && !xlu_busy);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(lanes)) srcCol = truncate(curInstr.vregSrc2);
 `ifdef TRACE
@@ -336,10 +344,11 @@ module mkScalarUnit#(
       xlu.executeBroadcastCol(src, srcCol);
       xlu_busy <= True;
       xlu_dst  <= curInstr.vregDst;
-      pc_state <= SXU_EXEC_XLU_COLLECT;
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_transpose (pc_state == SXU_EXEC_XLU_TRANSPOSE);
+   rule do_xlu_transpose (pc_state == SXU_EXEC_XLU_TRANSPOSE && !xlu_busy);
       let src = vrf.read(truncate(curInstr.vregSrc));
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=XLU_TRANSPOSE pc=%0d src=v%0d", cycle, pc, curInstr.vregSrc);
@@ -347,20 +356,21 @@ module mkScalarUnit#(
       xlu.executeTranspose(src);
       xlu_busy <= True;
       xlu_dst  <= curInstr.vregDst;
-      pc_state <= SXU_EXEC_XLU_COLLECT;
-   endrule
-
-   // Collect XLU result (1-cycle latency), write to vregDst, advance pc.
-   // Clears xlu_busy/xlu_dst — the scoreboard is now idle again.
-   rule do_xlu_collect (pc_state == SXU_EXEC_XLU_COLLECT);
-`ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=XLU_COLLECT pc=%0d", cycle, pc);
-      $display("TRACE cycle=%0d unit=XLU ev=RESULT", cycle);
-`endif
-      vrf.write(truncate(curInstr.vregDst), xlu.result);
-      xlu_busy <= False;
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
+   endrule
+
+   // Background XLU collect. Fires on the cycle after an XLU dispatch
+   // (xlu.result carries 1-cycle latency), writes the tile to xlu_dst,
+   // and clears xlu_busy so subsequent XLU dispatches can proceed.
+   // Runs independently of the main fetch/dispatch FSM, giving
+   // single-slot dual-issue between XLU and non-XLU ops.
+   rule do_xlu_collect_bg (xlu_busy);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=XLU_COLLECT_BG dst=v%0d", cycle, xlu_dst);
+`endif
+      vrf.write(truncate(xlu_dst), xlu.result);
+      xlu_busy <= False;
    endrule
 
    // DISPATCH_SELECT step 1: copy rhs into the VPU result register.
