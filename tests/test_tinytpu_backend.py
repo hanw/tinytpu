@@ -586,6 +586,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = 2.0 ** a
     np.testing.assert_allclose(result, expected, atol=0.3)
 
+  def test_exp2_two_tile_matches_reference(self):
+    # Two tiles (32 elements) to exercise the renderer's per-tile
+    # dispatch loop through the multi-cycle TranscUnit.
+    a = np.linspace(-1.5, 1.5, 32, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").exp2().numpy()
+    expected = 2.0 ** a
+    np.testing.assert_allclose(result, expected, atol=0.3)
+
   def test_log2_powers_of_two_matches_reference(self):
     # Exact integer outputs: range reduction lands m=1.0 for all inputs,
     # so the polynomial contributes 0 and the exponent-as-float dominates.
