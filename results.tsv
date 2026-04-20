@@ -510,3 +510,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	21ecedb	1	TODO iter: mark Item#6 done	expanded transcendental section with full landings list	docs-only	Item#6 fully complete	DB SRAM or dual-issue
 2026-04-19	259ed05	1	Item#5 iter: DB SRAM plain sub-interface	WeightSRAMDB_IFC / ActivationSRAMDB_IFC wrap plain SRAM IFC; TbCtrlDB demonstrates preload-parallel	test-wsram-db 3/3; test-asram-db 3/3; test-ctrl-db 2/2	Controller uses DB SRAMs via .plain	wire DB into full runtime + DMA stub
 2026-04-19	memory	1	Project memory refresh (iters 1-27)	capture Item#5 + Item#8 dispatch + Item#6 done + scoreboard live	memory-only	cold-resume point updated	finish Item#8/#4
+2026-04-19	be1bd4a	1	Item#6 iter: tighten log2 tolerance	atol 0.05 -> 0.04 on non-power inputs	pytest 1004 passed	log2 accuracy band matches Remez	various follow-ups
