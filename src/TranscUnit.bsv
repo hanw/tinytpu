@@ -85,8 +85,13 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    Float neg_one  = unpack(32'hBF800000);  // -1.0
    Float log2e_c  = unpack(32'h3FB8AA3B);  // 1/ln(2)         ≈ 1.4426950
    Float neg_half_log2e = unpack(32'hBF389A43);  // -1/(2*ln(2)) ≈ -0.7213475
-   Float sin_c2   = unpack(32'hBE2AAAAB);  // -1/6            ≈ -0.1666667
-   Float sin_c4   = unpack(32'h3C088889);  //  1/120          ≈  0.0083333
+   // Remez minimax for sin(x) ≈ x + sin_c2·x³ + sin_c4·x⁵ fit over
+   // [-π/2, π/2]. Replaces Taylor (-1/6, 1/120) for 40× peak-error
+   // reduction on the fit range: max |err| drops from 4.5e-3 to 1.2e-4.
+   // Outside [-π/2, π/2] both polynomials diverge; wide-angle range
+   // reduction is a future iter.
+   Float sin_c2   = unpack(32'hBE2A0E41);  // -0.16607  (Remez)
+   Float sin_c4   = unpack(32'h3BFA0514);  //  0.00763  (Remez)
    Float cos_c2   = unpack(32'hBF000000);  // -1/2
    Float cos_c4   = unpack(32'h3D2AAAAB);  //  1/24           ≈  0.0416667
    // Remez minimax quadratic for 2^x on [-1,1] with p(0) = 1 enforced.
