@@ -1182,18 +1182,13 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_allclose(result, np.clip(a, -1., 1.), atol=1e-5,
         err_msg="hardtanh must not silently lower as RELU")
 
-  def test_softsign_not_silently_abs(self):
-    # Regression: softsign = x / (1 + |x|). The abs subtree (WHERE+
-    # CMPLT+CMPNE+MUL) would false-match the abs pattern, silently
-    # emitting abs(x) as the "softsign" output. Renderer now returns
-    # either a correct softsign result or UNSUPPORTED.
+  def test_softsign_matches_reference(self):
+    # softsign = x / (1 + |x|). Dedicated renderer composes the abs
+    # pattern with FADD(1) + FRECIP + FMUL so the full expression
+    # lowers instead of the abs subtree being returned as "softsign".
     a = np.array([-3., -2., -1., 0., 1., 2., 3.], dtype=np.float32)
-    try:
-      result = Tensor(a, dtype="float", device="TINYTPU").softsign().numpy()
-    except NotImplementedError:
-      return
-    np.testing.assert_allclose(result, a / (1 + np.abs(a)), atol=1e-5,
-        err_msg="softsign must not silently lower as abs")
+    result = Tensor(a, dtype="float", device="TINYTPU").softsign().numpy()
+    np.testing.assert_allclose(result, a / (1 + np.abs(a)), atol=1e-5)
 
   def test_self_square_rejects_power_of_four(self):
     # Regression guard: x**4 lowers as MUL(MUL(x,x), MUL(x,x)) — both
