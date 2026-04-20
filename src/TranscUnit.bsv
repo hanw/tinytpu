@@ -167,15 +167,18 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    Float exp2_q_c = unpack(32'h3E800000);  //  0.25    (exact power of 2)
 
    // Per-op step schedules. Each step runs at most one FP op (FMUL or FADD)
-   // so one multiplier + one adder suffice. EXP2 finishes at step 4; LOG2
-   // and SIN use steps 0..5.
+   // so one multiplier + one adder suffice. EXP2 uses steps 0..6 (range
+   // reduction + degree-2 Remez + 2^n scale). LOG2/SIN use steps 0..5.
+   // COS finishes at step 4.
    //
-   // EXP2 (Remez minimax quadratic, exact at x=0):
-   //   0:  y_r   = x * 1        (pass-through; keeps pipeline shape)
-   //   1:  acc_r = y_r * Q       (Q ≈ 0.3357)
-   //   2:  acc_r = acc_r + P     (P ≈ 0.6613)
-   //   3:  acc_r = acc_r * y_r   → P·x + Q·x²
-   //   4:  buf[i] = acc_r + 1    → 1 + P·x + Q·x²   ≈ 2^x
+   // EXP2 (range-reduced Remez, accurate across arbitrary x):
+   //   0:  y_r = trunc(x); e_r = 2^trunc(x)         (combinational)
+   //   1:  y_r = x + (-y_r) = f  ∈ [-1, 1]           (FADD)
+   //   2:  acc_r = f · Q                              (FMUL)
+   //   3:  acc_r = acc_r + P                          (FADD)
+   //   4:  acc_r = acc_r · f   → P·f + Q·f²           (FMUL)
+   //   5:  acc_r = acc_r + 1   → 1 + P·f + Q·f² ≈ 2^f (FADD)
+   //   6:  buf[i] = acc_r · e_r = 2^f · 2^n = 2^x     (FMUL)
    //
    // LOG2 (exact at powers of 2, range-reduced):
    //   0:  split x = m * 2^e, m in [1,2); y_r = m, e_r = float(e)
@@ -197,7 +200,11 @@ module mkTranscUnit(TranscUnit_IFC#(n))
       case (step)
          0: begin
             case (op_r)
-               TR_EXP2: y_r <= tpl_1(multFP(x, one_c, Rnd_Nearest_Even));
+               TR_EXP2: begin
+                  Float tx = tr_trunc(x);
+                  y_r <= tx;
+                  e_r <= tr_pow2_int(tr_fp_to_int(tx));
+               end
                TR_LOG2: begin
                   Bit#(32) xb = pack(buf_r[lane_idx]);
                   Int#(9)  e_unbiased = unpack(extend(xb[30:23])) - 127;
@@ -215,7 +222,12 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          end
          1: begin
             case (op_r)
-               TR_EXP2: acc_r <= tpl_1(multFP(y_r, exp2_q_c, Rnd_Nearest_Even));
+               TR_EXP2: begin
+                  // f = x - trunc(x) via addFP(x, -trunc(x)). Sign flip
+                  // is a pure bit op so no new FP op is introduced.
+                  Float neg_y = y_r; neg_y.sign = !y_r.sign;
+                  y_r <= tpl_1(addFP(x, neg_y, Rnd_Nearest_Even));
+               end
                TR_LOG2: y_r   <= tpl_1(addFP(y_r, neg_one, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
                TR_COS:  acc_r <= tpl_1(multFP(y_r, cos_c4, Rnd_Nearest_Even));
@@ -224,7 +236,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          end
          2: begin
             case (op_r)
-               TR_EXP2: acc_r <= tpl_1(addFP(acc_r, exp2_p_c, Rnd_Nearest_Even));
+               TR_EXP2: acc_r <= tpl_1(multFP(y_r, exp2_q_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(multFP(y_r, neg_half_log2e, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
                TR_COS:  acc_r <= tpl_1(addFP(acc_r, cos_c2, Rnd_Nearest_Even));
@@ -233,7 +245,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          end
          3: begin
             case (op_r)
-               TR_EXP2: acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+               TR_EXP2: acc_r <= tpl_1(addFP(acc_r, exp2_p_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(addFP(acc_r, log2e_c, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
                TR_COS:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
@@ -242,7 +254,11 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          end
          4: begin
             case (op_r)
-               TR_EXP2, TR_COS: begin
+               TR_EXP2: begin
+                  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+                  step  <= 5;
+               end
+               TR_COS: begin
                   Float final_f = tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
                   Vector#(n, Int#(32)) next_buf = buf_r;
                   next_buf[lane_idx] = tr_fp2bits(final_f);
@@ -266,12 +282,46 @@ module mkTranscUnit(TranscUnit_IFC#(n))
             endcase
          end
          5: begin
-            Float final_f;
             case (op_r)
-               TR_LOG2: final_f = tpl_1(addFP(acc_r, e_r, Rnd_Nearest_Even));
-               TR_SIN:  final_f = tpl_1(multFP(acc_r, e_r, Rnd_Nearest_Even));
-               default: final_f = acc_r;  // unreachable for TR_EXP2
+               TR_EXP2: begin
+                  acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+                  step  <= 6;
+               end
+               TR_LOG2: begin
+                  Float final_f = tpl_1(addFP(acc_r, e_r, Rnd_Nearest_Even));
+                  Vector#(n, Int#(32)) next_buf = buf_r;
+                  next_buf[lane_idx] = tr_fp2bits(final_f);
+                  buf_r <= next_buf;
+                  step  <= 0;
+                  if (lane_idx + 1 == fromInteger(valueOf(n))) begin
+                     done <= True;
+                     busy <= False;
+                  end else begin
+                     lane_idx <= lane_idx + 1;
+                  end
+               end
+               TR_SIN: begin
+                  Float final_f = tpl_1(multFP(acc_r, e_r, Rnd_Nearest_Even));
+                  Vector#(n, Int#(32)) next_buf = buf_r;
+                  next_buf[lane_idx] = tr_fp2bits(final_f);
+                  buf_r <= next_buf;
+                  step  <= 0;
+                  if (lane_idx + 1 == fromInteger(valueOf(n))) begin
+                     done <= True;
+                     busy <= False;
+                  end else begin
+                     lane_idx <= lane_idx + 1;
+                  end
+               end
+               TR_COS: begin
+                  // unreachable; COS finished at step 4
+                  step <= 0;
+               end
             endcase
+         end
+         6: begin
+            // EXP2 final: multiply 2^f polynomial result by 2^n.
+            Float final_f = tpl_1(multFP(acc_r, e_r, Rnd_Nearest_Even));
             Vector#(n, Int#(32)) next_buf = buf_r;
             next_buf[lane_idx] = tr_fp2bits(final_f);
             buf_r <= next_buf;
@@ -283,6 +333,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                lane_idx <= lane_idx + 1;
             end
          end
+         default: step <= 0;
       endcase
    endrule
 

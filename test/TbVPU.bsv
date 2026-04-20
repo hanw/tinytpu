@@ -15,7 +15,7 @@ module mkTbVPU();
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 800) begin $display("FAIL: timeout"); $finish(1); end
+      if (cycle > 900) begin $display("FAIL: timeout"); $finish(1); end
    endrule
 
    // Test 1: VPU_ADD
@@ -1174,26 +1174,27 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_EXP2", cycle);
    endrule
 
-   rule check_exp2 (cycle == 320 && vpu.isDone);
+   rule check_exp2 (cycle == 360 && vpu.isDone);
       let res = vpu.result;
-      // Remez minimax quadratic 1 + P*x + Q*x² with P=0.7344, Q=0.25
-      // fit over [-1, 1]:
+      // Range-reduced Remez EXP2: splits x = n + f, runs Remez on
+      // f ∈ [-1, 1], then scales by 2^n via exponent manipulation.
+      // Integer inputs give exact results.
       //   x= 0: exact 1.0
-      //   x= 1: 1.9844  (0.78% below 2.0)
-      //   x= 2: 3.4688  (13.3% below 4.0 — polynomial, no range reduction)
-      //   x=-1: 0.5155  (3.1% above 0.5)
+      //   x= 1: exact 2.0 (trunc=1, f=0, 2^n=2)
+      //   x= 2: exact 4.0 (trunc=2, f=0, 2^n=4)
+      //   x=-1: exact 0.5 (trunc=-1, f=0, 2^n=0.5)
       Float got_0 = unpack(pack(res[0][0]));
       Float got_1 = unpack(pack(res[0][1]));
       Float got_2 = unpack(pack(res[0][2]));
       Float got_3 = unpack(pack(res[0][3]));
-      Float lo_0  = unpack(32'h3F7EB852);  // 0.995
-      Float hi_0  = unpack(32'h3F81EB85);  // 1.010
-      Float lo_1  = unpack(32'h3FFAE148);  // 1.96
-      Float hi_1  = unpack(32'h4001EB85);  // 2.03
-      Float lo_2  = unpack(32'h405CCCCD);  // 3.45
-      Float hi_2  = unpack(32'h4062E148);  // 3.545
-      Float lo_3  = unpack(32'h3F028F5C);  // 0.510
-      Float hi_3  = unpack(32'h3F0CCCCD);  // 0.550
+      Float lo_0  = unpack(32'h3F7D70A4);  // 0.99
+      Float hi_0  = unpack(32'h3F828F5C);  // 1.02
+      Float lo_1  = unpack(32'h3FFD70A4);  // 1.98
+      Float hi_1  = unpack(32'h4002851E);  // 2.04
+      Float lo_2  = unpack(32'h407D70A4);  // 3.96
+      Float hi_2  = unpack(32'h40825C29);  // 4.08
+      Float lo_3  = unpack(32'h3EF5C28F);  // 0.48
+      Float hi_3  = unpack(32'h3F051EB8);  // 0.52
       Bool ok = True;
       if (compareFP(got_0, lo_0) == LT || compareFP(got_0, hi_0) == GT) ok = False;
       if (compareFP(got_1, lo_1) == LT || compareFP(got_1, hi_1) == GT) ok = False;
@@ -1214,7 +1215,7 @@ module mkTbVPU();
    // exact powers of 2 below 2.0 because range-reduction exactly lands
    // them at m=1 (e contributes the integer answer). At x=2 the split
    // lands m=1, e=1; polynomial on u=0 adds 0 → returns exactly 1.0.
-   rule dispatch_log2 (cycle == 330);
+   rule dispatch_log2 (cycle == 370);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
       s1[0][0] = unpack(32'h3F800000);  // 1.0
@@ -1225,7 +1226,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_LOG2", cycle);
    endrule
 
-   rule check_log2 (cycle == 430 && vpu.isDone);
+   rule check_log2 (cycle == 480 && vpu.isDone);
       let res = vpu.result;
       // Each lane's expected true log2 is 0, 1, 2, -1. Range-reduction
       // puts all test inputs at m=1 exactly (since they're powers of 2),
@@ -1261,7 +1262,7 @@ module mkTbVPU();
    // Inputs: [0.0, 0.5236, 1.5708, -0.5236] (0, π/6, π/2, -π/6)
    // → expected [0.0, 0.5, 1.0, -0.5]. Taylor degree-5 is nearly exact
    //   for |x| <= π/2 (error < 0.001).
-   rule dispatch_sin (cycle == 440);
+   rule dispatch_sin (cycle == 490);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
       s1[0][0] = unpack(32'h00000000);  // 0.0
@@ -1272,7 +1273,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_SIN", cycle);
    endrule
 
-   rule check_sin (cycle == 540 && vpu.isDone);
+   rule check_sin (cycle == 600 && vpu.isDone);
       let res = vpu.result;
       Float got_0 = unpack(pack(res[0][0]));
       Float got_1 = unpack(pack(res[0][1]));
@@ -1303,7 +1304,7 @@ module mkTbVPU();
    // Test 48: VPU_COS — cos(x) via degree-4 Taylor.
    // Inputs: [0.0, π/3, π/2, -π/3] → expected [1.0, 0.5, 0.0, 0.5].
    // Degree-4 accurate for |x| ≤ π/2 (error < 0.02).
-   rule dispatch_cos (cycle == 550);
+   rule dispatch_cos (cycle == 610);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
       s1[0][0] = unpack(32'h00000000);  // 0.0
@@ -1314,7 +1315,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_COS", cycle);
    endrule
 
-   rule check_cos (cycle == 640 && vpu.isDone);
+   rule check_cos (cycle == 710 && vpu.isDone);
       let res = vpu.result;
       Float got_0 = unpack(pack(res[0][0]));
       Float got_1 = unpack(pack(res[0][1]));
@@ -1342,7 +1343,7 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 700);
+   rule finish (cycle == 780);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

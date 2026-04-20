@@ -5229,12 +5229,12 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     tile = _parse_vmem_output(out)
     as_floats = [struct.unpack("<f", int(u).to_bytes(4, "little", signed=False))[0]
                  for u in (t & 0xFFFFFFFF for t in tile)]
-    # Remez minimax quadratic 1 + 0.7344*x + 0.25*x² fit over [-1,1]:
-    # exact at 0, 0.78% low at 1.0, 13% low at 2.0, 3.1% high at -1.0.
-    self.assertAlmostEqual(as_floats[0], 1.0,    delta=0.01)
-    self.assertAlmostEqual(as_floats[1], 1.9844, delta=0.02)
-    self.assertAlmostEqual(as_floats[2], 3.4688, delta=0.05)
-    self.assertAlmostEqual(as_floats[3], 0.5155, delta=0.02)
+    # Range-reduced Remez EXP2: x = n + f, 2^x = poly(f) * 2^n via
+    # exponent manipulation. Integer inputs are exact.
+    self.assertAlmostEqual(as_floats[0], 1.0, delta=0.01)
+    self.assertAlmostEqual(as_floats[1], 2.0, delta=0.02)  # exact at x=1
+    self.assertAlmostEqual(as_floats[2], 4.0, delta=0.04)  # exact at x=2
+    self.assertAlmostEqual(as_floats[3], 0.5, delta=0.01)  # exact at x=-1
 
   def test_psum_read_row_extracts_single_row(self):
     # Accumulate into psum[0] row 2, then PSUM_READ_ROW that into v1

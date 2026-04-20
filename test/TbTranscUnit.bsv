@@ -56,10 +56,13 @@ module mkTbTranscUnit();
       Float g2 = unpack(pack(r[2]));
       Float g3 = unpack(pack(r[3]));
       Bool ok = True;
-      if (!in_band(g0, 32'h3F7EB852, 32'h3F81EB85)) ok = False; // [0.995, 1.010]
-      if (!in_band(g1, 32'h3FFAE148, 32'h4001EB85)) ok = False; // [1.96, 2.03]
-      if (!in_band(g2, 32'h405CCCCD, 32'h4062E148)) ok = False; // [3.45, 3.545]
-      if (!in_band(g3, 32'h3F028F5C, 32'h3F0CCCCD)) ok = False; // [0.510, 0.550]
+      // Range reduction gives EXACT results at integer inputs since
+      // f = x - trunc(x) = 0 and 2^f = 1 exactly; 2^n is built from
+      // exponent bits so it's exact. Bands are tight around exactness.
+      if (!in_band(g0, 32'h3F7D70A4, 32'h3F828F5C)) ok = False; // [0.99, 1.02]
+      if (!in_band(g1, 32'h3FFD70A4, 32'h4002851E)) ok = False; // [1.98, 2.04]
+      if (!in_band(g2, 32'h407D70A4, 32'h40825C29)) ok = False; // [3.96, 4.08]
+      if (!in_band(g3, 32'h3EF5C28F, 32'h3F051EB8)) ok = False; // [0.48, 0.52]
       if (ok) begin
          $display("Cycle %0d: PASS TR_EXP2", cycle);
          passed <= passed + 1;
