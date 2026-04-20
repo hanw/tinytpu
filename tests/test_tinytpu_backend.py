@@ -1001,6 +1001,16 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_array_equal(result, np.flip(a))
 
 
+  def test_sigmoid_matches_reference(self):
+    # sigmoid(x) = 1/(1+exp(-x)); lowers to FMUL+EXP2+FADD+FRECIP chain.
+    # Errors compound (EXP2 degree-2 Taylor + FRECIP Newton-Raphson), so
+    # tolerance is loose — but the pipeline should stay finite and
+    # sigmoid-shaped. rtol 0.15 covers worst error around x=±0.5.
+    a = np.array([0.0, 0.3, -0.3, 0.5, -0.5], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sigmoid().numpy()
+    expected = 1.0 / (1.0 + np.exp(-a))
+    np.testing.assert_allclose(result, expected, rtol=0.15, atol=0.05)
+
   def test_exp_small_inputs_matches_reference(self):
     # Tensor.exp(x) lowers to exp2(x * log2e); hardware runs EXP2 via
     # TranscUnit degree-2 Taylor, so exp(0)=1 exact, exp(1)≈2.66 (vs 2.718).
