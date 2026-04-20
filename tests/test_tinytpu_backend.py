@@ -1167,6 +1167,18 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 3.0).numpy()
     np.testing.assert_allclose(result, a ** 3.0, atol=1e-4)
 
+  def test_abs_sum_not_silently_sum(self):
+    # Regression: sum(abs(x)) was silently returning sum(x) because the
+    # reducer ignored the WHERE+CMPLT-based abs subtree. The renderer now
+    # refuses to lower when conditional selection ops appear inside the
+    # reduce chain.
+    a = np.array([-3., -2., -1., 0., 1., 2., 3.], dtype=np.float32)
+    try:
+      got = Tensor(a, dtype="float", device="TINYTPU").abs().sum().numpy()
+    except NotImplementedError:
+      return
+    np.testing.assert_allclose(got, np.abs(a).sum(), rtol=1e-5)
+
   def test_reciprocal_sum_not_silently_sum(self):
     # Regression: `x.reciprocal().sum()` fused as a scalar SUM kernel
     # with a pre-reduction RECIPROCAL in the data path used to silently
