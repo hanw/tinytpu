@@ -587,7 +587,28 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations (updated 2026-04-12)
+## Recommended Next Iterations (updated 2026-04-19)
+
+Current state: 989 Python tests + 79 BSV unit tests green. Transcendental
+primitives (Exp2/Log2/Sin/Cos + Sqrt/Exp/Sigmoid compositions) are
+hardware-backed through TranscUnit. Scaffolding landed for double-
+buffered SRAM (Item #5), output-stationary MXU (Item #8), and dual-issue
+XLU scoreboard (Item #4); none are wired end-to-end yet.
+
+Highest-leverage follow-ups:
+1. Wire `WeightSRAMDB` / `ActivationSRAMDB` into the Controller behind
+   a preload-parallel mode so HBM fetches overlap MXU dispatch.
+2. Implement `startOS()` operand-swap path in Controller to deliver a
+   second dataflow mode useful for depthwise conv.
+3. Add the 2-slot issue arbiter + RAW scoreboard check to SXU FSM using
+   the landed `xlu_busy`/`xlu_dst` registers.
+4. Tighten TranscUnit accuracy via Remez coefficients (no new opcodes).
+5. Emit a mod-2π + quadrant-fold preamble before VPU_SIN for wide-angle
+   inputs.
+6. Tune `_render_tanh_sxu_program` to match tinygrad's actual kernel-
+   splitter output shape.
+
+## Prior Recommended Next Iterations (2026-04-12)
 
 Current state: 379 backend tests + 8 runtime bundle tests. Row/col/scalar
 reductions (SUM/MAX/MIN/PROD) fully hardware-backed. Movement ops: reshape,
