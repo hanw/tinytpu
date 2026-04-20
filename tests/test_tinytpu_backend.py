@@ -1131,6 +1131,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").sin().numpy()
     np.testing.assert_allclose(result, np.sin(a), atol=5e-4)
 
+  def test_sin_wide_angle_matches_reference(self):
+    # With mod-2π + quadrant-fold range reduction sin is accurate
+    # outside the Remez fit window too. Peak absolute error on [-3π, 3π]
+    # is ~5e-3 (compounded fold + Remez).
+    a = np.linspace(-3 * np.pi, 3 * np.pi, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sin().numpy()
+    np.testing.assert_allclose(result, np.sin(a), atol=5e-3)
+
+  def test_cos_wide_range_matches_reference(self):
+    # Wide cos via scaled_sin(-x + π/2) also benefits from SIN's range
+    # reduction. Previously restricted to [0, π/2]; now accurate out to
+    # [-3π, 3π].
+    a = np.linspace(-3 * np.pi, 3 * np.pi, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").cos().numpy()
+    np.testing.assert_allclose(result, np.cos(a), atol=5e-3)
+
   def test_fdiv_3x3_matches_reference(self):
     a = np.arange(1, 10, dtype=np.float32).reshape(3, 3)
     b = np.full((3, 3), 2.0, dtype=np.float32)

@@ -199,16 +199,17 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    //
    // SIN (range-reduced via mod-2π + quadrant fold, then Remez):
    //   0:  y_r = x · (1/2π)
-   //   1:  acc_r = trunc(y_r) · 2π         (combinational trunc + FMUL)
-   //   2:  y_r = x - acc_r                  → y_r ∈ (-π, π]
-   //   3:  acc_r = signed_pi - y_r          (fold candidate)
-   //   4:  y_r = |y_r| > π/2 ? acc_r : y_r  (combinational select),
-   //       then e_r = y_r; y_r = y_r·y_r     (save reduced y; x² in y_r)
-   //   5:  acc_r = y_r · sin_c4
-   //   6:  acc_r = acc_r + sin_c2
-   //   7:  acc_r = acc_r · y_r
-   //   8:  acc_r = acc_r + 1
-   //   9:  buf[i] = acc_r · e_r             (final · reduced y)
+   //   1:  y_r = y_r + sign(x)·0.5           (round-to-nearest bias)
+   //   2:  acc_r = trunc(y_r) · 2π           (combinational trunc + FMUL)
+   //   3:  y_r = x - acc_r                    → y_r ∈ (-π, π]
+   //   4:  acc_r = signed_pi - y_r            (fold candidate)
+   //   5:  y_r = |y_r| > π/2 ? acc_r : y_r    (combinational select),
+   //       then e_r = y_r; y_r = y_r·y_r      (save reduced y; x² in y_r)
+   //   6:  acc_r = y_r · sin_c4
+   //   7:  acc_r = acc_r + sin_c2
+   //   8:  acc_r = acc_r · y_r
+   //   9:  acc_r = acc_r + 1
+   //   10: buf[i] = acc_r · e_r               (final · reduced y)
    rule step_rule (busy && !done);
       Float x    = tr_bits2fp(buf_r[lane_idx]);
       case (step)
@@ -244,9 +245,13 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                end
                TR_LOG2: y_r   <= tpl_1(addFP(y_r, neg_one, Rnd_Nearest_Even));
                TR_SIN:  begin
-                  // acc_r = trunc(y_r) · 2π  (trunc is combinational)
-                  Float ny = tr_trunc(y_r);
-                  acc_r <= tpl_1(multFP(ny, two_pi, Rnd_Nearest_Even));
+                  // Round-to-nearest bias: add sign(x)·0.5 before trunc
+                  // so trunc picks the correct multiple of 2π. Without
+                  // this, negative non-integer y/(2π) would trunc toward
+                  // zero and leave y outside [-π, π] after subtraction.
+                  Float half_signed = half_c;
+                  half_signed.sign = x.sign;
+                  y_r <= tpl_1(addFP(y_r, half_signed, Rnd_Nearest_Even));
                end
                TR_COS:  acc_r <= tpl_1(multFP(y_r, cos_c4, Rnd_Nearest_Even));
             endcase
@@ -257,9 +262,10 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                TR_EXP2: acc_r <= tpl_1(multFP(y_r, exp2_q_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(multFP(y_r, neg_half_log2e, Rnd_Nearest_Even));
                TR_SIN:  begin
-                  // y_r = x - acc_r. acc_r currently holds trunc(x·inv_2pi)·2π.
-                  Float neg_acc = acc_r; neg_acc.sign = !acc_r.sign;
-                  y_r <= tpl_1(addFP(x, neg_acc, Rnd_Nearest_Even));
+                  // y_r now holds (x·inv_2pi + sign(x)·0.5). Trunc drops
+                  // the fractional part and we scale back by 2π.
+                  Float ny = tr_trunc(y_r);
+                  acc_r <= tpl_1(multFP(ny, two_pi, Rnd_Nearest_Even));
                end
                TR_COS:  acc_r <= tpl_1(addFP(acc_r, cos_c2, Rnd_Nearest_Even));
             endcase
@@ -270,11 +276,10 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                TR_EXP2: acc_r <= tpl_1(addFP(acc_r, exp2_p_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(addFP(acc_r, log2e_c, Rnd_Nearest_Even));
                TR_SIN:  begin
-                  // Quadrant-fold candidate: acc_r = sign(y_r)·π - y_r.
-                  // If |y_r| > π/2 step 4 will select this; else it uses y_r.
-                  Float signed_pi = y_r.sign ? neg_pi_c : pi_c;
-                  Float neg_y     = y_r; neg_y.sign = !y_r.sign;
-                  acc_r <= tpl_1(addFP(signed_pi, neg_y, Rnd_Nearest_Even));
+                  // y_r = x - acc_r. acc_r holds n·2π (n = round(x·inv_2pi));
+                  // result lies in (-π, π].
+                  Float neg_acc = acc_r; neg_acc.sign = !acc_r.sign;
+                  y_r <= tpl_1(addFP(x, neg_acc, Rnd_Nearest_Even));
                end
                TR_COS:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
             endcase
@@ -304,14 +309,10 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   step  <= 5;
                end
                TR_SIN: begin
-                  // Step 4 for SIN: select folded/unfolded y, save into
-                  // e_r for the final ·y multiplication, and square it
-                  // into y_r for the Horner chain.
-                  Float abs_y = y_r; abs_y.sign = False;
-                  Bool fold = (compareFP(abs_y, pi_over_2) == GT);
-                  Float y_red = fold ? acc_r : y_r;
-                  e_r <= y_red;
-                  y_r <= tpl_1(multFP(y_red, y_red, Rnd_Nearest_Even));
+                  // Quadrant-fold candidate: acc_r = sign(y_r)·π - y_r.
+                  Float signed_pi = y_r.sign ? neg_pi_c : pi_c;
+                  Float neg_y     = y_r; neg_y.sign = !y_r.sign;
+                  acc_r <= tpl_1(addFP(signed_pi, neg_y, Rnd_Nearest_Even));
                   step  <= 5;
                end
             endcase
@@ -336,8 +337,13 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   end
                end
                TR_SIN: begin
-                  // Polynomial step 1: acc = y² · sin_c4.
-                  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
+                  // Step 5 for SIN: select folded/unfolded y, save into
+                  // e_r, square into y_r for the Horner chain.
+                  Float abs_y = y_r; abs_y.sign = False;
+                  Bool fold = (compareFP(abs_y, pi_over_2) == GT);
+                  Float y_red = fold ? acc_r : y_r;
+                  e_r <= y_red;
+                  y_r <= tpl_1(multFP(y_red, y_red, Rnd_Nearest_Even));
                   step  <= 6;
                end
                TR_COS: begin
@@ -363,8 +369,8 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   end
                end
                TR_SIN: begin
-                  // Polynomial step 2: acc = acc + sin_c2.
-                  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
+                  // Polynomial step 1: acc = y² · sin_c4.
+                  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
                   step  <= 7;
                end
                default: step <= 0;
@@ -373,8 +379,8 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          7: begin
             case (op_r)
                TR_SIN: begin
-                  // Polynomial step 3: acc = acc · y² (y_r holds y²).
-                  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+                  // Polynomial step 2: acc = acc + sin_c2.
+                  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
                   step  <= 8;
                end
                default: step <= 0;
@@ -383,14 +389,24 @@ module mkTranscUnit(TranscUnit_IFC#(n))
          8: begin
             case (op_r)
                TR_SIN: begin
-                  // Polynomial step 4: acc = acc + 1.
-                  acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+                  // Polynomial step 3: acc = acc · y² (y_r holds y²).
+                  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
                   step  <= 9;
                end
                default: step <= 0;
             endcase
          end
          9: begin
+            case (op_r)
+               TR_SIN: begin
+                  // Polynomial step 4: acc = acc + 1.
+                  acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+                  step  <= 10;
+               end
+               default: step <= 0;
+            endcase
+         end
+         10: begin
             case (op_r)
                TR_SIN: begin
                   // SIN final: multiply 1 + c2·y² + c4·y⁴ by reduced y.

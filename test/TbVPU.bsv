@@ -1273,7 +1273,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_SIN", cycle);
    endrule
 
-   rule check_sin (cycle == 660 && vpu.isDone);
+   rule check_sin (cycle == 700 && vpu.isDone);
       let res = vpu.result;
       Float got_0 = unpack(pack(res[0][0]));
       Float got_1 = unpack(pack(res[0][1]));
@@ -1304,7 +1304,7 @@ module mkTbVPU();
    // Test 48: VPU_COS — cos(x) via degree-4 Taylor.
    // Inputs: [0.0, π/3, π/2, -π/3] → expected [1.0, 0.5, 0.0, 0.5].
    // Degree-4 accurate for |x| ≤ π/2 (error < 0.02).
-   rule dispatch_cos (cycle == 670);
+   rule dispatch_cos (cycle == 710);
       Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
       Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
       s1[0][0] = unpack(32'h00000000);  // 0.0
@@ -1315,7 +1315,7 @@ module mkTbVPU();
       $display("Cycle %0d: dispatched VPU_COS", cycle);
    endrule
 
-   rule check_cos (cycle == 770 && vpu.isDone);
+   rule check_cos (cycle == 810 && vpu.isDone);
       let res = vpu.result;
       Float got_0 = unpack(pack(res[0][0]));
       Float got_1 = unpack(pack(res[0][1]));
@@ -1343,7 +1343,7 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 840);
+   rule finish (cycle == 880);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
