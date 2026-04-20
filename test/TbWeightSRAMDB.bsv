@@ -1,6 +1,7 @@
 package TbWeightSRAMDB;
 
 import Vector       :: *;
+import WeightSRAM   :: *;
 import WeightSRAMDB :: *;
 
 (* synthesize *)
@@ -30,7 +31,7 @@ module mkTbWeightSRAMDB();
    // Step 2: swap; now bank B is active.
    // Step 3: read addr 0 → should return tile A (the write above).
    rule do_step1 (cycle == 0);
-      ws.write(0, mk_tile(1));       // bank B[0] = [1..16]
+      ws.plain.write(0, mk_tile(1));       // bank B[0] = [1..16]
       $display("Cycle %0d: write bank-B[0]=[1..16]", cycle);
    endrule
 
@@ -40,11 +41,11 @@ module mkTbWeightSRAMDB();
    endrule
 
    rule do_step3 (cycle == 4);
-      ws.readReq(0);                  // read active (B) [0]
+      ws.plain.readReq(0);                  // read active (B) [0]
    endrule
 
    rule check_step3 (cycle == 6);
-      let got = ws.readResp;
+      let got = ws.plain.readResp;
       Bool ok = True;
       for (Integer r = 0; r < 4; r = r + 1)
          for (Integer c = 0; c < 4; c = c + 1)
@@ -59,16 +60,16 @@ module mkTbWeightSRAMDB();
 
    // Step 4: write tile X to addr 0 while B is active (goes to INACTIVE A).
    rule do_step4 (cycle == 8);
-      ws.write(0, mk_tile(100));     // bank A[0] = [100..115]
+      ws.plain.write(0, mk_tile(100));     // bank A[0] = [100..115]
       $display("Cycle %0d: write bank-A[0]=[100..115]", cycle);
    endrule
 
    rule do_step5 (cycle == 10);
-      ws.readReq(0);                 // still reading active B[0]
+      ws.plain.readReq(0);                 // still reading active B[0]
    endrule
 
    rule check_unchanged (cycle == 12);
-      let got = ws.readResp;
+      let got = ws.plain.readResp;
       Bool ok = True;
       for (Integer r = 0; r < 4; r = r + 1)
          for (Integer c = 0; c < 4; c = c + 1)
@@ -88,11 +89,11 @@ module mkTbWeightSRAMDB();
    endrule
 
    rule do_step7 (cycle == 16);
-      ws.readReq(0);
+      ws.plain.readReq(0);
    endrule
 
    rule check_swap2 (cycle == 18);
-      let got = ws.readResp;
+      let got = ws.plain.readResp;
       Bool ok = True;
       for (Integer r = 0; r < 4; r = r + 1)
          for (Integer c = 0; c < 4; c = c + 1)

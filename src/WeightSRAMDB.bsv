@@ -19,16 +19,17 @@ package WeightSRAMDB;
 // Reads:   always read from the active bank.
 // swap:    toggle active-bank pointer.
 
-import Vector   :: *;
-import RegFile  :: *;
+import Vector      :: *;
+import RegFile     :: *;
+import WeightSRAM  :: *;
 
 export WeightSRAMDB_IFC(..);
 export mkWeightSRAMDB;
 
+// Embed WeightSRAM_IFC as a sub-interface so Controller can take the
+// DB module's `plain` view and the outer caller drives `swap` directly.
 interface WeightSRAMDB_IFC#(numeric type depth, numeric type rows, numeric type cols);
-   method Action write(UInt#(TLog#(depth)) addr, Vector#(rows, Vector#(cols, Int#(8))) data);
-   method Action readReq(UInt#(TLog#(depth)) addr);
-   method Vector#(rows, Vector#(cols, Int#(8))) readResp;
+   interface WeightSRAM_IFC#(depth, rows, cols) plain;
    method Action swap;
    method Bit#(1) activeBank;
 endinterface
@@ -46,22 +47,24 @@ module mkWeightSRAMDB(WeightSRAMDB_IFC#(depth, rows, cols))
    Reg#(Bit#(1)) active <- mkReg(0);   // 0 = mem_a is active for reads
    Reg#(Vector#(rows, Vector#(cols, Int#(8)))) resp <- mkRegU;
 
-   method Action write(UInt#(TLog#(depth)) addr, Vector#(rows, Vector#(cols, Int#(8))) data);
-      // Write to the INACTIVE bank so reads continue serving the current
-      // tile uninterrupted.
-      if (active == 0) mem_b.upd(addr, data);
-      else             mem_a.upd(addr, data);
-   endmethod
+   interface WeightSRAM_IFC plain;
+      method Action write(UInt#(TLog#(depth)) addr, Vector#(rows, Vector#(cols, Int#(8))) data);
+         // Write to the INACTIVE bank so reads continue serving the
+         // current tile uninterrupted.
+         if (active == 0) mem_b.upd(addr, data);
+         else             mem_a.upd(addr, data);
+      endmethod
 
-   method Action readReq(UInt#(TLog#(depth)) addr);
-      // Read from the active bank.
-      if (active == 0) resp <= mem_a.sub(addr);
-      else             resp <= mem_b.sub(addr);
-   endmethod
+      method Action readReq(UInt#(TLog#(depth)) addr);
+         // Read from the active bank.
+         if (active == 0) resp <= mem_a.sub(addr);
+         else             resp <= mem_b.sub(addr);
+      endmethod
 
-   method Vector#(rows, Vector#(cols, Int#(8))) readResp;
-      return resp;
-   endmethod
+      method Vector#(rows, Vector#(cols, Int#(8))) readResp;
+         return resp;
+      endmethod
+   endinterface
 
    method Action swap;
       active <= ~active;

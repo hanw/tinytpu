@@ -71,6 +71,9 @@ $(BUILDDIR)/mkTbCtrlPSUM.bexe: $(BUILDDIR)/TbCtrlPSUM.bo
 $(BUILDDIR)/mkTbCtrlOS.bexe: $(BUILDDIR)/TbCtrlOS.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlOS $(BUILDDIR)/mkTbCtrlOS.ba
 
+$(BUILDDIR)/mkTbCtrlDB.bexe: $(BUILDDIR)/TbCtrlDB.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlDB $(BUILDDIR)/mkTbCtrlDB.ba
+
 $(BUILDDIR)/mkTbTensorCore.bexe: $(BUILDDIR)/TbTensorCore.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbTensorCore $(BUILDDIR)/mkTbTensorCore.ba
 
@@ -146,6 +149,9 @@ test-ctrl-psum: $(BUILDDIR)/mkTbCtrlPSUM.bexe
 test-ctrl-os: $(BUILDDIR)/mkTbCtrlOS.bexe
 	$<
 
+test-ctrl-db: $(BUILDDIR)/mkTbCtrlDB.bexe
+	$<
+
 test-tc: $(BUILDDIR)/mkTbTensorCore.bexe
 	$<
 
@@ -190,6 +196,8 @@ $(BUILDDIR)/TbVPU.bo: $(BUILDDIR)/VPU.bo
 $(BUILDDIR)/TbFpReducer.bo: $(BUILDDIR)/FpReducer.bo
 $(BUILDDIR)/TbTranscUnit.bo: $(BUILDDIR)/TranscUnit.bo
 $(BUILDDIR)/TbPSUMBank.bo: $(BUILDDIR)/PSUMBank.bo
+$(BUILDDIR)/WeightSRAMDB.bo: $(BUILDDIR)/WeightSRAM.bo
+$(BUILDDIR)/ActivationSRAMDB.bo: $(BUILDDIR)/ActivationSRAM.bo
 $(BUILDDIR)/TbWeightSRAMDB.bo: $(BUILDDIR)/WeightSRAMDB.bo
 $(BUILDDIR)/TbActivationSRAMDB.bo: $(BUILDDIR)/ActivationSRAMDB.bo
 $(BUILDDIR)/ScalarUnit.bo: $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/PSUMBank.bo
@@ -197,6 +205,7 @@ $(BUILDDIR)/TbScalarUnit.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray
 $(BUILDDIR)/TbSxuPSUM.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlPSUM.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlOS.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
+$(BUILDDIR)/TbCtrlDB.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/WeightSRAMDB.bo $(BUILDDIR)/ActivationSRAMDB.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TensorCore.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbTensorCore.bo: $(BUILDDIR)/TensorCore.bo
 $(BUILDDIR)/TbSparseCore.bo: $(BUILDDIR)/SparseCore.bo
