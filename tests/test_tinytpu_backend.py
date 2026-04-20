@@ -1167,6 +1167,16 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 3.0).numpy()
     np.testing.assert_allclose(result, a ** 3.0, atol=1e-4)
 
+  def test_float_mean_axis0_matches_reference(self):
+    # Regression: Tensor.mean(axis=0) fuses into a single col-reduce
+    # kernel: FSUM_REDUCE_COL followed by a FMUL against the scalar
+    # 1/nrows. The col-reduce renderer used to silently ignore the
+    # post-op MUL and emit pure sum. Now it detects the float CONST
+    # factor and appends an FMUL.
+    a = np.array([[1., 2., 3., 4.], [5., 6., 7., 8.]], dtype=np.float32)
+    got = Tensor(a, dtype="float", device="TINYTPU").mean(axis=0).numpy()
+    np.testing.assert_allclose(got, a.mean(axis=0), rtol=1e-5)
+
   def test_float_mean_matches_reference(self):
     # Regression: Tensor.mean() decomposes as sum * (1/N). The scalar
     # reduction renderer's post-op used integer MUL / ADD even when the
