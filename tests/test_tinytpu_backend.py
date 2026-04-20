@@ -1157,6 +1157,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 3.0).numpy()
     np.testing.assert_allclose(result, a ** 3.0, atol=1e-4)
 
+  def test_self_square_rejects_power_of_four(self):
+    # Regression guard: x**4 lowers as MUL(MUL(x,x), MUL(x,x)) — both
+    # outer MUL operands are the SAME MUL(x,x) UOp after dedup, so the
+    # original self-square pattern would false-match and silently return
+    # x**2 as the "x**4" result. The renderer now verifies the factor
+    # terminates at a LOAD (not a compound MUL), so x**4 must either
+    # be rendered by a cube-or-higher renderer or explicitly fall
+    # through to UNSUPPORTED — never silently down-grade to x**2.
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    try:
+      result = (Tensor(a, dtype="float", device="TINYTPU") ** 4.0).numpy()
+    except NotImplementedError:
+      return   # acceptable — no higher-power renderer yet
+    np.testing.assert_allclose(result, a ** 4.0, atol=1e-4,
+        err_msg="x**4 must not silently lower as x**2")
+
   def test_rsqrt_matches_reference(self):
     # Tensor.rsqrt() = RECIPROCAL(SQRT(x)). The dedicated rsqrt renderer
     # emits a LOG2 -> FMUL(-0.5) -> EXP2 microprogram, saving one
