@@ -499,3 +499,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	b13f6f5	1	Item#6 iter: TranscUnit range-reduction helpers	tr_trunc / tr_fp_to_int / tr_pow2_int + tests	test-transcunit 5/5; test-vpu 48/48	scaffolds for wide-range EXP2	wire into EXP2 FSM
 2026-04-19	b23c08d	1	Item#6 iter: EXP2 range reduction	split x=n+f; 2^f·2^n via exponent manipulation; wide-input tanh/exp/sigmoid accurate	test-vpu 48/48; test-transcunit 5/5; pytest 996 passed	tanh([-2,-1,0,1]) within 0.1%	use for other transcendentals
 2026-04-19	ceb9d21	1	Item#6 iter: wide-input tanh/exp tests	tanh |x|≤2 atol=0.01; exp |x|≤3 rtol=0.02	pytest 998 passed (+2)	EXP2 range reduction end-to-end locked	SIN range reduction
+2026-04-19	e2d9fce	1	Item#6 iter: SIN range reduction	mod-2π + quadrant fold; widened step to UInt#(4); 10-step SIN	test-vpu 48/48; pytest 998 passed	wide-angle sin/cos accurate (sin(π)=0, sin(5)=-0.96)	DB SRAM Controller wiring
