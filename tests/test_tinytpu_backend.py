@@ -574,17 +574,28 @@ class TestTinyTPUBackend(unittest.TestCase):
   def test_exp2_matches_reference(self):
     a = np.array([0.0, 1.0, 2.0, -1.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").exp2().numpy()
-    # Degree-2 Taylor approximation: ~0.03 tolerance at x=0, widening to
-    # ~0.7 at x=2. atol=0.7 matches the TB bands.
-    np.testing.assert_allclose(result, 2.0 ** a, atol=0.7)
+    # Remez minimax 1 + 0.7344x + 0.25x² on [-1,1]: exact at 0, 0.8%
+    # low at 1, 13% low at 2 (poly error grows outside fit range),
+    # 3% high at -1. Peak absolute error 0.53 at x=2.
+    np.testing.assert_allclose(result, 2.0 ** a, atol=0.6)
 
   def test_exp2_full_tile_matches_reference(self):
-    # Full 16-lane tile through one VPU_EXP2 dispatch. Degree-2 Taylor
-    # bias in TranscUnit peaks at ~0.25 absolute at |x|=1.5 (~9% rel).
+    # Full 16-lane tile over [-1.5, 1.5] through one VPU_EXP2 dispatch.
+    # Remez peak absolute error on this range ~ 0.17 at ±1.5 (vs ~0.25
+    # for the earlier Taylor-form polynomial).
     a = np.linspace(-1.5, 1.5, 16, dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").exp2().numpy()
     expected = 2.0 ** a
-    np.testing.assert_allclose(result, expected, atol=0.3)
+    np.testing.assert_allclose(result, expected, atol=0.2)
+
+  def test_exp2_tight_band_inside_fit_range(self):
+    # Inside the Remez [-1, 1] fit range, max |err| should be < 0.02
+    # absolute. Locks the coefficient upgrade so any future coefficient
+    # regression (e.g. reverting to Taylor) fails here loudly.
+    a = np.linspace(-1.0, 1.0, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").exp2().numpy()
+    expected = 2.0 ** a
+    np.testing.assert_allclose(result, expected, atol=0.02)
 
   def test_exp2_two_tile_matches_reference(self):
     # Two tiles (32 elements) to exercise the renderer's per-tile
