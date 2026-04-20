@@ -5061,6 +5061,30 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     out = _run_bundle(sim, bundle)
     self.assertEqual(_parse_sim_output(out), [1, 2, 3, 4])
 
+  def test_back_to_back_xlu_broadcast_chain(self):
+    # Exercise the dual-issue XLU path end to end: LOAD a tile into v0,
+    # then fire two DISPATCH_XLU_BROADCAST ops back to back (v1 := v0
+    # broadcast of lane 1, v2 := v1 broadcast of lane 0), STORE v2.
+    # Each XLU dispatch advances pc immediately; the second dispatch must
+    # wait for the structural-hazard guard (!xlu_busy) to clear. Final
+    # tile in VMEM[2] must be the scalar broadcast of v0[0][1] = 20.
+    sim = os.environ["TINYTPU_SIM"]
+    src_tile = [10, 20, 30, 40] + [0] * 12
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      "2 3 0 1 0 0 1 0 0 0",                    # XLU_BROADCAST v1 := v0 lane=1
+      "2 3 0 2 1 0 0 0 0 0",                    # XLU_BROADCAST v2 := v1 lane=0
+      _store(2, 2),                             # VMEM[2] := v2
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Every lane/sublane must carry the broadcast scalar 20.
+    self.assertEqual(tile[0:4], [20, 20, 20, 20])
+
   def test_mxu_os_accumulator_hold_across_dispatches(self):
     # Two back-to-back OS dispatches must accumulate in the PE
     # accumulators. Identity weights * [1,2,3,4] = [1,2,3,4] per dispatch,
