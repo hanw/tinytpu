@@ -1051,23 +1051,23 @@ class TestTinyTPUBackend(unittest.TestCase):
 
   def test_sigmoid_matches_reference(self):
     # sigmoid(x) = 1/(1+exp(-x)); lowers to FMUL+EXP2+FADD+FRECIP chain.
-    # Errors compound (EXP2 degree-2 Taylor + FRECIP Newton-Raphson), so
-    # tolerance is loose — but the pipeline should stay finite and
-    # sigmoid-shaped. rtol 0.15 covers worst error around x=±0.5.
+    # After Remez EXP2 the compounded error is much smaller than with
+    # Taylor — |x| ≤ 0.5 stays within 0.01 absolute.
     a = np.array([0.0, 0.3, -0.3, 0.5, -0.5], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").sigmoid().numpy()
     expected = 1.0 / (1.0 + np.exp(-a))
-    np.testing.assert_allclose(result, expected, rtol=0.15, atol=0.05)
+    np.testing.assert_allclose(result, expected, atol=0.01)
 
   def test_sigmoid_multi_tile_matches_reference(self):
     # 32 elements crossing a tile boundary to exercise the renderer's
     # per-tile replication of the FMUL+EXP2+FADD+FRECIP chain.
+    # EXP2 argument is -1/ln2·x ≈ -1.44·x; for |x| ≤ 0.694 it stays in
+    # the Remez fit range. Inputs cover [-1, 1] so the outer |x| pay a
+    # larger error — keep a modest band.
     a = np.linspace(-1.0, 1.0, 32, dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").sigmoid().numpy()
     expected = 1.0 / (1.0 + np.exp(-a))
-    # Bounded output [0,1]; compounded Taylor error is largest around
-    # |x|=1 where it hits ~0.25 absolute.
-    np.testing.assert_allclose(result, expected, atol=0.25)
+    np.testing.assert_allclose(result, expected, atol=0.05)
 
   def test_exp_small_inputs_matches_reference(self):
     # Tensor.exp(x) lowers to exp2(x * log2e); hardware runs EXP2 via
