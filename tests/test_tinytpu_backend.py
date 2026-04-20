@@ -571,6 +571,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") * Tensor(b, dtype="float", device="TINYTPU")).numpy()
     np.testing.assert_allclose(result, a * b, rtol=1e-5)
 
+  def test_exp2_matches_reference(self):
+    a = np.array([0.0, 1.0, 2.0, -1.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").exp2().numpy()
+    # Degree-2 Taylor approximation: ~0.03 tolerance at x=0, widening to
+    # ~0.7 at x=2. atol=0.7 matches the TB bands.
+    np.testing.assert_allclose(result, 2.0 ** a, atol=0.7)
+
+  def test_exp2_full_tile_matches_reference(self):
+    # Full 16-lane tile through one VPU_EXP2 dispatch. Degree-2 Taylor
+    # bias in TranscUnit peaks at ~0.25 absolute at |x|=1.5 (~9% rel).
+    a = np.linspace(-1.5, 1.5, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").exp2().numpy()
+    expected = 2.0 ** a
+    np.testing.assert_allclose(result, expected, atol=0.3)
+
   def test_frecip_2x3_matches_reference(self):
     a = np.array([[1.0, 2.0, 4.0], [0.5, 8.0, 16.0]], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
@@ -977,10 +992,6 @@ class TestTinyTPUBackend(unittest.TestCase):
   def test_log2_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([2.0, 4.0, 8.0], dtype="float", device="TINYTPU").log2().numpy()
-
-  def test_exp2_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([1.0, 2.0, 3.0], dtype="float", device="TINYTPU").exp2().numpy()
 
   def test_sin_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
