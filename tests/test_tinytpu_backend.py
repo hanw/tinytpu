@@ -1167,6 +1167,18 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 3.0).numpy()
     np.testing.assert_allclose(result, a ** 3.0, atol=1e-4)
 
+  def test_log_compound_input_not_silently_log(self):
+    # Regression: log(x+5) had the scaled-log2 renderer match on
+    # MUL(LOG2(...), ln(2)) and silently emit LOG2(x) — dropping the
+    # "+5" shift. Renderer now requires the LOG2 input to terminate at a
+    # plain LOAD; compound expressions route to UNSUPPORTED.
+    a = np.array([-3., -2., -1., 0., 1., 2., 3.], dtype=np.float32)
+    try:
+      got = (Tensor(a, dtype="float", device="TINYTPU") + 5).log().numpy()
+    except NotImplementedError:
+      return
+    np.testing.assert_allclose(got, np.log(a + 5), atol=0.02)
+
   def test_abs_sum_not_silently_sum(self):
     # Regression: sum(abs(x)) was silently returning sum(x) because the
     # reducer ignored the WHERE+CMPLT-based abs subtree. The renderer now
