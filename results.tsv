@@ -522,3 +522,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	f97d053	1	Item#8 iter: E2E OS accumulator-hold sim tests	backend tests for OS back-to-back accumulate ([2,4,6,8]) + MXU_CLEAR reset ([1,2,3,4])	868 backend tests (+2)	E2E MXU_OS + MXU_CLEAR via runtime	tinygrad renderer support for OS mode
 2026-04-20	dual-issue	1	Item#4 iter: dual-issue XLU background collect	XLU dispatch advances pc immediately; do_xlu_collect_bg writes dst 1 cycle later; !xlu_busy structural guard	test-sxu 6/6; backend 868/868	XLU and non-XLU ops can overlap	RAW stall against xlu_dst
 2026-04-20	backend	1	Item#4 iter: chained XLU sim test	back-to-back XLU broadcasts via !xlu_busy guard produce correct result	backend 869/869 (+1)	XLU chained ops verified	RAW guards for VPU and other readers
+2026-04-20	todo	1	Item#4 iter 6: TODO mark Item#4 done	dual-issue XLU landing summarized in TODO	docs-only	Item#4 complete	Item#5 DMA stub
