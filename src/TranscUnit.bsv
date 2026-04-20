@@ -83,8 +83,13 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    Float half_c   = unpack(32'h3F000000);  // 0.5
    Float one_c    = unpack(32'h3F800000);  // 1.0
    Float neg_one  = unpack(32'hBF800000);  // -1.0
-   Float log2e_c  = unpack(32'h3FB8AA3B);  // 1/ln(2)         ≈ 1.4426950
-   Float neg_half_log2e = unpack(32'hBF389A43);  // -1/(2*ln(2)) ≈ -0.7213475
+   // Remez minimax for log2(1+u) ≈ log2_a·u + log2_b·u² fit over [0, 1]
+   // with p(0) = 0 enforced. Replaces Taylor (log2e, -log2e/2) for 8×
+   // peak-error reduction: max |err| drops from 2.8e-1 to 3.4e-2.
+   // Variable names kept historic for diffing; the constants now hold
+   // the Remez values, not log(2)e / -log(2)e/2.
+   Float log2e_c  = unpack(32'h3FC161E5);  //  1.5108  (Remez u coef)
+   Float neg_half_log2e = unpack(32'hBF0B851F);  // -0.545  (Remez u² coef)
    // Remez minimax for sin(x) ≈ x + sin_c2·x³ + sin_c4·x⁵ fit over
    // [-π/2, π/2]. Replaces Taylor (-1/6, 1/120) for 40× peak-error
    // reduction on the fit range: max |err| drops from 4.5e-3 to 1.2e-4.
