@@ -357,25 +357,32 @@ software lowering alone. Ordered roughly by impact on real workloads.
 
 ### Transcendental / math
 
-- [x] **`Exp2`/`Log2`/`Sin` hardware** — landed via the shared multi-cycle
-      `mkTranscUnit` (one FP adder + one FP multiplier, per-lane sequential
-      Horner). `VPU_EXP2` (opcode 51), `VPU_LOG2` (52), `VPU_SIN` (53) all
-      dispatch through the walker; VPU `isDone` gates SXU collect. Tinygrad
-      `code_for_op` declares `Ops.EXP2`/`LOG2`/`SIN`/`SQRT` as supported so
-      the xexp2/xlog2/xsin/xpow decompositions are skipped, and dedicated
-      SXU_PROGRAM renderers emit LOAD+VPU+STORE per tile (SQRT as a
-      LOG2→FMUL→EXP2 microprogram).
-      Composite activations built on top: `_render_scaled_exp2_sxu_program`
-      covers `Tensor.exp()` (exp2 over scalar-const MUL/ADD);
-      `_render_sigmoid_sxu_program` covers `Tensor.sigmoid()` (FMUL+EXP2+
-      FADD+FRECIP). Elementwise fallback now rejects any kernel containing
-      EXP2/LOG2/SIN/SQRT so missing composite renderers fail loud instead
-      of silently dropping the transcendental.
-      Accuracy follows degree-2/5 Taylor: EXP2 ~16% low at 4.0, LOG2 exact
-      at powers of two, SIN tight for `|x| ≤ π/2`. Next tightening steps:
-      Remez-optimised coefficients inside TranscUnit, a mod-2π+quadrant-
-      fold preamble for wide-angle sin, and a `tanh` composite renderer
-      (matches `ADD(MUL(CONST, sigmoid(MUL(x, CONST))), CONST)`).
+- [x] **`Exp2`/`Log2`/`Sin`/`Cos` hardware — Remez + range reduction**.
+      All four primitives live in `src/TranscUnit.bsv`:
+      - Opcodes: `VPU_EXP2` (51), `VPU_LOG2` (52), `VPU_SIN` (53),
+        `VPU_COS` (54). All dispatch through the multi-cycle walker;
+        VPU `isDone` gates SXU collect.
+      - Coefficients: Remez minimax for all four (EXP2 4× peak-error
+        reduction, SIN 40×, COS 27×, LOG2 8× vs Taylor).
+      - EXP2 range reduction: x = n + f via `tr_trunc`/`tr_fp_to_int`/
+        `tr_pow2_int` helpers; poly(f) on [-1, 1] scaled by 2^n via
+        exponent-bit construction. Integer x gives exact 2^n results.
+      - SIN range reduction: mod-2π + quadrant fold + sign-aware
+        round-to-nearest bias. sin(π), sin(2π) etc. zero out; sin(5)
+        accurate to <0.3% rel.
+      - Tinygrad `code_for_op` declares `Ops.EXP2`/`LOG2`/`SIN`/`SQRT`
+        hardware-supported. Renderers land Tensor-level:
+        `_render_scaled_exp2` (Tensor.exp), `_render_sigmoid`
+        (FMUL+EXP2+FADD+FRECIP), `_render_tanh`, `_render_scaled_sin`
+        (Tensor.cos), `_render_scaled_log2` (Tensor.log), plus plain
+        `_render_{exp2,log2,sin,sqrt}_sxu_program`.
+      - Guards in elementwise/reciprocal/multistep-scalar-divide
+        renderers reject kernels with EXP2/LOG2/SIN/SQRT so missing
+        composite renderers fail loud.
+      - Standalone `TbTranscUnit` (make test-transcunit) locks the
+        coefficient contract at the unit layer.
+      - End-to-end backend tests cover wide ranges: tanh |x|≤2.5,
+        exp [-3,3], sin/cos [-3π,3π], sqrt [0.25,16].
 
 ### Movement
 
