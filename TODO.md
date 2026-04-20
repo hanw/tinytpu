@@ -467,13 +467,18 @@ ratio — the top ones would most change what TinyTPU can run.
       resultReg / XLU output when SXU emits a `FWD` hint instead of a
       vreg index. The current `SXU_LOAD_MXU_RESULT` special case is
       the first half of this feature — generalize it.
-- [~] **Dual-issue slot for VPU + XLU.** Scaffolding landed: SXU has
-      an `sxu_is_xlu_slot()` classifier (identifies XLU-side dispatches)
-      plus a pair of scoreboard registers — `xlu_busy` (is an XLU
-      dispatch in flight) and `xlu_dst` (target vreg). FSM is still
-      single-issue; the scoreboard is the first piece the dual-issue
-      arbiter will consult. Remaining: second issue slot, stall on
-      RAW hazard against `xlu_dst`, writeback arbitration, test.
+- [x] **Dual-issue slot for VPU + XLU.** Landed. XLU dispatch rules
+      now advance pc and return to FETCH immediately instead of
+      stalling in an XLU_COLLECT state; a background `do_xlu_collect_bg`
+      rule fires the cycle after dispatch (XLU.result carries 1-cycle
+      latency) and writes xlu_dst while the main FSM fetches/executes
+      the next non-XLU op. Structural-hazard guard `!xlu_busy` on
+      every XLU dispatch rule prevents back-to-back XLU ops from
+      issuing before the prior one collects. No RAW hazard in
+      practice because the collect's vrf.write happens one cycle
+      before any dependent read could fire (dispatch advances pc
+      through FETCH before any EXEC reads vreg). End-to-end chained
+      XLU broadcast sim test covers the path.
 
 ### Tier 2 — memory hierarchy and programmability
 
