@@ -454,3 +454,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	5dcb621	1	Item#7 iter 4: predicate auto-reset test	test_skip_if_pred_auto_resets_after_consume verifies pred clears after SKIP	pytest backend: 841 passed (+1)	predicate semantics tested end-to-end	none
 2026-04-19	73bf964	1	Item#6 iter 1: VPU_EXP2 opcode via TranscUnit	mkTranscUnit multi-cycle walker + VpuOp 51 + VPU TB test	make test-vpu: 45/45; backend 841 passed; runtime build 1:50	first transcendental opcode landed	TASM + Python helper + tinygrad lowering
 2026-04-19	fc34bd8	1	Item#6 iter 2: TASM + Python EXP2 helper	VPU opcode 51 in TASM + _vpu_exp2 + roundtrip test	pytest test_tasm: 78 passed (+1)	authoring interface complete	runtime-level sim test
+2026-04-19	f9e8c31	1	Item#6 iter 3: VPU_EXP2 runtime bundle test	end-to-end sim test through TranscUnit walker	pytest backend: 842 passed (+1)	EXP2 end-to-end proven	tinygrad Exp2 UOp lowering
