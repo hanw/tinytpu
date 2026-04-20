@@ -476,3 +476,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	8b42c44	1	Item#6 iter: multi-tile EXP2 regression	test_exp2_two_tile_matches_reference	pytest backend 849 passed (+1)	multi-tile exp2 through TranscUnit proven	larger tiles
 2026-04-19	c989bdc	1	Item#6 iter: multi-tile sigmoid regression	test_sigmoid_multi_tile_matches_reference	pytest backend 850 passed (+1)	sigmoid multi-tile proven	other activations
 2026-04-19	78ddeca	1	TODO sync for iters 18-23	mark Item#4/#5/#8 scaffolding in progress; list remaining work per item	docs-only; backend 850 unchanged	TODO mirrors repo state for next session	final verification
+2026-04-19	memory	1	reference checkpoint update	capture iters 1-24 state; baselines, landings, gotchas, resume list	memory-only; backend 850 unchanged	next session resumes cold	final verification
