@@ -1167,6 +1167,19 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 3.0).numpy()
     np.testing.assert_allclose(result, a ** 3.0, atol=1e-4)
 
+  def test_float_mean_matches_reference(self):
+    # Regression: Tensor.mean() decomposes as sum * (1/N). The scalar
+    # reduction renderer's post-op used integer MUL / ADD even when the
+    # reduction was float, so mean() silently produced 0 (int reinterpret
+    # of the float constant). Now it remaps to FMUL / FADD for float
+    # reductions.
+    for a in ([1., 2., 3., 4.],
+              [1., 2., 3., 4., 5., 6., 7., 8.],
+              [-2., 0., 2., 4.]):
+      a_np = np.array(a, dtype=np.float32)
+      got = Tensor(a_np, dtype="float", device="TINYTPU").mean().numpy()
+      np.testing.assert_allclose(got, a_np.mean(), rtol=1e-5)
+
   def test_hardtanh_not_silently_relu(self):
     # Regression: hardtanh = clip(x, -1, 1) has the WHERE+CMPLT shape
     # of RELU but with two comparisons per element (one for min, one
