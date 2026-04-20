@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_os, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -4964,6 +4964,27 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       sim.chmod(sim.stat().st_mode | stat.S_IEXEC)
       with self.assertRaisesRegex(RuntimeError, "simulator did not report `status ok`"):
         _run_bundle(str(sim), "4\n")
+
+  def test_mxu_os_dispatches_equivalent_to_ws(self):
+    # End-to-end sim check that SXU_DISPATCH_MXU_OS drives the Controller
+    # through the OS path. Today the OS path still runs WS behavior (PE
+    # accumulator-hold + operand-swap land in later iters), so identity
+    # weights × [1,2,3,4] must still produce [1,2,3,4] in the MXU output
+    # register. The test's purpose is to prove the opcode is wired
+    # through the SXU fetch → Controller.startOS → dispatch chain.
+    sim = os.environ["TINYTPU_SIM"]
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, [1, 2, 3, 4]),
+      _mxu_os(0, 0, 1),                         # DISPATCH_MXU_OS
+      _wait_mxu(),
+      _halt(),
+      "3 1",                                    # OUTPUT_MXU
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    self.assertEqual(_parse_sim_output(out), [1, 2, 3, 4])
 
   def test_mxu_psum_accumulate_via_bundle(self):
     # End-to-end hardware test of the PSUM accumulator path: two MXU
