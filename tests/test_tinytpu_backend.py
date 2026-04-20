@@ -614,12 +614,12 @@ class TestTinyTPUBackend(unittest.TestCase):
 
   def test_log2_non_powers_matches_reference(self):
     # Non-power inputs hit the degree-2 polynomial in u=m-1 ∈ (0,1).
-    # Max error ~0.3 at u near 1 (x≈1.99); test with a mid-range tile
-    # and accept a wide band.
+    # Remez peak error ~0.034 (vs Taylor's ~0.28). Tight band locks
+    # the coefficient win.
     a = np.array([1.1, 1.25, 1.5, 1.75, 2.5, 3.0, 3.5, 5.0,
                   0.25, 0.4, 0.6, 0.8, 10.0, 12.0, 16.0, 20.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").log2().numpy()
-    np.testing.assert_allclose(result, np.log2(a), atol=0.3)
+    np.testing.assert_allclose(result, np.log2(a), atol=0.05)
 
   def test_frecip_2x3_matches_reference(self):
     a = np.array([[1.0, 2.0, 4.0], [0.5, 8.0, 16.0]], dtype=np.float32)
@@ -1076,16 +1076,17 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_allclose(result, np.sqrt(a), rtol=0.4)
 
   def test_sin_small_angle_matches_reference(self):
-    # |x| <= π/2 stays inside Taylor degree-5 accuracy band (<0.01 abs).
+    # |x| <= π/2 stays inside Remez degree-5 accuracy band (<5e-4 abs).
     a = np.array([-1.4, -0.7, 0.0, 0.7, 1.4], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").sin().numpy()
-    np.testing.assert_allclose(result, np.sin(a), atol=0.02)
+    np.testing.assert_allclose(result, np.sin(a), atol=1e-3)
 
   def test_sin_full_tile_matches_reference(self):
     # Wider sweep still under |x| <= π/2; single-tile through VPU_SIN.
+    # Remez peak error on [-π/2, π/2] is 1.2e-4 — tight band locks it.
     a = np.linspace(-1.5, 1.5, 16, dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").sin().numpy()
-    np.testing.assert_allclose(result, np.sin(a), atol=0.05)
+    np.testing.assert_allclose(result, np.sin(a), atol=5e-4)
 
   def test_fdiv_3x3_matches_reference(self):
     a = np.arange(1, 10, dtype=np.float32).reshape(3, 3)
