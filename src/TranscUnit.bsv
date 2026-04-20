@@ -128,7 +128,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    // Use UInt#(32) for lane_idx so `== valueOf(n)` comparison fits even
    // when the flattened tile width is a power of two.
    Reg#(UInt#(32))      lane_idx <- mkReg(0);
-   Reg#(UInt#(3))       step     <- mkReg(0);
+   Reg#(UInt#(4))       step     <- mkReg(0);
    Reg#(Float)          y_r      <- mkRegU;
    Reg#(Float)          acc_r    <- mkRegU;
    Reg#(Float)          e_r      <- mkRegU;   // LOG2: exp-as-float; SIN: original x
@@ -165,6 +165,15 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    // max err ≈ 6.7e-2 over [-1,1]).
    Float exp2_p_c = unpack(32'h3F3C0592);  //  0.7344 (Remez)
    Float exp2_q_c = unpack(32'h3E800000);  //  0.25    (exact power of 2)
+   // SIN range-reduction constants.
+   //   inv_2pi = 1/(2π); two_pi = 2π; pi; pi_over_2 = π/2.
+   // Reduces arbitrary x to (-π/2, π/2] via mod-2π + quadrant fold
+   // before the degree-5 Remez polynomial.
+   Float inv_2pi    = unpack(32'h3E22F983);  // 0.1591549  (1/2π)
+   Float two_pi     = unpack(32'h40C90FDB);  // 6.2831853  (2π)
+   Float pi_c       = unpack(32'h40490FDB);  // 3.1415927  (π)
+   Float neg_pi_c   = unpack(32'hC0490FDB);  // -π
+   Float pi_over_2  = unpack(32'h3FC90FDB);  // 1.5707964  (π/2)
 
    // Per-op step schedules. Each step runs at most one FP op (FMUL or FADD)
    // so one multiplier + one adder suffice. EXP2 uses steps 0..6 (range
@@ -188,13 +197,18 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    //   4:  acc_r = acc_r * y_r
    //   5:  buf[i] = acc_r + e_r
    //
-   // SIN (degree-5 Taylor, exact at x=0; ~0.5 rad error at |x|=π):
-   //   0:  e_r = x (save); y_r = x * x   (x² in y_r)
-   //   1:  acc_r = y_r * sin_c4           (sin_c4 = 1/120)
-   //   2:  acc_r = acc_r + sin_c2         (sin_c2 = -1/6)
-   //   3:  acc_r = acc_r * y_r            (back to scaled x²)
-   //   4:  acc_r = acc_r + 1
-   //   5:  buf[i] = acc_r * e_r           (final *x)
+   // SIN (range-reduced via mod-2π + quadrant fold, then Remez):
+   //   0:  y_r = x · (1/2π)
+   //   1:  acc_r = trunc(y_r) · 2π         (combinational trunc + FMUL)
+   //   2:  y_r = x - acc_r                  → y_r ∈ (-π, π]
+   //   3:  acc_r = signed_pi - y_r          (fold candidate)
+   //   4:  y_r = |y_r| > π/2 ? acc_r : y_r  (combinational select),
+   //       then e_r = y_r; y_r = y_r·y_r     (save reduced y; x² in y_r)
+   //   5:  acc_r = y_r · sin_c4
+   //   6:  acc_r = acc_r + sin_c2
+   //   7:  acc_r = acc_r · y_r
+   //   8:  acc_r = acc_r + 1
+   //   9:  buf[i] = acc_r · e_r             (final · reduced y)
    rule step_rule (busy && !done);
       Float x    = tr_bits2fp(buf_r[lane_idx]);
       case (step)
@@ -213,8 +227,8 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   e_r <= tr_i9_to_float(e_unbiased);
                end
                TR_SIN: begin
-                  e_r <= x;                                     // save x
-                  y_r <= tpl_1(multFP(x, x, Rnd_Nearest_Even)); // x²
+                  // Start range reduction: y_r = x · (1/2π).
+                  y_r <= tpl_1(multFP(x, inv_2pi, Rnd_Nearest_Even));
                end
                TR_COS: y_r <= tpl_1(multFP(x, x, Rnd_Nearest_Even)); // x²
             endcase
@@ -229,7 +243,11 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   y_r <= tpl_1(addFP(x, neg_y, Rnd_Nearest_Even));
                end
                TR_LOG2: y_r   <= tpl_1(addFP(y_r, neg_one, Rnd_Nearest_Even));
-               TR_SIN:  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
+               TR_SIN:  begin
+                  // acc_r = trunc(y_r) · 2π  (trunc is combinational)
+                  Float ny = tr_trunc(y_r);
+                  acc_r <= tpl_1(multFP(ny, two_pi, Rnd_Nearest_Even));
+               end
                TR_COS:  acc_r <= tpl_1(multFP(y_r, cos_c4, Rnd_Nearest_Even));
             endcase
             step <= 2;
@@ -238,7 +256,11 @@ module mkTranscUnit(TranscUnit_IFC#(n))
             case (op_r)
                TR_EXP2: acc_r <= tpl_1(multFP(y_r, exp2_q_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(multFP(y_r, neg_half_log2e, Rnd_Nearest_Even));
-               TR_SIN:  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
+               TR_SIN:  begin
+                  // y_r = x - acc_r. acc_r currently holds trunc(x·inv_2pi)·2π.
+                  Float neg_acc = acc_r; neg_acc.sign = !acc_r.sign;
+                  y_r <= tpl_1(addFP(x, neg_acc, Rnd_Nearest_Even));
+               end
                TR_COS:  acc_r <= tpl_1(addFP(acc_r, cos_c2, Rnd_Nearest_Even));
             endcase
             step <= 3;
@@ -247,7 +269,13 @@ module mkTranscUnit(TranscUnit_IFC#(n))
             case (op_r)
                TR_EXP2: acc_r <= tpl_1(addFP(acc_r, exp2_p_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(addFP(acc_r, log2e_c, Rnd_Nearest_Even));
-               TR_SIN:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+               TR_SIN:  begin
+                  // Quadrant-fold candidate: acc_r = sign(y_r)·π - y_r.
+                  // If |y_r| > π/2 step 4 will select this; else it uses y_r.
+                  Float signed_pi = y_r.sign ? neg_pi_c : pi_c;
+                  Float neg_y     = y_r; neg_y.sign = !y_r.sign;
+                  acc_r <= tpl_1(addFP(signed_pi, neg_y, Rnd_Nearest_Even));
+               end
                TR_COS:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
             endcase
             step <= 4;
@@ -276,7 +304,14 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   step  <= 5;
                end
                TR_SIN: begin
-                  acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+                  // Step 4 for SIN: select folded/unfolded y, save into
+                  // e_r for the final ·y multiplication, and square it
+                  // into y_r for the Horner chain.
+                  Float abs_y = y_r; abs_y.sign = False;
+                  Bool fold = (compareFP(abs_y, pi_over_2) == GT);
+                  Float y_red = fold ? acc_r : y_r;
+                  e_r <= y_red;
+                  y_r <= tpl_1(multFP(y_red, y_red, Rnd_Nearest_Even));
                   step  <= 5;
                end
             endcase
@@ -301,6 +336,20 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   end
                end
                TR_SIN: begin
+                  // Polynomial step 1: acc = y² · sin_c4.
+                  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
+                  step  <= 6;
+               end
+               TR_COS: begin
+                  // unreachable; COS finished at step 4
+                  step <= 0;
+               end
+            endcase
+         end
+         6: begin
+            case (op_r)
+               TR_EXP2: begin
+                  // EXP2 final: multiply 2^f polynomial result by 2^n.
                   Float final_f = tpl_1(multFP(acc_r, e_r, Rnd_Nearest_Even));
                   Vector#(n, Int#(32)) next_buf = buf_r;
                   next_buf[lane_idx] = tr_fp2bits(final_f);
@@ -313,25 +362,52 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                      lane_idx <= lane_idx + 1;
                   end
                end
-               TR_COS: begin
-                  // unreachable; COS finished at step 4
-                  step <= 0;
+               TR_SIN: begin
+                  // Polynomial step 2: acc = acc + sin_c2.
+                  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
+                  step  <= 7;
                end
+               default: step <= 0;
             endcase
          end
-         6: begin
-            // EXP2 final: multiply 2^f polynomial result by 2^n.
-            Float final_f = tpl_1(multFP(acc_r, e_r, Rnd_Nearest_Even));
-            Vector#(n, Int#(32)) next_buf = buf_r;
-            next_buf[lane_idx] = tr_fp2bits(final_f);
-            buf_r <= next_buf;
-            step  <= 0;
-            if (lane_idx + 1 == fromInteger(valueOf(n))) begin
-               done <= True;
-               busy <= False;
-            end else begin
-               lane_idx <= lane_idx + 1;
-            end
+         7: begin
+            case (op_r)
+               TR_SIN: begin
+                  // Polynomial step 3: acc = acc · y² (y_r holds y²).
+                  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+                  step  <= 8;
+               end
+               default: step <= 0;
+            endcase
+         end
+         8: begin
+            case (op_r)
+               TR_SIN: begin
+                  // Polynomial step 4: acc = acc + 1.
+                  acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
+                  step  <= 9;
+               end
+               default: step <= 0;
+            endcase
+         end
+         9: begin
+            case (op_r)
+               TR_SIN: begin
+                  // SIN final: multiply 1 + c2·y² + c4·y⁴ by reduced y.
+                  Float final_f = tpl_1(multFP(acc_r, e_r, Rnd_Nearest_Even));
+                  Vector#(n, Int#(32)) next_buf = buf_r;
+                  next_buf[lane_idx] = tr_fp2bits(final_f);
+                  buf_r <= next_buf;
+                  step  <= 0;
+                  if (lane_idx + 1 == fromInteger(valueOf(n))) begin
+                     done <= True;
+                     busy <= False;
+                  end else begin
+                     lane_idx <= lane_idx + 1;
+                  end
+               end
+               default: step <= 0;
+            endcase
          end
          default: step <= 0;
       endcase
