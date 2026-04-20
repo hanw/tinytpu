@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5051,6 +5051,38 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     tile = _parse_vmem_output(out)
     self.assertEqual(tile[0:4], [11, 22, 33, 44])
     self.assertEqual(tile[4:16], [0] * 12)
+
+  def test_vpu_exp2_bundle_matches_approx(self):
+    # Drive a VMEM preload of four Float32 inputs [0.0, 1.0, 2.0, -1.0]
+    # (remaining lanes filled with 0.0), run VPU_EXP2 end-to-end through
+    # the TranscUnit multi-cycle walker, and store the result back.
+    # TranscUnit implements degree-2 Taylor of e^(x*ln2); acceptance bands
+    # match the VPU TB coverage.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    def _f(x: float) -> int:
+      return int.from_bytes(struct.pack("<f", x), "little", signed=False)
+    inputs = [0.0, 1.0, 2.0, -1.0] + [0.0] * 12
+    tile_bits = [_f(v) for v in inputs]
+    bundle = _bundle(
+      _vmem(0, tile_bits),
+      _load(0, 0),
+      _vpu_exp2(1, 0),
+      _store(1, 1),
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    as_floats = [struct.unpack("<f", int(u).to_bytes(4, "little", signed=False))[0]
+                 for u in (t & 0xFFFFFFFF for t in tile)]
+    # Degree-2 Taylor in y=x*ln2: exact at 0, 3.4% low at 2.0,
+    # 16% low at 4.0, 9.5% high at 0.5 (all derived from the TB test).
+    self.assertAlmostEqual(as_floats[0], 1.0,   delta=0.01)
+    self.assertAlmostEqual(as_floats[1], 1.933, delta=0.02)
+    self.assertAlmostEqual(as_floats[2], 3.347, delta=0.05)
+    self.assertAlmostEqual(as_floats[3], 0.547, delta=0.02)
 
   def test_psum_read_row_extracts_single_row(self):
     # Accumulate into psum[0] row 2, then PSUM_READ_ROW that into v1
