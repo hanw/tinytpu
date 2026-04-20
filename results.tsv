@@ -501,3 +501,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	ceb9d21	1	Item#6 iter: wide-input tanh/exp tests	tanh |x|≤2 atol=0.01; exp |x|≤3 rtol=0.02	pytest 998 passed (+2)	EXP2 range reduction end-to-end locked	SIN range reduction
 2026-04-19	e2d9fce	1	Item#6 iter: SIN range reduction	mod-2π + quadrant fold; widened step to UInt#(4); 10-step SIN	test-vpu 48/48; pytest 998 passed	wide-angle sin/cos accurate (sin(π)=0, sin(5)=-0.96)	DB SRAM Controller wiring
 2026-04-19	98bf3ee	1	Item#6 iter: SIN round-bias + wide tests	sign-aware +0.5 before trunc so mod-2π is correct; wide sin/cos tests	test-vpu 48/48; pytest 1000 passed (+2)	sin(5π)≈0 accurate; cos wide	end of Item#6 push
+2026-04-19	d5928ee	1	Item#6 iter: tighten sqrt tolerance	rtol 0.4→0.03 now that LOG2+EXP2 are Remez + range-reduced	pytest 1001 passed (+1)	sqrt compound error under 3%	memory checkpoint
