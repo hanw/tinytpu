@@ -1167,6 +1167,34 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 3.0).numpy()
     np.testing.assert_allclose(result, a ** 3.0, atol=1e-4)
 
+  def test_hardtanh_not_silently_relu(self):
+    # Regression: hardtanh = clip(x, -1, 1) has the WHERE+CMPLT shape
+    # of RELU but with two comparisons per element (one for min, one
+    # for max). Without the per-element CMPLT guard the elementwise
+    # renderer silently emitted RELU, returning max(x, 0) instead of
+    # clip. Renderer now either returns a correct clip result or
+    # UNSUPPORTED — never RELU.
+    a = np.array([-3., -2., -1., 0., 1., 2., 3.], dtype=np.float32)
+    try:
+      result = Tensor(a, dtype="float", device="TINYTPU").hardtanh().numpy()
+    except NotImplementedError:
+      return
+    np.testing.assert_allclose(result, np.clip(a, -1., 1.), atol=1e-5,
+        err_msg="hardtanh must not silently lower as RELU")
+
+  def test_softsign_not_silently_abs(self):
+    # Regression: softsign = x / (1 + |x|). The abs subtree (WHERE+
+    # CMPLT+CMPNE+MUL) would false-match the abs pattern, silently
+    # emitting abs(x) as the "softsign" output. Renderer now returns
+    # either a correct softsign result or UNSUPPORTED.
+    a = np.array([-3., -2., -1., 0., 1., 2., 3.], dtype=np.float32)
+    try:
+      result = Tensor(a, dtype="float", device="TINYTPU").softsign().numpy()
+    except NotImplementedError:
+      return
+    np.testing.assert_allclose(result, a / (1 + np.abs(a)), atol=1e-5,
+        err_msg="softsign must not silently lower as abs")
+
   def test_self_square_rejects_power_of_four(self):
     # Regression guard: x**4 lowers as MUL(MUL(x,x), MUL(x,x)) — both
     # outer MUL operands are the SAME MUL(x,x) UOp after dedup, so the
