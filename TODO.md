@@ -460,21 +460,26 @@ ratio — the top ones would most change what TinyTPU can run.
       resultReg / XLU output when SXU emits a `FWD` hint instead of a
       vreg index. The current `SXU_LOAD_MXU_RESULT` special case is
       the first half of this feature — generalize it.
-- [ ] **Dual-issue slot for VPU + XLU.** Cheap intermediate step if
-      full per-engine queues are too much: a 2-slot SXU where slot A
-      dispatches VPU/MXU ops and slot B dispatches XLU ops. They're
-      already independent at the hardware level; only SXU's single-issue
-      constraint stops them from overlapping. Immediate win on
-      transpose-then-elementwise kernels (softmax, attention).
+- [~] **Dual-issue slot for VPU + XLU.** Scaffolding landed: SXU has
+      an `sxu_is_xlu_slot()` classifier (identifies XLU-side dispatches)
+      plus a pair of scoreboard registers — `xlu_busy` (is an XLU
+      dispatch in flight) and `xlu_dst` (target vreg). FSM is still
+      single-issue; the scoreboard is the first piece the dual-issue
+      arbiter will consult. Remaining: second issue slot, stall on
+      RAW hazard against `xlu_dst`, writeback arbitration, test.
 
 ### Tier 2 — memory hierarchy and programmability
 
-- [ ] **Double-buffered Weight/ActivSRAM + small DMA engine.** Preload
-      from HBM currently blocks MXU because the operand SRAMs have
-      only one live copy of each tile. Ping-pong the SRAMs and add a
-      DMA unit that stages the *next* tile while MXU drains the
-      current one — also absorbs the NeuronCore-style "Sync Engine"
-      role at a smaller scope.
+- [~] **Double-buffered Weight/ActivSRAM + small DMA engine.** Scaffolding
+      landed: `src/WeightSRAMDB.bsv` and `src/ActivationSRAMDB.bsv` each
+      hold two banks with an `active` pointer. Writes target the
+      inactive bank (background preload), reads serve from the active
+      bank, and `swap` flips the pointer. Standalone testbenches
+      (`make test-wsram-db`, `make test-asram-db`) cover read-after-
+      swap, inactive-bank-write isolation, and second-swap. Remaining:
+      wire the DB variants into the Controller behind a "preload
+      parallel to dispatch" mode, and a small DMA engine that issues
+      the background writes from HBM.
 - [ ] **Transcendental / programmable SIMD unit.** `sqrt` / `log2` /
       `exp2` / `sin` are rejected today; NeuronCore covers these with
       its GPSIMD engine. Three options in increasing generality:
@@ -491,10 +496,13 @@ ratio — the top ones would most change what TinyTPU can run.
       runtime sim tests cover both skip-taken and skip-not-taken
       paths. No tinygrad renderer is emitting these yet — they're
       infrastructure for future BARRIER / IF / ENDIF work.
-- [ ] **Output-stationary dataflow mode on MXU.** Second mode (in
-      addition to weight-stationary) for depthwise conv / batched
-      inputs with shared weights. Same systolic silicon, different
-      drive pattern in Controller.
+- [~] **Output-stationary dataflow mode on MXU.** Scaffolding landed:
+      Controller exposes a `DataflowMode` enum (`DF_WEIGHT_STATIONARY`,
+      `DF_OUTPUT_STATIONARY`), a `dfModeReg` register, and a
+      `getDataflowMode` interface method. No behavior change yet —
+      always stays in WS. Remaining: `startOS()` method, Controller
+      FSM variant that streams both operands, PE accumulator-hold
+      mode, end-to-end test.
 
 ### Tier 3 — chip-level scale-out
 
