@@ -3,6 +3,7 @@ package VPU;
 import Vector :: *;
 import FloatingPoint :: *;
 import FpReducer :: *;
+import TranscUnit :: *;
 
 typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE, VPU_DIV, VPU_AND, VPU_OR, VPU_XOR,
                VPU_FADD, VPU_FMUL, VPU_FSUB, VPU_FMAX, VPU_FCMPLT, VPU_FRECIP, VPU_I2F, VPU_F2I,
@@ -14,7 +15,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_FMIN,
                VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE,
                VPU_FSUM_REDUCE_COL, VPU_FMAX_REDUCE_COL, VPU_FMIN_REDUCE_COL,
-               VPU_FPROD_REDUCE_TILE, VPU_FPROD_REDUCE, VPU_FPROD_REDUCE_COL }
+               VPU_FPROD_REDUCE_TILE, VPU_FPROD_REDUCE, VPU_FPROD_REDUCE_COL,
+               VPU_EXP2 }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -158,6 +160,7 @@ function Float lane_fprod(Vector#(n, Int#(32)) vec)
    return acc;
 endfunction
 
+
 module mkVPU(VPU_IFC#(sublanes, lanes))
    provisos(
       Add#(1, s_, sublanes),
@@ -174,6 +177,12 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
    FpReducer_IFC#(TMul#(sublanes, lanes)) fpr <- mkFpReducer;
    Reg#(Bool) fp_busy <- mkReg(False);
 
+   // Shared multi-cycle transcendental unit for per-lane EXP2/LOG2/SIN.
+   // Walks the flattened tile one lane at a time to keep elaboration cost
+   // bounded (1 FMUL + 1 FADD total, not N_horner * lanes parallel cones).
+   TranscUnit_IFC#(TMul#(sublanes, lanes)) tru <- mkTranscUnit;
+   Reg#(Bool) transc_busy <- mkReg(False);
+
    // When the reducer signals done, broadcast its scalar across the full
    // tile and clear the busy flag. SXU waits on isDone before reading.
    rule fp_collect (fp_busy && fpr.isDone);
@@ -184,11 +193,26 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
       fp_busy <= False;
    endrule
 
+   // When the transcendental unit signals done, unflatten its per-lane
+   // result back into the tile shape and release the busy flag.
+   rule transc_collect (transc_busy && tru.isDone);
+      let flat = tru.getResult;
+      Vector#(sublanes, Vector#(lanes, Int#(32))) res = newVector;
+      for (Integer s = 0; s < valueOf(sublanes); s = s + 1) begin
+         Vector#(lanes, Int#(32)) row = newVector;
+         for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+            row[l] = flat[s * valueOf(lanes) + l];
+         res[s] = row;
+      end
+      resultReg <= res;
+      transc_busy <= False;
+   endrule
+
    method Action execute(
       VpuOp op,
       Vector#(sublanes, Vector#(lanes, Int#(32))) src1,
       Vector#(sublanes, Vector#(lanes, Int#(32))) src2
-   ) if (!fp_busy);
+   ) if (!fp_busy && !transc_busy);
       // Multi-cycle float tile reducers dispatch through the shared
       // FpReducer and set fp_busy; the fp_collect rule later writes
       // resultReg and clears fp_busy. The combinational case block below
@@ -198,6 +222,7 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
           || (op == VPU_FMAX_REDUCE_TILE)
           || (op == VPU_FMIN_REDUCE_TILE)
           || (op == VPU_FPROD_REDUCE_TILE);
+      Bool use_transc = (op == VPU_EXP2);
       if (use_fp_tile_reducer) begin
          Vector#(TMul#(sublanes, lanes), Int#(32)) flat = newVector;
          for (Integer sf = 0; sf < valueOf(sublanes); sf = sf + 1)
@@ -208,6 +233,13 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                              (op == VPU_FMIN_REDUCE_TILE)  ? FPR_MIN  : FPR_PROD;
          fpr.start(frop, flat);
          fp_busy <= True;
+      end else if (use_transc) begin
+         Vector#(TMul#(sublanes, lanes), Int#(32)) flat = newVector;
+         for (Integer sf = 0; sf < valueOf(sublanes); sf = sf + 1)
+            for (Integer lf = 0; lf < valueOf(lanes); lf = lf + 1)
+               flat[sf * valueOf(lanes) + lf] = src1[sf][lf];
+         tru.start(TR_EXP2, flat);
+         transc_busy <= True;
       end else begin
       // Per-column reductions across sublanes (rows): one value per column.
       Vector#(lanes, Int#(32)) col_sum = newVector;
@@ -537,6 +569,9 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = col_fprod[l];
             end
+            // VPU_EXP2 is dispatched at the top of execute() through the
+            // multi-cycle TranscUnit; this case block never sees it.
+            default: noAction;
          endcase
          res[s] = row;
       end
@@ -548,9 +583,10 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
       return resultReg;
    endmethod
 
-   // True when no multi-cycle reducer is in flight. Single-cycle ops
-   // always observe True here on the next cycle after dispatch.
-   method Bool isDone = !fp_busy;
+   // True when no multi-cycle reducer or transcendental walk is in flight.
+   // Single-cycle ops always observe True here on the next cycle after
+   // dispatch.
+   method Bool isDone = !fp_busy && !transc_busy;
 
 endmodule
 

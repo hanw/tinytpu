@@ -161,7 +161,7 @@ $(BUILDDIR)/TbAccelerator4x4.bo: $(BUILDDIR)/TensorAccelerator.bo
 $(BUILDDIR)/TbXLU.bo: $(BUILDDIR)/XLU.bo
 $(BUILDDIR)/TbVMEM.bo: $(BUILDDIR)/VMEM.bo
 $(BUILDDIR)/TbVRegFile.bo: $(BUILDDIR)/VRegFile.bo
-$(BUILDDIR)/VPU.bo: $(BUILDDIR)/FpReducer.bo
+$(BUILDDIR)/VPU.bo: $(BUILDDIR)/FpReducer.bo $(BUILDDIR)/TranscUnit.bo
 $(BUILDDIR)/TbVPU.bo: $(BUILDDIR)/VPU.bo
 $(BUILDDIR)/TbFpReducer.bo: $(BUILDDIR)/FpReducer.bo
 $(BUILDDIR)/TbPSUMBank.bo: $(BUILDDIR)/PSUMBank.bo

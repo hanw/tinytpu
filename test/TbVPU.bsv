@@ -1,6 +1,7 @@
 package TbVPU;
 
 import Vector :: *;
+import FloatingPoint :: *;
 import VPU :: *;
 
 (* synthesize *)
@@ -14,7 +15,7 @@ module mkTbVPU();
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 300) begin $display("FAIL: timeout"); $finish(1); end
+      if (cycle > 500) begin $display("FAIL: timeout"); $finish(1); end
    endrule
 
    // Test 1: VPU_ADD
@@ -1157,7 +1158,56 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 230);
+   // Test 45: VPU_EXP2 — 2^x polynomial approximation (multi-cycle walker).
+   // Inputs: [0.0, 1.0, 2.0, -1.0] → expected [1.0, ~2.0, ~3.35, ~0.55].
+   // Degree-2 Taylor in y=x*ln2 gives big error at |x|=2 (~16% low at 4.0)
+   // and is exact at 0. Check wide bands per lane. Unit walks 16 lanes × 5
+   // cycles/lane → ~80 cycles, so check well after dispatch.
+   rule dispatch_exp2 (cycle == 226);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h00000000);  //  0.0
+      s1[0][1] = unpack(32'h3F800000);  //  1.0
+      s1[0][2] = unpack(32'h40000000);  //  2.0
+      s1[0][3] = unpack(32'hBF800000);  // -1.0
+      vpu.execute(VPU_EXP2, s1, s2);
+      $display("Cycle %0d: dispatched VPU_EXP2", cycle);
+   endrule
+
+   rule check_exp2 (cycle == 320 && vpu.isDone);
+      let res = vpu.result;
+      // Degree-2 Taylor 1 + y + y²/2 of e^y at y = x*ln2:
+      //   x= 0: exact 1.0
+      //   x= 1: 1.9333  (3.4% below 2.0)
+      //   x= 2: 3.347   (16% below 4.0)
+      //   x=-1: 0.5472  (9.5% above 0.5)
+      Float got_0 = unpack(pack(res[0][0]));
+      Float got_1 = unpack(pack(res[0][1]));
+      Float got_2 = unpack(pack(res[0][2]));
+      Float got_3 = unpack(pack(res[0][3]));
+      Float lo_0  = unpack(32'h3F7EB852);  // 0.995
+      Float hi_0  = unpack(32'h3F81EB85);  // 1.010
+      Float lo_1  = unpack(32'h3FF47AE1);  // 1.91
+      Float hi_1  = unpack(32'h3FFD70A4);  // 1.98
+      Float lo_2  = unpack(32'h40547AE1);  // 3.32
+      Float hi_2  = unpack(32'h405B851F);  // 3.43
+      Float lo_3  = unpack(32'h3F028F5C);  // 0.510
+      Float hi_3  = unpack(32'h3F0CCCCD);  // 0.550
+      Bool ok = True;
+      if (compareFP(got_0, lo_0) == LT || compareFP(got_0, hi_0) == GT) ok = False;
+      if (compareFP(got_1, lo_1) == LT || compareFP(got_1, hi_1) == GT) ok = False;
+      if (compareFP(got_2, lo_2) == LT || compareFP(got_2, hi_2) == GT) ok = False;
+      if (compareFP(got_3, lo_3) == LT || compareFP(got_3, hi_3) == GT) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_EXP2", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_EXP2 got [0x%08x,0x%08x,0x%08x,0x%08x]",
+            cycle, pack(res[0][0]), pack(res[0][1]), pack(res[0][2]), pack(res[0][3]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 400);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule
