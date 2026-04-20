@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_os, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5053,6 +5053,47 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       _wmem(0, ident_weights),
       _amem(0, [1, 2, 3, 4]),
       _mxu_os(0, 0, 1),                         # DISPATCH_MXU_OS
+      _wait_mxu(),
+      _halt(),
+      "3 1",                                    # OUTPUT_MXU
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    self.assertEqual(_parse_sim_output(out), [1, 2, 3, 4])
+
+  def test_mxu_os_accumulator_hold_across_dispatches(self):
+    # Two back-to-back OS dispatches must accumulate in the PE
+    # accumulators. Identity weights * [1,2,3,4] = [1,2,3,4] per dispatch,
+    # so after two dispatches the drained result is [2,4,6,8].
+    sim = os.environ["TINYTPU_SIM"]
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, [1, 2, 3, 4]),
+      _mxu_os(0, 0, 1),                         # OS dispatch #1 -> [1,2,3,4]
+      _wait_mxu(),
+      _mxu_os(0, 0, 1),                         # OS dispatch #2 accumulates
+      _wait_mxu(),
+      _halt(),
+      "3 1",                                    # OUTPUT_MXU
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    self.assertEqual(_parse_sim_output(out), [2, 4, 6, 8])
+
+  def test_mxu_clear_resets_os_accumulator(self):
+    # OS dispatch, MXU_CLEAR, OS dispatch -> fresh [1,2,3,4]. Verifies
+    # SXU_MXU_CLEAR reaches ctrl.clearArray and zeroes PE accumulators
+    # between OS-mode accumulation epochs.
+    sim = os.environ["TINYTPU_SIM"]
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, [1, 2, 3, 4]),
+      _mxu_os(0, 0, 1),                         # OS dispatch #1 -> [1,2,3,4]
+      _wait_mxu(),
+      _mxu_clear(),                             # zero PE accumulators
+      _mxu_os(0, 0, 1),                         # OS dispatch #2 fresh
       _wait_mxu(),
       _halt(),
       "3 1",                                    # OUTPUT_MXU
