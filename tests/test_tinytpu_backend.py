@@ -1020,6 +1020,17 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_array_equal(result, np.flip(a))
 
 
+  def test_tanh_small_inputs_matches_reference(self):
+    # tanh(x) = 2*sigmoid(2x) - 1 ≈ 2/(1+exp(-2x)) - 1. The hardware
+    # pipeline is FMUL(v0, -2.885) + EXP2 + FADD + FRECIP + FMUL(2) +
+    # FADD(-1). EXP2's Remez fit is [-1, 1]; the pre-scale factor
+    # 2·-1/ln2 ≈ -2.885 means |2.885·x| ≤ 1 demands |x| ≤ 0.347.
+    # Test on |x| ≤ 0.3 where accuracy stays within 1%.
+    a = np.array([-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").tanh().numpy()
+    expected = np.tanh(a)
+    np.testing.assert_allclose(result, expected, atol=0.01)
+
   def test_sigmoid_matches_reference(self):
     # sigmoid(x) = 1/(1+exp(-x)); lowers to FMUL+EXP2+FADD+FRECIP chain.
     # Errors compound (EXP2 degree-2 Taylor + FRECIP Newton-Raphson), so
