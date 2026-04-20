@@ -16,7 +16,7 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE,
                VPU_FSUM_REDUCE_COL, VPU_FMAX_REDUCE_COL, VPU_FMIN_REDUCE_COL,
                VPU_FPROD_REDUCE_TILE, VPU_FPROD_REDUCE, VPU_FPROD_REDUCE_COL,
-               VPU_EXP2, VPU_LOG2, VPU_SIN }
+               VPU_EXP2, VPU_LOG2, VPU_SIN, VPU_COS }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -222,7 +222,7 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
           || (op == VPU_FMAX_REDUCE_TILE)
           || (op == VPU_FMIN_REDUCE_TILE)
           || (op == VPU_FPROD_REDUCE_TILE);
-      Bool use_transc = (op == VPU_EXP2) || (op == VPU_LOG2) || (op == VPU_SIN);
+      Bool use_transc = (op == VPU_EXP2) || (op == VPU_LOG2) || (op == VPU_SIN) || (op == VPU_COS);
       if (use_fp_tile_reducer) begin
          Vector#(TMul#(sublanes, lanes), Int#(32)) flat = newVector;
          for (Integer sf = 0; sf < valueOf(sublanes); sf = sf + 1)
@@ -239,7 +239,8 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             for (Integer lf = 0; lf < valueOf(lanes); lf = lf + 1)
                flat[sf * valueOf(lanes) + lf] = src1[sf][lf];
          TranscOp trop = (op == VPU_LOG2) ? TR_LOG2 :
-                         (op == VPU_SIN)  ? TR_SIN  : TR_EXP2;
+                         (op == VPU_SIN)  ? TR_SIN  :
+                         (op == VPU_COS)  ? TR_COS  : TR_EXP2;
          tru.start(trop, flat);
          transc_busy <= True;
       end else begin

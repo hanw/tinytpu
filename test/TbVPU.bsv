@@ -15,7 +15,7 @@ module mkTbVPU();
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 700) begin $display("FAIL: timeout"); $finish(1); end
+      if (cycle > 800) begin $display("FAIL: timeout"); $finish(1); end
    endrule
 
    // Test 1: VPU_ADD
@@ -1299,7 +1299,49 @@ module mkTbVPU();
       end
    endrule
 
-   rule finish (cycle == 600);
+   // Test 48: VPU_COS — cos(x) via degree-4 Taylor.
+   // Inputs: [0.0, π/3, π/2, -π/3] → expected [1.0, 0.5, 0.0, 0.5].
+   // Degree-4 accurate for |x| ≤ π/2 (error < 0.02).
+   rule dispatch_cos (cycle == 550);
+      Vector#(4, Vector#(4, Int#(32))) s1 = replicate(replicate(0));
+      Vector#(4, Vector#(4, Int#(32))) s2 = replicate(replicate(0));
+      s1[0][0] = unpack(32'h00000000);  // 0.0
+      s1[0][1] = unpack(32'h3F860A92);  // π/3  ≈ 1.047198
+      s1[0][2] = unpack(32'h3FC90FDB);  // π/2
+      s1[0][3] = unpack(32'hBF860A92);  // -π/3
+      vpu.execute(VPU_COS, s1, s2);
+      $display("Cycle %0d: dispatched VPU_COS", cycle);
+   endrule
+
+   rule check_cos (cycle == 640 && vpu.isDone);
+      let res = vpu.result;
+      Float got_0 = unpack(pack(res[0][0]));
+      Float got_1 = unpack(pack(res[0][1]));
+      Float got_2 = unpack(pack(res[0][2]));
+      Float got_3 = unpack(pack(res[0][3]));
+      Float lo_0  = unpack(32'h3F733333);  //  0.95
+      Float hi_0  = unpack(32'h3F866666);  //  1.05
+      Float lo_1  = unpack(32'h3ECCCCCD);  //  0.40
+      Float hi_1  = unpack(32'h3F19999A);  //  0.60
+      Float lo_2  = unpack(32'hBE000000);  // -0.125
+      Float hi_2  = unpack(32'h3E000000);  //  0.125
+      Float lo_3  = unpack(32'h3ECCCCCD);  //  0.40
+      Float hi_3  = unpack(32'h3F19999A);  //  0.60
+      Bool ok = True;
+      if (compareFP(got_0, lo_0) == LT || compareFP(got_0, hi_0) == GT) ok = False;
+      if (compareFP(got_1, lo_1) == LT || compareFP(got_1, hi_1) == GT) ok = False;
+      if (compareFP(got_2, lo_2) == LT || compareFP(got_2, hi_2) == GT) ok = False;
+      if (compareFP(got_3, lo_3) == LT || compareFP(got_3, hi_3) == GT) ok = False;
+      if (ok) begin
+         $display("Cycle %0d: PASS VPU_COS", cycle); passed <= passed + 1;
+      end else begin
+         $display("Cycle %0d: FAIL VPU_COS got [0x%08x,0x%08x,0x%08x,0x%08x]",
+            cycle, pack(res[0][0]), pack(res[0][1]), pack(res[0][2]), pack(res[0][3]));
+         failed <= failed + 1;
+      end
+   endrule
+
+   rule finish (cycle == 700);
       $display("Results: %0d passed, %0d failed", passed, failed);
       if (failed == 0) $finish(0); else $finish(1);
    endrule

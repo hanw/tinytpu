@@ -20,7 +20,7 @@ package TranscUnit;
 import Vector         :: *;
 import FloatingPoint  :: *;
 
-typedef enum { TR_EXP2, TR_LOG2, TR_SIN } TranscOp deriving (Bits, Eq, FShow);
+typedef enum { TR_EXP2, TR_LOG2, TR_SIN, TR_COS } TranscOp deriving (Bits, Eq, FShow);
 
 // Integer-to-float conversion for the small signed exponent that falls
 // out of LOG2's range reduction. Only ever handles values in [-126, 127],
@@ -87,6 +87,8 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    Float neg_half_log2e = unpack(32'hBF389A43);  // -1/(2*ln(2)) ≈ -0.7213475
    Float sin_c2   = unpack(32'hBE2AAAAB);  // -1/6            ≈ -0.1666667
    Float sin_c4   = unpack(32'h3C088889);  //  1/120          ≈  0.0083333
+   Float cos_c2   = unpack(32'hBF000000);  // -1/2
+   Float cos_c4   = unpack(32'h3D2AAAAB);  //  1/24           ≈  0.0416667
 
    // Per-op step schedules. Each step runs at most one FP op (FMUL or FADD)
    // so one multiplier + one adder suffice. EXP2 finishes at step 4; LOG2
@@ -131,6 +133,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                   e_r <= x;                                     // save x
                   y_r <= tpl_1(multFP(x, x, Rnd_Nearest_Even)); // x²
                end
+               TR_COS: y_r <= tpl_1(multFP(x, x, Rnd_Nearest_Even)); // x²
             endcase
             step <= 1;
          end
@@ -139,6 +142,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                TR_EXP2: acc_r <= tpl_1(multFP(y_r, half_c, Rnd_Nearest_Even));
                TR_LOG2: y_r   <= tpl_1(addFP(y_r, neg_one, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(multFP(y_r, sin_c4, Rnd_Nearest_Even));
+               TR_COS:  acc_r <= tpl_1(multFP(y_r, cos_c4, Rnd_Nearest_Even));
             endcase
             step <= 2;
          end
@@ -147,6 +151,7 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                TR_EXP2: acc_r <= tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(multFP(y_r, neg_half_log2e, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(addFP(acc_r, sin_c2, Rnd_Nearest_Even));
+               TR_COS:  acc_r <= tpl_1(addFP(acc_r, cos_c2, Rnd_Nearest_Even));
             endcase
             step <= 3;
          end
@@ -155,12 +160,13 @@ module mkTranscUnit(TranscUnit_IFC#(n))
                TR_EXP2: acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
                TR_LOG2: acc_r <= tpl_1(addFP(acc_r, log2e_c, Rnd_Nearest_Even));
                TR_SIN:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
+               TR_COS:  acc_r <= tpl_1(multFP(acc_r, y_r, Rnd_Nearest_Even));
             endcase
             step <= 4;
          end
          4: begin
             case (op_r)
-               TR_EXP2: begin
+               TR_EXP2, TR_COS: begin
                   Float final_f = tpl_1(addFP(acc_r, one_c, Rnd_Nearest_Even));
                   Vector#(n, Int#(32)) next_buf = buf_r;
                   next_buf[lane_idx] = tr_fp2bits(final_f);
