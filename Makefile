@@ -53,6 +53,9 @@ $(BUILDDIR)/mkTbPSUMBank.bexe: $(BUILDDIR)/TbPSUMBank.bo
 $(BUILDDIR)/mkTbWeightSRAMDB.bexe: $(BUILDDIR)/TbWeightSRAMDB.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbWeightSRAMDB $(BUILDDIR)/mkTbWeightSRAMDB.ba
 
+$(BUILDDIR)/mkTbActivationSRAMDB.bexe: $(BUILDDIR)/TbActivationSRAMDB.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbActivationSRAMDB $(BUILDDIR)/mkTbActivationSRAMDB.ba
+
 $(BUILDDIR)/mkTbScalarUnit.bexe: $(BUILDDIR)/TbScalarUnit.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbScalarUnit $(BUILDDIR)/mkTbScalarUnit.ba
 
@@ -119,6 +122,9 @@ test-psumbank: $(BUILDDIR)/mkTbPSUMBank.bexe
 test-wsram-db: $(BUILDDIR)/mkTbWeightSRAMDB.bexe
 	$<
 
+test-asram-db: $(BUILDDIR)/mkTbActivationSRAMDB.bexe
+	$<
+
 test-sxu: $(BUILDDIR)/mkTbScalarUnit.bexe
 	$<
 
@@ -172,6 +178,7 @@ $(BUILDDIR)/TbVPU.bo: $(BUILDDIR)/VPU.bo
 $(BUILDDIR)/TbFpReducer.bo: $(BUILDDIR)/FpReducer.bo
 $(BUILDDIR)/TbPSUMBank.bo: $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbWeightSRAMDB.bo: $(BUILDDIR)/WeightSRAMDB.bo
+$(BUILDDIR)/TbActivationSRAMDB.bo: $(BUILDDIR)/ActivationSRAMDB.bo
 $(BUILDDIR)/ScalarUnit.bo: $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbScalarUnit.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbSxuPSUM.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
