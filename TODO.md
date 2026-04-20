@@ -587,26 +587,34 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations (updated 2026-04-19)
+## Recommended Next Iterations (updated 2026-04-19 late)
 
-Current state: 989 Python tests + 79 BSV unit tests green. Transcendental
-primitives (Exp2/Log2/Sin/Cos + Sqrt/Exp/Sigmoid compositions) are
-hardware-backed through TranscUnit. Scaffolding landed for double-
-buffered SRAM (Item #5), output-stationary MXU (Item #8), and dual-issue
-XLU scoreboard (Item #4); none are wired end-to-end yet.
+Current state: 995 Python tests + 80 BSV unit tests (VPU 48 + FpReducer 7
++ PSUMBank 9 + SXU 6 + SxuPSUM 2 + CtrlPSUM 1 + CtrlOS 1 + WSRAMDB 3 +
+ASRAMDB 3 + TranscUnit 4). Transcendentals are now Remez-tuned (EXP2 4×,
+SIN 40×, COS 27×, LOG2 8× peak-error reduction). Tensor.cos() lowers
+end-to-end via a new `_render_scaled_sin` renderer. Tensor.tanh() works
+for |x| ≤ 0.35 via `_render_tanh_sxu_program` (wider inputs blocked by
+EXP2's no-range-reduction).
+
+Item #8 (OS MXU) now has Controller.startOS() + SXU DISPATCH_MXU_OS
+opcode wiring; dispatch path is live but PE accumulator-hold and
+operand-swap FSM remain stubs.
 
 Highest-leverage follow-ups:
-1. Wire `WeightSRAMDB` / `ActivationSRAMDB` into the Controller behind
-   a preload-parallel mode so HBM fetches overlap MXU dispatch.
-2. Implement `startOS()` operand-swap path in Controller to deliver a
-   second dataflow mode useful for depthwise conv.
-3. Add the 2-slot issue arbiter + RAW scoreboard check to SXU FSM using
-   the landed `xlu_busy`/`xlu_dst` registers.
-4. Tighten TranscUnit accuracy via Remez coefficients (no new opcodes).
-5. Emit a mod-2π + quadrant-fold preamble before VPU_SIN for wide-angle
-   inputs.
-6. Tune `_render_tanh_sxu_program` to match tinygrad's actual kernel-
-   splitter output shape.
+1. **EXP2 range reduction inside TranscUnit** — unlocks wide-input
+   tanh/exp/sigmoid by splitting x = n + f and multiplying poly(f)
+   by 2^n via exponent-bit adjustment. Biggest accuracy lever left.
+2. **SIN range reduction** — mod-2π + quadrant fold preamble, either
+   renderer-side (ops-heavy) or hardware-side. Unlocks wide-angle sin/cos.
+3. **Finish Item #5** — wire DB SRAMs into Controller behind a
+   preload-parallel mode + DMA stub.
+4. **Finish Item #8** — PE accumulator-hold + operand-swap FSM so
+   DISPATCH_MXU_OS actually delivers the second dataflow mode.
+5. **Finish Item #4** — 2-slot issue arbiter consuming the existing
+   xlu_busy/xlu_dst scoreboard.
+6. **Engine-to-engine forwarding in renderers** — make tinygrad emit
+   SXU_LOAD_VPU_RESULT / LOAD_XLU_RESULT to elide VRegFile round-trips.
 
 ## Prior Recommended Next Iterations (2026-04-12)
 
