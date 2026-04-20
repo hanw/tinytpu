@@ -496,3 +496,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	32ac920	1	TODO refresh after iters 1-11	995 Python + 80 BSV; next-steps ranked; iters landed listed	docs-only	state mirrored in TODO	next hw iter
 2026-04-19	b9a1082	1	Item#6 iter: tighten sigmoid tolerances	atol 0.05→0.01 small-input; 0.25→0.05 multi-tile	pytest 995 passed	sigmoid Remez gain locked	EXP2 range reduction
 2026-04-19	b93e8d1	1	Item#8 iter: MXU_OS end-to-end sim test	_mxu_os TASM helper + bundle test via TbTinyTPURuntime	pytest 996 passed (+1)	OS dispatch wired through sim	PE accumulator-hold
+2026-04-19	b13f6f5	1	Item#6 iter: TranscUnit range-reduction helpers	tr_trunc / tr_fp_to_int / tr_pow2_int + tests	test-transcunit 5/5; test-vpu 48/48	scaffolds for wide-range EXP2	wire into EXP2 FSM
