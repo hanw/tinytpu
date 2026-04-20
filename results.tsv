@@ -508,3 +508,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	c8c1621	1	Item#4 iter: scoreboard live state	xlu_busy/xlu_dst set in XLU dispatch rules and cleared on collect	test-sxu 6/6; pytest 1003 passed	scoreboard observable	RAW hazard + 2-slot arbiter
 2026-04-19	f58ee9f	1	Item#6 iter: multi-tile tanh test	32-elem [-2.5, 2.5] atol=0.01	pytest 1004 passed (+1)	multi-tile tanh proven	TODO refresh
 2026-04-19	21ecedb	1	TODO iter: mark Item#6 done	expanded transcendental section with full landings list	docs-only	Item#6 fully complete	DB SRAM or dual-issue
+2026-04-19	259ed05	1	Item#5 iter: DB SRAM plain sub-interface	WeightSRAMDB_IFC / ActivationSRAMDB_IFC wrap plain SRAM IFC; TbCtrlDB demonstrates preload-parallel	test-wsram-db 3/3; test-asram-db 3/3; test-ctrl-db 2/2	Controller uses DB SRAMs via .plain	wire DB into full runtime + DMA stub
