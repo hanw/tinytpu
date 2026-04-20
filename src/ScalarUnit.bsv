@@ -155,6 +155,19 @@ module mkScalarUnit#(
    // Single-bit predicate for baby conditional execution
    // (SET_PRED_IF_ZERO / SKIP_IF_PRED).
    Reg#(Bool)                    pred     <- mkReg(False);
+
+   // Dual-issue scaffolding (Architectural Refactor Item #4).
+   // `xlu_busy` tracks whether an XLU dispatch is still in flight so
+   // future iters can let the main FSM skip ahead when the next
+   // instruction doesn't depend on the XLU result. Today the FSM is
+   // still single-issue, so this register is always cleared at
+   // EXEC_*_COLLECT time — it's the first piece of the scoreboard
+   // that will gate a second issue slot.
+   Reg#(Bool)                    xlu_busy <- mkReg(False);
+   // Target vreg of the most recent XLU dispatch. A subsequent
+   // instruction that reads from this vreg must stall until the XLU
+   // result is written back — this is the RAW hazard detector.
+   Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
 `ifdef TRACE
    Reg#(UInt#(32))               cycle    <- mkReg(0);
 
