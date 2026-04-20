@@ -108,6 +108,7 @@ _VPU = {
     "FPROD_REDUCE_TILE": 48,
     "FPROD_REDUCE":      49,
     "FPROD_REDUCE_COL":  50,
+    "EXP2":              51,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
@@ -119,7 +120,8 @@ _VPU_UNARY = {"RELU", "SUM_REDUCE", "MAX_REDUCE", "MIN_REDUCE", "NOT", "COPY",
               "FSUM_REDUCE_TILE", "FMAX_REDUCE_TILE", "FMIN_REDUCE_TILE",
               "FSUM_REDUCE", "FMAX_REDUCE", "FMIN_REDUCE",
               "FSUM_REDUCE_COL", "FMAX_REDUCE_COL", "FMIN_REDUCE_COL",
-              "FPROD_REDUCE_TILE", "FPROD_REDUCE", "FPROD_REDUCE_COL"}
+              "FPROD_REDUCE_TILE", "FPROD_REDUCE", "FPROD_REDUCE_COL",
+              "EXP2"}
 
 # VMEM/WMEM/AMEM tile geometry
 _VMEM_ELEMS = 16   # 4×4 Int32

@@ -556,11 +556,24 @@ def test_disassemble_vmem_negative():
 
 def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
-    # Full VPU opcode range after FpReducer, col/tile reducers, and float
-    # prod reducers: 0..50 contiguous.
-    assert len(_VPU) == 51
+    # Full VPU opcode range after FpReducer, col/tile reducers, float
+    # prod reducers, and EXP2 transcendental: 0..51 contiguous.
+    assert len(_VPU) == 52
     codes = sorted(_VPU.values())
-    assert codes == list(range(51))
+    assert codes == list(range(52))
+
+
+def test_vpu_exp2_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nVPU   v1 = EXP2(v0)\nSTORE VMEM[1], v1\nHALT\nEND\n"
+    wire = assemble(prog)
+    # Check wire matches expected: opcode 2 (DISPATCH_VPU) with vpuOp=51.
+    lines = wire.strip().splitlines()
+    vpu_line = next(ln for ln in lines if ln.startswith("2 2 "))
+    # fields: record op vmemAddr vregDst vregSrc vpuOp vregSrc2 ...
+    fields = vpu_line.split()
+    assert fields[5] == "51", f"expected EXP2 opcode 51, got {fields[5]}"
+    back = disassemble(wire)
+    assert "EXP2(v0)" in back
 
 
 def test_assemble_error_bad_vreg():
