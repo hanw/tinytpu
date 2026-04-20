@@ -1005,9 +1005,17 @@ class TestTinyTPUBackend(unittest.TestCase):
     with self.assertRaises(NotImplementedError):
       Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
 
-  def test_sin_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([0.0, 1.0, 2.0], dtype="float", device="TINYTPU").sin().numpy()
+  def test_sin_small_angle_matches_reference(self):
+    # |x| <= π/2 stays inside Taylor degree-5 accuracy band (<0.01 abs).
+    a = np.array([-1.4, -0.7, 0.0, 0.7, 1.4], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sin().numpy()
+    np.testing.assert_allclose(result, np.sin(a), atol=0.02)
+
+  def test_sin_full_tile_matches_reference(self):
+    # Wider sweep still under |x| <= π/2; single-tile through VPU_SIN.
+    a = np.linspace(-1.5, 1.5, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sin().numpy()
+    np.testing.assert_allclose(result, np.sin(a), atol=0.05)
 
   def test_fdiv_3x3_matches_reference(self):
     a = np.arange(1, 10, dtype=np.float32).reshape(3, 3)
