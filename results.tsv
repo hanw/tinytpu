@@ -475,3 +475,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	1cbb1f6	1	Item#4 iter 2: SXU dual-issue scoreboard state	xlu_busy + xlu_dst registers	make test-sxu 6/6; no behavior change	scoreboard state available for future dual-issue FSM	arbiter rule
 2026-04-19	8b42c44	1	Item#6 iter: multi-tile EXP2 regression	test_exp2_two_tile_matches_reference	pytest backend 849 passed (+1)	multi-tile exp2 through TranscUnit proven	larger tiles
 2026-04-19	c989bdc	1	Item#6 iter: multi-tile sigmoid regression	test_sigmoid_multi_tile_matches_reference	pytest backend 850 passed (+1)	sigmoid multi-tile proven	other activations
+2026-04-19	78ddeca	1	TODO sync for iters 18-23	mark Item#4/#5/#8 scaffolding in progress; list remaining work per item	docs-only; backend 850 unchanged	TODO mirrors repo state for next session	final verification
