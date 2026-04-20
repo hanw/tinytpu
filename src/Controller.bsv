@@ -46,6 +46,13 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
                            UInt#(8) psumAddr,
                            UInt#(TLog#(rows)) psumRow,
                            PsumMode psumMode);
+   // Output-stationary variant. Flips dfModeReg to DF_OUTPUT_STATIONARY for
+   // the duration of the dispatch and runs the existing WS FSM (operand
+   // swap + PE accumulator-hold land in later iterations). Exposes the
+   // mode transition to consumers so SXU can dispatch via an OS opcode.
+   method Action startOS(UInt#(TLog#(depth)) weightBase,
+                         UInt#(TLog#(depth)) actBase,
+                         UInt#(TLog#(depth)) tileLen);
    method Bool isDone;
    method Vector#(cols, Int#(32)) results;
    method ControlState getState;
@@ -194,6 +201,7 @@ module mkController#(
       streamCycle <= 0;
       firstActRead <= False;
       psumModeReg <= PSUM_OFF;
+      dfModeReg   <= DF_WEIGHT_STATIONARY;
       cstate <= LoadWeights;
    endmethod
 
@@ -212,6 +220,21 @@ module mkController#(
       psumAddrReg <= psumAddr;
       psumRowReg  <= psumRow;
       psumModeReg <= psumMode;
+      dfModeReg   <= DF_WEIGHT_STATIONARY;
+      cstate <= LoadWeights;
+   endmethod
+
+   method Action startOS(UInt#(TLog#(depth)) weightBase,
+                         UInt#(TLog#(depth)) actBase,
+                         UInt#(TLog#(depth)) tileLen) if (cstate == Idle || cstate == Done);
+      wBase  <= weightBase;
+      aBase  <= actBase;
+      tLen   <= tileLen;
+      actIdx <= 0;
+      streamCycle <= 0;
+      firstActRead <= False;
+      psumModeReg <= PSUM_OFF;
+      dfModeReg   <= DF_OUTPUT_STATIONARY;
       cstate <= LoadWeights;
    endmethod
 

@@ -65,6 +65,9 @@ $(BUILDDIR)/mkTbSxuPSUM.bexe: $(BUILDDIR)/TbSxuPSUM.bo
 $(BUILDDIR)/mkTbCtrlPSUM.bexe: $(BUILDDIR)/TbCtrlPSUM.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlPSUM $(BUILDDIR)/mkTbCtrlPSUM.ba
 
+$(BUILDDIR)/mkTbCtrlOS.bexe: $(BUILDDIR)/TbCtrlOS.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlOS $(BUILDDIR)/mkTbCtrlOS.ba
+
 $(BUILDDIR)/mkTbTensorCore.bexe: $(BUILDDIR)/TbTensorCore.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbTensorCore $(BUILDDIR)/mkTbTensorCore.ba
 
@@ -134,6 +137,9 @@ test-sxu-psum: $(BUILDDIR)/mkTbSxuPSUM.bexe
 test-ctrl-psum: $(BUILDDIR)/mkTbCtrlPSUM.bexe
 	$<
 
+test-ctrl-os: $(BUILDDIR)/mkTbCtrlOS.bexe
+	$<
+
 test-tc: $(BUILDDIR)/mkTbTensorCore.bexe
 	$<
 
@@ -183,6 +189,7 @@ $(BUILDDIR)/ScalarUnit.bo: $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDI
 $(BUILDDIR)/TbScalarUnit.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbSxuPSUM.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlPSUM.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
+$(BUILDDIR)/TbCtrlOS.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TensorCore.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbTensorCore.bo: $(BUILDDIR)/TensorCore.bo
 $(BUILDDIR)/TbSparseCore.bo: $(BUILDDIR)/SparseCore.bo
@@ -192,6 +199,6 @@ $(BUILDDIR)/TinyTPUChip.bo: $(BUILDDIR)/TensorCore.bo $(BUILDDIR)/SparseCore.bo 
 $(BUILDDIR)/TbTinyTPUChip.bo: $(BUILDDIR)/TinyTPUChip.bo
 $(BUILDDIR)/TbTinyTPURuntime.bo: $(BUILDDIR)/TensorCore.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-fpreducer test-psumbank test-sxu test-sxu-psum test-ctrl-psum test-tc test-sc test-hbm test-noc test-chip runtime-tb runtime-tb-trace test-trace
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-fpreducer test-psumbank test-sxu test-sxu-psum test-ctrl-psum test-ctrl-os test-tc test-sc test-hbm test-noc test-chip runtime-tb runtime-tb-trace test-trace
 clean:
 	rm -rf $(BUILDDIR)
