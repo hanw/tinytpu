@@ -1037,6 +1037,13 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").exp().numpy()
     np.testing.assert_allclose(result, np.exp(a), rtol=0.1, atol=0.02)
 
+  def test_exp_multi_tile_matches_reference(self):
+    # 32-element tile crossing exercises the scaled-exp2 renderer's
+    # per-tile replication of FMUL+EXP2.
+    a = np.linspace(-0.5, 0.5, 32, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").exp().numpy()
+    np.testing.assert_allclose(result, np.exp(a), rtol=0.1, atol=0.05)
+
   def test_sqrt_of_one_is_exact(self):
     # sqrt(1) through LOG2→MUL→EXP2: log2(1)=0 exact, 0.5*0=0, exp2(0)=1
     # exact. So this is the one case that survives the compound Taylor
