@@ -53,6 +53,11 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Action startOS(UInt#(TLog#(depth)) weightBase,
                          UInt#(TLog#(depth)) actBase,
                          UInt#(TLog#(depth)) tileLen);
+   // Explicitly reset the systolic-array PE accumulators. Needed between
+   // OS-mode epochs: OS dispatches intentionally preserve accumulator
+   // state across consecutive starts so the caller can accumulate over
+   // streamed K-tiles; clearArray() starts a fresh epoch.
+   method Action clearArray;
    method Bool isDone;
    method Vector#(cols, Int#(32)) results;
    method ControlState getState;
@@ -171,7 +176,12 @@ module mkController#(
 `endif
       let r = array.getResults;
       outputBuf <= r;
-      array.clearAll;
+      // In WS mode, clear the PE accumulators so the next dispatch starts
+      // from zero. In OS mode, preserve them so the next OS dispatch
+      // accumulates on top; the caller uses clearArray() to start a new
+      // OS accumulation epoch.
+      if (dfModeReg == DF_WEIGHT_STATIONARY)
+         array.clearAll;
       case (psumModeReg)
          PSUM_WRITE: begin
 `ifdef TRACE
@@ -202,6 +212,9 @@ module mkController#(
       firstActRead <= False;
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
+      // WS always starts from a zeroed accumulator. Prior dispatches may
+      // have been OS mode (which intentionally does not drain-clear).
+      array.clearAll;
       cstate <= LoadWeights;
    endmethod
 
@@ -221,6 +234,7 @@ module mkController#(
       psumRowReg  <= psumRow;
       psumModeReg <= psumMode;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
+      array.clearAll;
       cstate <= LoadWeights;
    endmethod
 
@@ -236,6 +250,10 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_OUTPUT_STATIONARY;
       cstate <= LoadWeights;
+   endmethod
+
+   method Action clearArray if (cstate == Idle || cstate == Done);
+      array.clearAll;
    endmethod
 
    method Bool isDone;

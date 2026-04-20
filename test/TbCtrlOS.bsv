@@ -26,12 +26,12 @@ module mkTbCtrlOS();
    Controller_IFC#(4, 4, 16)  ctrl   <- mkController(array, wsram, asram, psum);
 
    Reg#(UInt#(16)) cycle <- mkReg(0);
-   Reg#(UInt#(2))  phase <- mkReg(0);
+   Reg#(UInt#(4))  phase <- mkReg(0);
    Reg#(Bool)      saw_os_mode <- mkReg(False);
 
    rule tick;
       cycle <= cycle + 1;
-      if (cycle > 200) begin $display("FAIL: timeout"); $finish(1); end
+      if (cycle > 400) begin $display("FAIL: timeout"); $finish(1); end
    endrule
 
    // Weights = identity int8 4x4.
@@ -89,19 +89,69 @@ module mkTbCtrlOS();
       phase <= 2;
    endrule
 
-   // Phase 2: fire a regular start() which must flip mode back to WS.
-   rule dispatch_ws (phase == 2 && ctrl.isDone);
-      ctrl.start(0, 0, 1);
+   // Phase 2: fire a second OS dispatch. PE accumulators must be held
+   // from the first dispatch, so result must be [2,4,6,8] (identity * acts
+   // added to the existing [1,2,3,4]).
+   rule dispatch_os2 (phase == 2 && ctrl.isDone);
+      ctrl.startOS(0, 0, 1);
       phase <= 3;
+      $display("Cycle %0d: dispatch OS #2 (should accumulate)", cycle);
+   endrule
+
+   rule finish_os2 (phase == 3 && ctrl.isDone);
+      let r = ctrl.results;
+      Bool val_ok = (r[0] == 2 && r[1] == 4 && r[2] == 6 && r[3] == 8);
+      if (!val_ok) begin
+         $display("FAIL: OS accumulator-hold row=[%0d,%0d,%0d,%0d] want [2,4,6,8]",
+                  r[0], r[1], r[2], r[3]);
+         $display("Results: 0 passed, 1 failed");
+         $finish(1);
+      end
+      $display("Cycle %0d: OS #2 accumulated result=[%0d,%0d,%0d,%0d]",
+               cycle, r[0], r[1], r[2], r[3]);
+      phase <= 4;
+   endrule
+
+   // Phase 3: clearArray + fire third OS dispatch. Must start fresh -> [1,2,3,4].
+   rule clear_then_os3 (phase == 4 && ctrl.isDone);
+      ctrl.clearArray;
+      phase <= 5;
+      $display("Cycle %0d: clearArray", cycle);
+   endrule
+
+   rule dispatch_os3 (phase == 5 && ctrl.isDone);
+      ctrl.startOS(0, 0, 1);
+      phase <= 6;
+      $display("Cycle %0d: dispatch OS #3 (after clear)", cycle);
+   endrule
+
+   rule finish_os3 (phase == 6 && ctrl.isDone);
+      let r = ctrl.results;
+      Bool val_ok = (r[0] == 1 && r[1] == 2 && r[2] == 3 && r[3] == 4);
+      if (!val_ok) begin
+         $display("FAIL: OS after-clear row=[%0d,%0d,%0d,%0d] want [1,2,3,4]",
+                  r[0], r[1], r[2], r[3]);
+         $display("Results: 0 passed, 1 failed");
+         $finish(1);
+      end
+      phase <= 7;
+      $display("Cycle %0d: OS #3 fresh result=[%0d,%0d,%0d,%0d]",
+               cycle, r[0], r[1], r[2], r[3]);
+   endrule
+
+   // Phase 4: WS dispatch back to back - must clear each time -> [1,2,3,4].
+   rule dispatch_ws (phase == 7 && ctrl.isDone);
+      ctrl.start(0, 0, 1);
+      phase <= 8;
       $display("Cycle %0d: dispatch WS", cycle);
    endrule
 
-   rule finish_ws (phase == 3 && ctrl.isDone);
+   rule finish_ws (phase == 8 && ctrl.isDone);
       let r = ctrl.results;
       Bool val_ok  = (r[0] == 1 && r[1] == 2 && r[2] == 3 && r[3] == 4);
       Bool mode_ok = (ctrl.getDataflowMode == DF_WEIGHT_STATIONARY);
       if (val_ok && mode_ok) begin
-         $display("Cycle %0d: PASS startOS+start toggle dataflow mode",
+         $display("Cycle %0d: PASS OS accumulator-hold + clearArray + WS toggle",
                   cycle);
          $display("Results: 1 passed, 0 failed");
          $finish(0);
