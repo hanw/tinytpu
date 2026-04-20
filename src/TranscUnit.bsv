@@ -92,8 +92,11 @@ module mkTranscUnit(TranscUnit_IFC#(n))
    // reduction is a future iter.
    Float sin_c2   = unpack(32'hBE2A0E41);  // -0.16607  (Remez)
    Float sin_c4   = unpack(32'h3BFA0514);  //  0.00763  (Remez)
-   Float cos_c2   = unpack(32'hBF000000);  // -1/2
-   Float cos_c4   = unpack(32'h3D2AAAAB);  //  1/24           ≈  0.0416667
+   // Remez minimax for cos(x) ≈ 1 + cos_c2·x² + cos_c4·x⁴ fit over
+   // [-π/2, π/2]. Replaces Taylor (-1/2, 1/24) for 27× peak-error
+   // reduction: max |err| drops from 2.0e-2 to 7.4e-4.
+   Float cos_c2   = unpack(32'hBEFE42E1);  // -0.49660  (Remez)
+   Float cos_c4   = unpack(32'h3D1817B9);  //  0.03713  (Remez)
    // Remez minimax quadratic for 2^x on [-1,1] with p(0) = 1 enforced.
    //   2^x ≈ 1 + exp2_p * x + exp2_q * x²     max |err| ≈ 1.6e-2 on [-1,1]
    // Fit over a symmetric range so Tensor.exp() (which scales inputs by
