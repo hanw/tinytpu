@@ -612,6 +612,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").log2().numpy()
     np.testing.assert_allclose(result, np.log2(a), atol=0.05)
 
+  def test_log_matches_reference(self):
+    # tinygrad lowers log(x) = log2(x) · ln(2). scaled_log2 renderer
+    # picks that up — LOG2 + FMUL. Pow-of-2 inputs are exact (LOG2
+    # range reduction nails them); others carry Remez error.
+    a = np.array([1.0, 2.0, 4.0, 8.0, 0.5, 0.25], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").log().numpy()
+    np.testing.assert_allclose(result, np.log(a), atol=0.05)
+
   def test_log2_non_powers_matches_reference(self):
     # Non-power inputs hit the degree-2 polynomial in u=m-1 ∈ (0,1).
     # Remez peak error ~0.034 (vs Taylor's ~0.28). Tight band locks
