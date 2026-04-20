@@ -207,6 +207,19 @@ def test_wait_mxu():
     assert wire[0] == "2 5 0 0 0 0 0 0 0 0"
 
 
+def test_mxu_os():
+    wire = wire_lines(assemble("MXU_OS WMEM[2], AMEM[4], tiles=3\nHALT\nEND\n"))
+    # DISPATCH_MXU_OS opc=23, mxuWBase=2, mxuABase=4, mxuTLen=3.
+    # Other operand fields zero — OS dispatch has no psum plumbing.
+    assert wire[0] == "2 23 0 0 0 0 0 2 4 3"
+
+
+def test_mxu_os_roundtrip():
+    src = "MXU_OS WMEM[2], AMEM[4], tiles=3\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "MXU_OS WMEM[2], AMEM[4], tiles=3" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"

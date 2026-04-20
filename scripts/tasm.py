@@ -52,6 +52,7 @@ _SXU = {
     "SET_PRED_IF_ZERO":       20,
     "SKIP_IF_PRED":           21,
     "PSUM_ACCUMULATE_ROW":    22,
+    "DISPATCH_MXU_OS":        23,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -384,6 +385,27 @@ def assemble(text: str) -> str:
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=tlen))
 
+            elif kw == "MXU_OS":
+                # MXU_OS WMEM[W], AMEM[A], tiles=N
+                # Routes through Controller.startOS (dfMode=OS); operand
+                # fields identical to MXU. PSUM routing not supported here
+                # yet (OS + PSUM combination lands in a later iter).
+                rest = line[len("MXU_OS"):].strip()
+                parts = [p.strip() for p in rest.split(",")]
+                if len(parts) != 3:
+                    raise SyntaxError(
+                        "MXU_OS syntax: MXU_OS WMEM[W], AMEM[A], tiles=N")
+                wbase = _parse_mem("WMEM", parts[0])
+                abase = _parse_mem("AMEM", parts[1])
+                tm = re.fullmatch(r"tiles=(\d+)", parts[2], re.IGNORECASE)
+                if not tm:
+                    raise SyntaxError(
+                        f"expected tiles=N, got {parts[2]!r}")
+                tlen = int(tm.group(1))
+                out.append(_instr(_SXU["DISPATCH_MXU_OS"],
+                                  mxuWBase=wbase, mxuABase=abase,
+                                  mxuTLen=tlen))
+
             elif kw == "WAIT_MXU":
                 out.append(_instr(_SXU["WAIT_MXU"]))
 
@@ -530,6 +552,11 @@ def disassemble(wire: str) -> str:
                             f"MXU   WMEM[{mxuWBase}], AMEM[{mxuABase}], "
                             f"tiles={mxuTLen}, {mode_kw}=PSUM[{vregDst}], "
                             f"psum_row={vregSrc & 0x3}")
+
+                elif opc == _SXU["DISPATCH_MXU_OS"]:
+                    out.append(
+                        f"MXU_OS WMEM[{mxuWBase}], AMEM[{mxuABase}], "
+                        f"tiles={mxuTLen}")
 
                 elif opc == _SXU["WAIT_MXU"]:
                     out.append("WAIT_MXU")
