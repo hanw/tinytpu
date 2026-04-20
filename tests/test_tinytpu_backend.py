@@ -1039,15 +1039,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_allclose(result, expected, atol=2e-3)
 
   def test_tanh_small_inputs_matches_reference(self):
-    # tanh(x) = 2*sigmoid(2x) - 1 ≈ 2/(1+exp(-2x)) - 1. The hardware
-    # pipeline is FMUL(v0, -2.885) + EXP2 + FADD + FRECIP + FMUL(2) +
-    # FADD(-1). EXP2's Remez fit is [-1, 1]; the pre-scale factor
-    # 2·-1/ln2 ≈ -2.885 means |2.885·x| ≤ 1 demands |x| ≤ 0.347.
-    # Test on |x| ≤ 0.3 where accuracy stays within 1%.
-    a = np.array([-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3], dtype=np.float32)
+    # With EXP2 range reduction tanh is accurate across the whole real
+    # line. |x| ≤ 2 (where tanh saturates) stays within 0.01 absolute.
+    a = np.array([-2.0, -1.0, -0.3, -0.1, 0.0, 0.1, 0.3, 1.0, 2.0],
+                 dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").tanh().numpy()
     expected = np.tanh(a)
     np.testing.assert_allclose(result, expected, atol=0.01)
+
+  def test_tanh_full_tile_matches_reference(self):
+    # 16-lane tile sweep over [-2, 2]. Tight atol locks the range-reduced
+    # EXP2 accuracy win for tanh.
+    a = np.linspace(-2.0, 2.0, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").tanh().numpy()
+    expected = np.tanh(a)
+    np.testing.assert_allclose(result, expected, atol=0.02)
 
   def test_sigmoid_matches_reference(self):
     # sigmoid(x) = 1/(1+exp(-x)); lowers to FMUL+EXP2+FADD+FRECIP chain.
@@ -1068,6 +1074,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").sigmoid().numpy()
     expected = 1.0 / (1.0 + np.exp(-a))
     np.testing.assert_allclose(result, expected, atol=0.05)
+
+  def test_exp_wide_range_matches_reference(self):
+    # With EXP2 range reduction Tensor.exp() stays within 2% relative
+    # error across a wide range — previously only |x| ≤ 0.7 worked.
+    a = np.linspace(-3.0, 3.0, 16, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").exp().numpy()
+    expected = np.exp(a)
+    np.testing.assert_allclose(result, expected, rtol=0.02)
 
   def test_exp_small_inputs_matches_reference(self):
     # Tensor.exp(x) lowers to exp2(x * log2e); hardware runs EXP2 via
