@@ -507,3 +507,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	924faf2	1	Item#6 iter: scaled_log2 + Tensor.log	_render_scaled_log2 matches MUL(LOG2, const); Tensor.log tests	pytest 1003 passed (+1)	natural log end-to-end	more renderers or hw work
 2026-04-19	c8c1621	1	Item#4 iter: scoreboard live state	xlu_busy/xlu_dst set in XLU dispatch rules and cleared on collect	test-sxu 6/6; pytest 1003 passed	scoreboard observable	RAW hazard + 2-slot arbiter
 2026-04-19	f58ee9f	1	Item#6 iter: multi-tile tanh test	32-elem [-2.5, 2.5] atol=0.01	pytest 1004 passed (+1)	multi-tile tanh proven	TODO refresh
+2026-04-19	21ecedb	1	TODO iter: mark Item#6 done	expanded transcendental section with full landings list	docs-only	Item#6 fully complete	DB SRAM or dual-issue
