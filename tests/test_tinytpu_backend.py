@@ -1019,6 +1019,16 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = 1.0 / (1.0 + np.exp(-a))
     np.testing.assert_allclose(result, expected, rtol=0.15, atol=0.05)
 
+  def test_sigmoid_multi_tile_matches_reference(self):
+    # 32 elements crossing a tile boundary to exercise the renderer's
+    # per-tile replication of the FMUL+EXP2+FADD+FRECIP chain.
+    a = np.linspace(-1.0, 1.0, 32, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sigmoid().numpy()
+    expected = 1.0 / (1.0 + np.exp(-a))
+    # Bounded output [0,1]; compounded Taylor error is largest around
+    # |x|=1 where it hits ~0.25 absolute.
+    np.testing.assert_allclose(result, expected, atol=0.25)
+
   def test_exp_small_inputs_matches_reference(self):
     # Tensor.exp(x) lowers to exp2(x * log2e); hardware runs EXP2 via
     # TranscUnit degree-2 Taylor, so exp(0)=1 exact, exp(1)≈2.66 (vs 2.718).
