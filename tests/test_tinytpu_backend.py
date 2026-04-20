@@ -1063,6 +1063,15 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = np.tanh(a)
     np.testing.assert_allclose(result, expected, atol=0.02)
 
+  def test_tanh_multi_tile_matches_reference(self):
+    # 32 elements crossing a tile boundary to exercise the renderer's
+    # per-tile replication of the tanh pipeline with EXP2 range
+    # reduction engaged at each tile.
+    a = np.linspace(-2.5, 2.5, 32, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").tanh().numpy()
+    expected = np.tanh(a)
+    np.testing.assert_allclose(result, expected, atol=0.01)
+
   def test_sigmoid_matches_reference(self):
     # sigmoid(x) = 1/(1+exp(-x)); lowers to FMUL+EXP2+FADD+FRECIP chain.
     # After Remez EXP2 the compounded error is much smaller than with
