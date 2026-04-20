@@ -503,3 +503,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-19	98bf3ee	1	Item#6 iter: SIN round-bias + wide tests	sign-aware +0.5 before trunc so mod-2π is correct; wide sin/cos tests	test-vpu 48/48; pytest 1000 passed (+2)	sin(5π)≈0 accurate; cos wide	end of Item#6 push
 2026-04-19	d5928ee	1	Item#6 iter: tighten sqrt tolerance	rtol 0.4→0.03 now that LOG2+EXP2 are Remez + range-reduced	pytest 1001 passed (+1)	sqrt compound error under 3%	memory checkpoint
 2026-04-19	memory	1	Item#6 iter: project status memory refresh	capture 40-iter push iters 1-20; remez + range reduction landed	memory-only	next-session resumes cold	DB SRAM wiring
+2026-04-19	3235c02	1	Item#6 iter: wide sigmoid test	atol=0.01 over [-4, 4]	pytest 1002 passed (+1)	sigmoid wide-range accuracy locked	-
