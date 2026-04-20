@@ -1107,16 +1107,20 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_allclose(result, np.sqrt(a), atol=0.05)
 
   def test_sqrt_dispatches_without_error(self):
-    # Non-identity inputs compound degree-2 EXP2 and LOG2 approximation
-    # errors (~34% rel at sqrt(64)); this test just asserts the pipeline
-    # runs end-to-end without falling back to UNSUPPORTED. The error
-    # band will tighten once TranscUnit moves to Remez or LUT coeffs.
+    # After Remez LOG2/EXP2 + EXP2 range reduction the compound error
+    # drops dramatically: sqrt of perfect powers of 4 is exact, and
+    # other inputs are within ~3% relative.
     a = np.array([4.0, 16.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").sqrt().numpy()
-    # Assert positive, finite, and within a loose envelope.
     self.assertTrue(np.all(np.isfinite(result)))
     self.assertTrue(np.all(result > 0))
-    np.testing.assert_allclose(result, np.sqrt(a), rtol=0.4)
+    np.testing.assert_allclose(result, np.sqrt(a), rtol=0.03)
+
+  def test_sqrt_wide_range_matches_reference(self):
+    # Spot-check a wider set: perfect squares exact, others within 3%.
+    a = np.array([1.0, 4.0, 9.0, 16.0, 0.25, 0.5, 2.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sqrt().numpy()
+    np.testing.assert_allclose(result, np.sqrt(a), rtol=0.03)
 
   def test_sin_small_angle_matches_reference(self):
     # |x| <= π/2 stays inside Remez degree-5 accuracy band (<5e-4 abs).
