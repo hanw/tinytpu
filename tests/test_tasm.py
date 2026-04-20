@@ -220,6 +220,18 @@ def test_mxu_os_roundtrip():
     assert "MXU_OS WMEM[2], AMEM[4], tiles=3" in text
 
 
+def test_mxu_clear():
+    wire = wire_lines(assemble("MXU_CLEAR\nHALT\nEND\n"))
+    # MXU_CLEAR opc=24, no operand fields.
+    assert wire[0] == "2 24 0 0 0 0 0 0 0 0"
+
+
+def test_mxu_clear_roundtrip():
+    src = "MXU_CLEAR\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "MXU_CLEAR" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"

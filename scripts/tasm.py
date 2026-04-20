@@ -53,6 +53,7 @@ _SXU = {
     "SKIP_IF_PRED":           21,
     "PSUM_ACCUMULATE_ROW":    22,
     "DISPATCH_MXU_OS":        23,
+    "MXU_CLEAR":              24,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -406,6 +407,11 @@ def assemble(text: str) -> str:
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=tlen))
 
+            elif kw == "MXU_CLEAR":
+                # Zero the systolic-array PE accumulators. No operands.
+                # Used between OS-mode accumulation epochs.
+                out.append(_instr(_SXU["MXU_CLEAR"]))
+
             elif kw == "WAIT_MXU":
                 out.append(_instr(_SXU["WAIT_MXU"]))
 
@@ -557,6 +563,9 @@ def disassemble(wire: str) -> str:
                     out.append(
                         f"MXU_OS WMEM[{mxuWBase}], AMEM[{mxuABase}], "
                         f"tiles={mxuTLen}")
+
+                elif opc == _SXU["MXU_CLEAR"]:
+                    out.append("MXU_CLEAR")
 
                 elif opc == _SXU["WAIT_MXU"]:
                     out.append("WAIT_MXU")
