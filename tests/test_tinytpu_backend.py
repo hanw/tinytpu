@@ -1001,6 +1001,14 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_array_equal(result, np.flip(a))
 
 
+  def test_exp_small_inputs_matches_reference(self):
+    # Tensor.exp(x) lowers to exp2(x * log2e); hardware runs EXP2 via
+    # TranscUnit degree-2 Taylor, so exp(0)=1 exact, exp(1)≈2.66 (vs 2.718).
+    # Loose rtol to match the approximation envelope.
+    a = np.array([0.0, 0.3, 0.5, -0.3, -0.5], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").exp().numpy()
+    np.testing.assert_allclose(result, np.exp(a), rtol=0.1, atol=0.02)
+
   def test_sqrt_of_one_is_exact(self):
     # sqrt(1) through LOG2→MUL→EXP2: log2(1)=0 exact, 0.5*0=0, exp2(0)=1
     # exact. So this is the one case that survives the compound Taylor
