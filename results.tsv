@@ -527,3 +527,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	actdma	1	Item#5 iter: ActivationDMA stub	sibling DMA for activation DB bank; synthetic vectors; kick/isBusy/isDone	test-activ-dma 3/3	both DB operands have preload DMAs	combined DMA-backed Controller dispatch
 2026-04-20	ctrldbdma	1	Item#5 iter: ping-pong DMA + Controller	WeightDMA writes inactive bank during MXU dispatch; swap; second dispatch consumes DMA-loaded tile	test-ctrl-db-dma 2/2	architectural DMA pattern proven E2E	TensorCore default wiring
 2026-04-20	cube	1	Item#10 iter: self-cube renderer	x**3 via two FMUL steps per tile	backend 870/870 (+2)	Tensor(x)**3 end-to-end	further composite activations
+2026-04-20	selfsq-fix	1	Item#10 iter: self-square renderer bug fix	x**4 no longer silently returns x**2 via false-match; regression guard added	backend 871/871 (+1)	self-square rejects power>=4	x**4+ dedicated renderer
