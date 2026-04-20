@@ -556,11 +556,10 @@ def test_disassemble_vmem_negative():
 
 def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
-    # Full VPU opcode range after FpReducer, col/tile reducers, float
-    # prod reducers, and EXP2 transcendental: 0..51 contiguous.
-    assert len(_VPU) == 52
+    # Full VPU opcode range including EXP2/LOG2 transcendentals.
+    assert len(_VPU) == 53
     codes = sorted(_VPU.values())
-    assert codes == list(range(52))
+    assert codes == list(range(53))
 
 
 def test_vpu_exp2_roundtrip():

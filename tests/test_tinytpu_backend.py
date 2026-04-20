@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -586,6 +586,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = 2.0 ** a
     np.testing.assert_allclose(result, expected, atol=0.3)
 
+  def test_log2_powers_of_two_matches_reference(self):
+    # Exact integer outputs: range reduction lands m=1.0 for all inputs,
+    # so the polynomial contributes 0 and the exponent-as-float dominates.
+    a = np.array([1.0, 2.0, 4.0, 0.5], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").log2().numpy()
+    np.testing.assert_allclose(result, np.log2(a), atol=0.05)
+
+  def test_log2_non_powers_matches_reference(self):
+    # Non-power inputs hit the degree-2 polynomial in u=m-1 ∈ (0,1).
+    # Max error ~0.3 at u near 1 (x≈1.99); test with a mid-range tile
+    # and accept a wide band.
+    a = np.array([1.1, 1.25, 1.5, 1.75, 2.5, 3.0, 3.5, 5.0,
+                  0.25, 0.4, 0.6, 0.8, 10.0, 12.0, 16.0, 20.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").log2().numpy()
+    np.testing.assert_allclose(result, np.log2(a), atol=0.3)
+
   def test_frecip_2x3_matches_reference(self):
     a = np.array([[1.0, 2.0, 4.0], [0.5, 8.0, 16.0]], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").reciprocal().numpy()
@@ -988,10 +1004,6 @@ class TestTinyTPUBackend(unittest.TestCase):
   def test_sqrt_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
       Tensor([4.0, 9.0, 16.0], dtype="float", device="TINYTPU").sqrt().numpy()
-
-  def test_log2_reports_unsupported(self):
-    with self.assertRaises(NotImplementedError):
-      Tensor([2.0, 4.0, 8.0], dtype="float", device="TINYTPU").log2().numpy()
 
   def test_sin_reports_unsupported(self):
     with self.assertRaises(NotImplementedError):
