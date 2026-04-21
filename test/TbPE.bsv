@@ -11,7 +11,7 @@ module mkTbPE();
 
    rule count_cycles;
       cycle <= cycle + 1;
-      if (cycle > 20) begin
+      if (cycle > 30) begin
          $display("FAIL: test timed out");
          $finish(1);
       end
@@ -65,6 +65,30 @@ module mkTbPE();
 
    rule check_neg (cycle == 8);
       $display("Cycle %0d: accum = %0d (expect -40)", cycle, pe.getAccum);
+   endrule
+
+   // OS dataflow: feedPair streams both operands each cycle.
+   rule os_clear (cycle == 9);
+      pe.clearAccum;
+   endrule
+
+   rule os_feed1 (cycle == 10);
+      pe.feedPair(6, 7);
+      $display("Cycle %0d: feedPair(6,7), accum before = %0d", cycle, pe.getAccum);
+   endrule
+
+   rule os_feed2 (cycle == 11);
+      pe.feedPair(-3, 4);
+      $display("Cycle %0d: feedPair(-3,4), accum = %0d (expect 42)", cycle, pe.getAccum);
+      $display("Cycle %0d: passWeight = %0d (expect 6), passActivation = %0d (expect 7)",
+               cycle, pe.passWeight, pe.passActivation);
+   endrule
+
+   rule os_check (cycle == 12);
+      // accum = 42 + (-3)*4 = 30
+      $display("Cycle %0d: accum = %0d (expect 30)", cycle, pe.getAccum);
+      $display("Cycle %0d: passWeight = %0d (expect -3), passActivation = %0d (expect 4)",
+               cycle, pe.passWeight, pe.passActivation);
       $display("PASS");
       $finish(0);
    endrule
