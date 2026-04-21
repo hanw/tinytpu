@@ -3423,6 +3423,18 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = np.array(data, dtype=np.int32) != 0
     np.testing.assert_array_equal(result, expected)
 
+  def test_bool_sum_single_tile_matches_reference(self):
+    data = np.array([True, False, True, False, True, True, False, False,
+                     True, True, True, False, False, False, True, True],
+                    dtype=np.bool_)
+    result = Tensor(data, device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, np.int32(data.sum()))
+
+  def test_bool_sum_short_matches_reference(self):
+    data = np.array([True, False, True, False], dtype=np.bool_)
+    result = Tensor(data, device="TINYTPU").sum().numpy()
+    np.testing.assert_array_equal(result, np.int32(data.sum()))
+
   def test_scalar_broadcast_mul_matches_reference(self):
     result = (Tensor([2], dtype="int32", device="TINYTPU") * Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")).numpy()
     np.testing.assert_array_equal(result, np.array([2, 4, 6, 8], dtype=np.int32))
