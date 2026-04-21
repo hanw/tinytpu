@@ -558,3 +558,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	f280fd4	1	tinytpu+tests	bool tensor Tensor.sum() correct	sim tests: 2 new + 119 regress pass	none (bugfix)	continue push 3 hardware
 2026-04-20	e5fa1fa	1	pe+test	feedPair/passWeight OS primitive	make test-pe pass (+2 OS cycles)	none	iter 41 SystolicArray streaming
 2026-04-20	68b902c	1	systolic+test	feedPair streaming + getMatrix drain	make test-array pass (WS + OS 2x2 matmul)	none	iter 42 Controller OS FSM
+2026-04-20	b57243c	1	ctrl+test	startOsReal + FSM + full-matrix drain	make test-ctrl-os-real pass (4x4 I@W = W)	none	iter 43 SXU/TASM OS-real opcode
