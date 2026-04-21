@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>TinyTPU — Datapath & Compilation Flow</title>
+<title>TinyTPU — Datapath &amp; Compilation Flow</title>
 <style>
   :root {
     --bg: #0f1115;
@@ -24,48 +24,12 @@
     background: var(--bg);
     color: var(--ink);
   }
-  h1 {
-    font-size: 24px;
-    margin: 0 0 6px;
-    letter-spacing: -0.01em;
-  }
-  h2 {
-    font-size: 15px;
-    margin: 32px 0 10px;
-    color: var(--dim);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 600;
-  }
-  .sub {
-    color: var(--dim);
-    font-size: 13px;
-    margin: 0 0 24px;
-  }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 24px;
-  }
-  svg { display: block; width: 100%; height: auto; background: var(--panel); border-radius: 8px; border: 1px solid var(--line); }
-  text { font: 10px ui-sans-serif, sans-serif; fill: var(--ink); }
-  .title { font-weight: 700; font-size: 11px; }
-  .label { font-size: 9px; fill: var(--dim); }
-  .edge { stroke: var(--dim); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
-  .edge.hot { stroke: var(--accent3); stroke-width: 2; }
-  .edge.fb { stroke: var(--accent4); stroke-dasharray: 4 3; }
-  .box { fill: #1f2630; stroke: var(--line); stroke-width: 1; rx: 6; ry: 6; }
-  .box.mxu  { fill: #1f2d3a; stroke: var(--accent);  }
-  .box.vpu  { fill: #24293a; stroke: var(--accent2); }
-  .box.xlu  { fill: #1e2a1f; stroke: var(--accent3); }
-  .box.sxu  { fill: #2a241a; stroke: var(--accent4); }
-  .box.mem  { fill: #2a1e22; stroke: var(--accent5); }
-  .chip { fill: #0a0d12; stroke: var(--line); stroke-width: 1; rx: 10; ry: 10; }
-  .port { fill: var(--dim); font-size: 10px; }
-  .legend-sw  { fill: #2a283a; stroke: var(--accent2); }
-  .legend-py  { fill: #1f2d3a; stroke: var(--accent); }
-  .legend-bsv { fill: #1e2a1f; stroke: var(--accent3); }
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 32px 0 10px; color: var(--dim);
+       text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 13px; margin: 0 0 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 8px; padding: 24px; }
   .cap { color: var(--dim); font-size: 12px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   code {
@@ -78,826 +42,140 @@
   }
   ul { margin: 6px 0 0 18px; padding: 0; }
   li { margin: 3px 0; }
+  em { color: var(--accent2); font-style: normal; }
+  .mxgraph { margin: 8px 0; }
 </style>
 </head>
 <body>
 
 <h1>TinyTPU — Top-Level Datapath &amp; Compilation Flow</h1>
-<p class="sub">4×4 tensor core with shared FP reducer. tinygrad <code>TINYTPU</code> backend
-  lowers UOp graphs to SXU microprograms executed on the BSV runtime.</p>
-
+<p class="sub">4×4 tensor core with shared FP reducer, multi-cycle TranscUnit, 8-bucket PSUM bank, double-buffered Weight/Activation SRAMs + DMA engines, and a dual-issue SXU sequencer (XLU overlaps with non-XLU ops). tinygrad <code>TINYTPU</code> backend lowers UOp graphs to SXU microprograms executed on the BSV runtime. <em>Diagrams rendered by draw.io viewer</em> — click any diagram to zoom, pan, or export.</p>
 <h2>Compilation Flow</h2>
 <div class="panel">
-<svg viewBox="0 0 1200 260" preserveAspectRatio="xMidYMid meet">
-  <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="4"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L9,4 L0,8 z" fill="#8b949e"/>
-    </marker>
-  </defs>
-
-  <!-- Stage boxes -->
-  <g>
-    <rect class="box" x="20"   y="60" width="170" height="80"/>
-    <text class="title" x="105" y="85" text-anchor="middle">Tensor program</text>
-    <text class="label" x="105" y="105" text-anchor="middle">Python user code</text>
-    <text class="label" x="105" y="120" text-anchor="middle">via tinygrad API</text>
-  </g>
-
-  <g>
-    <rect class="box" x="210" y="60" width="170" height="80"/>
-    <text class="title" x="295" y="85" text-anchor="middle">tinygrad UOp graph</text>
-    <text class="label" x="295" y="105" text-anchor="middle">ADD/MUL/MAX/WHERE…</text>
-    <text class="label" x="295" y="120" text-anchor="middle">movement / reduce / load</text>
-  </g>
-
-  <g>
-    <rect class="box" x="400" y="60" width="200" height="80"/>
-    <text class="title" x="500" y="85" text-anchor="middle">TINYTPU Renderer</text>
-    <text class="label" x="500" y="105" text-anchor="middle">ops_tinytpu.py</text>
-    <text class="label" x="500" y="120" text-anchor="middle">pattern-match → SXU_PROGRAM</text>
-  </g>
-
-  <g>
-    <rect class="box" x="620" y="60" width="180" height="80"/>
-    <text class="title" x="710" y="85" text-anchor="middle">Bundle text</text>
-    <text class="label" x="710" y="105" text-anchor="middle">TASM format</text>
-    <text class="label" x="710" y="120" text-anchor="middle">data_plan + instrs + out</text>
-  </g>
-
-  <g>
-    <rect class="box" x="820" y="60" width="180" height="80"/>
-    <text class="title" x="910" y="85" text-anchor="middle">mkTbTinyTPURuntime</text>
-    <text class="label" x="910" y="105" text-anchor="middle">BSV simulator</text>
-    <text class="label" x="910" y="120" text-anchor="middle">(bluesim, co-sim BDPI)</text>
-  </g>
-
-  <g>
-    <rect class="box" x="1020" y="60" width="160" height="80"/>
-    <text class="title" x="1100" y="85" text-anchor="middle">Result</text>
-    <text class="label" x="1100" y="105" text-anchor="middle">mxu_result /</text>
-    <text class="label" x="1100" y="120" text-anchor="middle">vmem_result lines</text>
-  </g>
-
-  <!-- Edges -->
-  <path class="edge"     d="M190,100 L210,100"/>
-  <path class="edge"     d="M380,100 L400,100"/>
-  <path class="edge hot" d="M600,100 L620,100"/>
-  <path class="edge hot" d="M800,100 L820,100"/>
-  <path class="edge hot" d="M1000,100 L1020,100"/>
-
-  <!-- Renderer sub-stages -->
-  <g>
-    <rect class="box" x="380" y="175" width="240" height="62"/>
-    <text class="title" x="500" y="195" text-anchor="middle">Renderer dispatch chain</text>
-    <text class="label" x="500" y="214" text-anchor="middle">wmma → multistep → pad → colbc</text>
-    <text class="label" x="500" y="228" text-anchor="middle">rowbc → col/row reduce → copy → …</text>
-  </g>
-  <path class="edge fb" d="M500,237 C500,252 500,170 500,160 L500,140"/>
-
-  <!-- Executor feedback to runtime -->
-  <g>
-    <rect class="box" x="640" y="175" width="180" height="62"/>
-    <text class="title" x="730" y="195" text-anchor="middle">TinyTPUProgram</text>
-    <text class="label" x="730" y="214" text-anchor="middle">_exec_sxu_program</text>
-    <text class="label" x="730" y="228" text-anchor="middle">emits VMEM/WMEM/AMEM lines</text>
-  </g>
-  <path class="edge fb" d="M710,175 L710,140"/>
-</svg>
+<div class="mxgraph" style="max-width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;min-height:300px;" data-mxgraph="{&quot;highlight&quot;: &quot;#0000ff&quot;, &quot;nav&quot;: true, &quot;resize&quot;: true, &quot;toolbar&quot;: &quot;zoom&quot;, &quot;edit&quot;: &quot;_blank&quot;, &quot;xml&quot;: &quot;&lt;mxGraphModel dx=\&quot;1200\&quot; dy=\&quot;800\&quot; grid=\&quot;0\&quot; gridSize=\&quot;10\&quot; guides=\&quot;0\&quot; tooltips=\&quot;1\&quot; connect=\&quot;1\&quot; arrows=\&quot;1\&quot; fold=\&quot;1\&quot; page=\&quot;1\&quot; pageScale=\&quot;1\&quot; pageWidth=\&quot;1200\&quot; pageHeight=\&quot;800\&quot; math=\&quot;0\&quot; shadow=\&quot;0\&quot;&gt;&lt;root&gt;&lt;mxCell id=\&quot;0\&quot;/&gt;&lt;mxCell id=\&quot;1\&quot; parent=\&quot;0\&quot;/&gt;    &lt;mxCell id=\&quot;cf-1\&quot; value=\&quot;Tensor program\n\nPython user code via\ntinygrad API\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;20\&quot; y=\&quot;60\&quot; width=\&quot;170\&quot; height=\&quot;80\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-2\&quot; value=\&quot;tinygrad UOp graph\n\nADD/MUL/MAX/WHERE/EXP2/LOG2...\nmovement / reduce / load\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;210\&quot; y=\&quot;60\&quot; width=\&quot;170\&quot; height=\&quot;80\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-3\&quot; value=\&quot;TINYTPU Renderer\n\nops_tinytpu.py\npattern-match \u2192 SXU_PROGRAM\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;400\&quot; y=\&quot;60\&quot; width=\&quot;200\&quot; height=\&quot;80\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-4\&quot; value=\&quot;Bundle text\n\nTASM format\ndata_plan + instrs + out\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;620\&quot; y=\&quot;60\&quot; width=\&quot;180\&quot; height=\&quot;80\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-5\&quot; value=\&quot;mkTbTinyTPURuntime\n\nBSV simulator\n(bluesim, co-sim BDPI)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;820\&quot; y=\&quot;60\&quot; width=\&quot;180\&quot; height=\&quot;80\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-6\&quot; value=\&quot;Result\n\nmxu_result /\nvmem_result lines\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1020\&quot; y=\&quot;60\&quot; width=\&quot;160\&quot; height=\&quot;80\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-e1\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;cf-1\&quot; target=\&quot;cf-2\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-e2\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;cf-2\&quot; target=\&quot;cf-3\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-e3\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;cf-3\&quot; target=\&quot;cf-4\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-e4\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;cf-4\&quot; target=\&quot;cf-5\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-e5\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;cf-5\&quot; target=\&quot;cf-6\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-7\&quot; value=\&quot;Renderer dispatch chain (~40 patterns)\nwmma \u2192 reduction \u2192 scaled-log2/exp2/sin \u2192\ntanh \u2192 sigmoid \u2192 swish \u2192 softsign \u2192 clip \u2192 clamp \u2192 ...\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2630;strokeColor=#30363d;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;360\&quot; y=\&quot;180\&quot; width=\&quot;280\&quot; height=\&quot;66\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-8\&quot; value=\&quot;TinyTPUProgram executor\n_exec_sxu_program\nemits VMEM/WMEM/AMEM lines\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2630;strokeColor=#30363d;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;660\&quot; y=\&quot;180\&quot; width=\&quot;200\&quot; height=\&quot;66\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-e6\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#f2cc60;dashed=1;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;cf-7\&quot; target=\&quot;cf-3\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;cf-e7\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#f2cc60;dashed=1;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;cf-8\&quot; target=\&quot;cf-4\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;&quot;}"></div>
 </div>
-
 <h2>TensorCore — pipeline &amp; parallel execution</h2>
-
 <div class="panel" style="margin-bottom:24px">
-<div class="cap" style="margin-bottom:10px">
-<strong>SXU pipeline FSM.</strong> A single-issue sequencer. FETCH reads one
-instruction, then branches to the matching EXEC state; dispatch-style ops
-(MXU) return to FETCH immediately so SXU keeps issuing while MXU runs;
-collect-style ops (VPU/XLU/LOAD/SELECT) block one extra cycle to capture
-results from their unit.
+<div class="cap" style="margin-bottom:10px"><strong>SXU pipeline FSM.</strong> The main sequencer is single-issue with a <em>background XLU collect rule</em>: XLU dispatches advance pc immediately (no XLU_COLLECT state), and a parallel rule writes the result one cycle later while the main FSM fetches/executes the next non-XLU op. MXU dispatch is non-blocking — it latches operand bases into Controller and SXU proceeds. Multi-cycle collectors (VPU reducers, TranscUnit walker) guard on <code>isDone</code>.</div>
+<div class="mxgraph" style="max-width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;min-height:640px;" data-mxgraph="{&quot;highlight&quot;: &quot;#0000ff&quot;, &quot;nav&quot;: true, &quot;resize&quot;: true, &quot;toolbar&quot;: &quot;zoom&quot;, &quot;edit&quot;: &quot;_blank&quot;, &quot;xml&quot;: &quot;&lt;mxGraphModel dx=\&quot;1200\&quot; dy=\&quot;800\&quot; grid=\&quot;0\&quot; gridSize=\&quot;10\&quot; guides=\&quot;0\&quot; tooltips=\&quot;1\&quot; connect=\&quot;1\&quot; arrows=\&quot;1\&quot; fold=\&quot;1\&quot; page=\&quot;1\&quot; pageScale=\&quot;1\&quot; pageWidth=\&quot;1200\&quot; pageHeight=\&quot;800\&quot; math=\&quot;0\&quot; shadow=\&quot;0\&quot;&gt;&lt;root&gt;&lt;mxCell id=\&quot;0\&quot;/&gt;&lt;mxCell id=\&quot;1\&quot; parent=\&quot;0\&quot;/&gt;    &lt;mxCell id=\&quot;sf-idle\&quot; value=\&quot;IDLE\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2630;strokeColor=#30363d;rounded=1;arcSize=40;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;540\&quot; y=\&quot;14\&quot; width=\&quot;120\&quot; height=\&quot;34\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-halt\&quot; value=\&quot;HALTED\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2630;strokeColor=#30363d;rounded=1;arcSize=40;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;540\&quot; y=\&quot;500\&quot; width=\&quot;120\&quot; height=\&quot;34\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-fetch\&quot; value=\&quot;FETCH\nprog[pc] \u2192 curInstr; route\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;490\&quot; y=\&quot;70\&quot; width=\&quot;220\&quot; height=\&quot;50\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-load-req\&quot; value=\&quot;LOAD_REQ\nvmem.readReq\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;140\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-store\&quot; value=\&quot;STORE\nvrf \u2192 vmem\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;180\&quot; y=\&quot;140\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-vpu\&quot; value=\&quot;VPU\nvpu.execute(op)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;320\&quot; y=\&quot;140\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-xlu\&quot; value=\&quot;XLU_*\nbc / transpose / perm\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;460\&quot; y=\&quot;140\&quot; width=\&quot;130\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-sel-copy\&quot; value=\&quot;SELECT_COPY\nVPU_COPY rhs\u2192reg\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;610\&quot; y=\&quot;140\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-mxu\&quot; value=\&quot;MXU / MXU_OS\nctrl.start[OS]; pc++\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;750\&quot; y=\&quot;140\&quot; width=\&quot;130\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-wait-mxu\&quot; value=\&quot;WAIT_MXU\nstall !ctrl.isDone\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;900\&quot; y=\&quot;140\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ld-mxu\&quot; value=\&quot;LD_MXU_RESULT\nctrl.results \u2192 vrf\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1040\&quot; y=\&quot;140\&quot; width=\&quot;140\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-load-resp\&quot; value=\&quot;LOAD_RESP\nvrf.write \u2190 resp\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;230\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-vpu-coll\&quot; value=\&quot;VPU_COLLECT\nvrf \u2190 vpu.result\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;320\&quot; y=\&quot;230\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-sel\&quot; value=\&quot;SELECT\nVPU_SELECT(cond,lhs)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;610\&quot; y=\&quot;230\&quot; width=\&quot;120\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-mxu-clr\&quot; value=\&quot;MXU_CLEAR\nctrl.clearArray; pc++\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;750\&quot; y=\&quot;230\&quot; width=\&quot;130\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ld-vpu\&quot; value=\&quot;LD_VPU_RESULT\nvpu.result \u2192 vrf (bypass)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1040\&quot; y=\&quot;230\&quot; width=\&quot;140\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-psum\&quot; value=\&quot;PSUM_{WRITE, ACC, READ, READ_ROW, CLEAR, ACC_ROW}\n8-bucket bank; 1-cycle except READ (2-step)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;700\&quot; y=\&quot;320\&quot; width=\&quot;320\&quot; height=\&quot;44\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-pred\&quot; value=\&quot;SET_PRED_IF_ZERO / SKIP_IF_PRED\n1-bit pred reg; baby IF/BARRIER\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;320\&quot; width=\&quot;260\&quot; height=\&quot;44\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ld-xlu\&quot; value=\&quot;LD_XLU_RESULT\nxlu.result \u2192 vrf\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1040\&quot; y=\&quot;320\&quot; width=\&quot;140\&quot; height=\&quot;40\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-xlu-bg\&quot; value=\&quot;do_xlu_collect_bg (parallel rule)\nfires when xlu_busy=True; writes\nvrf[xlu_dst] \u2190 xlu.result; clears xlu_busy\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;440\&quot; y=\&quot;410\&quot; width=\&quot;320\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-l1\&quot; value=\&quot;dispatch\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;20\&quot; y=\&quot;145\&quot; width=\&quot;80\&quot; height=\&quot;16\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-l2\&quot; value=\&quot;step 2\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;20\&quot; y=\&quot;235\&quot; width=\&quot;80\&quot; height=\&quot;16\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-l3\&quot; value=\&quot;collect / step 3\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;20\&quot; y=\&quot;330\&quot; width=\&quot;120\&quot; height=\&quot;16\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-l4\&quot; value=\&quot;background rules\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;20\&quot; y=\&quot;425\&quot; width=\&quot;120\&quot; height=\&quot;16\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-e-start\&quot; value=\&quot;start()\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-idle\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-load\&quot; value=\&quot;LOAD_VREG\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.05;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-load-req\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-store\&quot; value=\&quot;STORE_VREG\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.12;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-store\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-vpu\&quot; value=\&quot;DISPATCH_VPU\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-vpu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-xlu\&quot; value=\&quot;XLU_*\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.38;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-xlu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-sel\&quot; value=\&quot;SELECT\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.55;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-sel-copy\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-mxu\&quot; value=\&quot;MXU[_OS]\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.7;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-mxu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-wmxu\&quot; value=\&quot;WAIT_MXU\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.85;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-wait-mxu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-ldmxu\&quot; value=\&quot;LD_MXU_R\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.95;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-ld-mxu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-mxuc\&quot; value=\&quot;MXU_CLEAR\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-mxu-clr\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-psum\&quot; value=\&quot;PSUM_*\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.8;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-psum\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-ef-pred\&quot; value=\&quot;PRED_*\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-pred\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-s1\&quot; value=\&quot;next cycle\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-load-req\&quot; target=\&quot;sf-load-resp\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-s2\&quot; value=\&quot;vpu.isDone\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#f2cc60;dashed=1;dashPattern=5 3;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-vpu\&quot; target=\&quot;sf-vpu-coll\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-s3\&quot; value=\&quot;next cycle\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-sel-copy\&quot; target=\&quot;sf-sel\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-s4\&quot; value=\&quot;vpu.isDone\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#f2cc60;dashed=1;dashPattern=5 3;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-sel\&quot; target=\&quot;sf-vpu-coll\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-s5\&quot; value=\&quot;1-cycle later\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;dashed=1;dashPattern=2 3;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-xlu\&quot; target=\&quot;sf-xlu-bg\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b1\&quot; value=\&quot;pc++\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.2;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-store\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b2\&quot; value=\&quot;pc++\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.7;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-mxu\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b3\&quot; value=\&quot;pc++\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.4;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-xlu\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b4\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-mxu-clr\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b5\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.1;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-load-resp\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b6\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.3;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-vpu-coll\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b7\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.85;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-psum\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b8\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.15;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-pred\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b9\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.9;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-ld-mxu\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b10\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.95;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-ld-vpu\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b11\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.8;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-ld-xlu\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-b12\&quot; value=\&quot;done\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;dashed=1;dashPattern=3 4;opacity=65;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.9;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-wait-mxu\&quot; target=\&quot;sf-fetch\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;sf-halte\&quot; value=\&quot;HALT\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;sf-fetch\&quot; target=\&quot;sf-halt\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;&quot;}"></div>
 </div>
-<svg viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid meet">
-  <defs>
-    <marker id="arrFwd" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3.5 L0,7 z" fill="#8b949e"/>
-    </marker>
-    <marker id="arrGrn" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3.5 L0,7 z" fill="#7ee787"/>
-    </marker>
-    <marker id="arrYlw" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3.5 L0,7 z" fill="#f2cc60"/>
-    </marker>
-    <style>
-      .node rect, .node ellipse { stroke-width: 1.2; }
-      .ehead  { stroke: #8b949e; stroke-width: 1.3; fill: none; marker-end: url(#arrFwd); }
-      .ecool  { stroke: #7ee787; stroke-width: 1.5; fill: none; marker-end: url(#arrGrn); }
-      .eguard { stroke: #f2cc60; stroke-width: 1.3; fill: none; marker-end: url(#arrYlw); stroke-dasharray: 5 3; }
-      .eback  { stroke: #8b949e; stroke-width: 1; fill: none; marker-end: url(#arrFwd); stroke-dasharray: 3 4; opacity: 0.65; }
-      .eopcode { font-size: 9px; fill: #d2a8ff; }
-      .econd   { font-size: 9px; fill: #f2cc60; }
-      .ehint   { font-size: 9px; fill: #8b949e; }
-    </style>
-  </defs>
-
-  <!-- IDLE (entry) -->
-  <g class="node">
-    <rect class="box" x="540" y="14" width="120" height="34" rx="16" ry="16"/>
-    <text class="title" x="600" y="36" text-anchor="middle">IDLE</text>
-  </g>
-  <path class="ehead" d="M600,48 L600,76"/>
-  <text class="econd" x="608" y="64">start()</text>
-
-  <!-- FETCH hub -->
-  <g class="node">
-    <ellipse class="box sxu" cx="600" cy="96" rx="98" ry="26"/>
-    <text class="title" x="600" y="95" text-anchor="middle">FETCH</text>
-    <text class="label" x="600" y="110" text-anchor="middle">prog[pc] → curInstr</text>
-  </g>
-
-  <!-- Column centers, 9 columns -->
-  <!-- LOAD(120), STORE(260), VPU(400), XLU(540), SELECT(680), MXU-disp(820), WAIT_MXU(960), LD_MXU_R(1090), HALT (right) -->
-  <!-- Rails -->
-  <text class="label" x="38" y="160">dispatch</text>
-  <text class="label" x="38" y="250">step 2</text>
-  <text class="label" x="38" y="340">step 3 / collect</text>
-  <text class="label" x="38" y="430">final collect</text>
-
-  <!-- Column LOAD -->
-  <g class="node">
-    <rect class="box sxu" x="60" y="140" width="120" height="40"/>
-    <text class="title" x="120" y="158" text-anchor="middle">LOAD_REQ</text>
-    <text class="label" x="120" y="172" text-anchor="middle">vmem.readReq</text>
-  </g>
-  <g class="node">
-    <rect class="box sxu" x="60" y="232" width="120" height="40"/>
-    <text class="title" x="120" y="250" text-anchor="middle">LOAD_RESP</text>
-    <text class="label" x="120" y="264" text-anchor="middle">vrf.write ← resp</text>
-  </g>
-
-  <!-- Column STORE -->
-  <g class="node">
-    <rect class="box sxu" x="200" y="140" width="120" height="40"/>
-    <text class="title" x="260" y="158" text-anchor="middle">STORE</text>
-    <text class="label" x="260" y="172" text-anchor="middle">vrf → vmem</text>
-  </g>
-
-  <!-- Column VPU -->
-  <g class="node">
-    <rect class="box vpu" x="340" y="140" width="120" height="40"/>
-    <text class="title" x="400" y="158" text-anchor="middle">VPU</text>
-    <text class="label" x="400" y="172" text-anchor="middle">vpu.execute(op, s1, s2)</text>
-  </g>
-  <g class="node">
-    <rect class="box vpu" x="340" y="232" width="120" height="40"/>
-    <text class="title" x="400" y="250" text-anchor="middle">VPU_COLLECT</text>
-    <text class="label" x="400" y="264" text-anchor="middle">vrf.write ← vpu.result</text>
-  </g>
-
-  <!-- Column XLU -->
-  <g class="node">
-    <rect class="box xlu" x="480" y="140" width="120" height="40"/>
-    <text class="title" x="540" y="158" text-anchor="middle">XLU_*</text>
-    <text class="label" x="540" y="172" text-anchor="middle">{BC / BC_SCALAR /</text>
-  </g>
-  <text class="label" x="540" y="188" text-anchor="middle">BC_ROW / BC_COL / TRANSPOSE}</text>
-  <g class="node">
-    <rect class="box xlu" x="480" y="232" width="120" height="40"/>
-    <text class="title" x="540" y="250" text-anchor="middle">XLU_COLLECT</text>
-    <text class="label" x="540" y="264" text-anchor="middle">vrf.write ← xlu.result</text>
-  </g>
-
-  <!-- Column SELECT (3-stage: COPY → SELECT → VPU_COLLECT) -->
-  <g class="node">
-    <rect class="box vpu" x="620" y="140" width="120" height="40"/>
-    <text class="title" x="680" y="158" text-anchor="middle">SELECT_COPY</text>
-    <text class="label" x="680" y="172" text-anchor="middle">VPU_COPY rhs→reg</text>
-  </g>
-  <g class="node">
-    <rect class="box vpu" x="620" y="232" width="120" height="40"/>
-    <text class="title" x="680" y="250" text-anchor="middle">SELECT</text>
-    <text class="label" x="680" y="264" text-anchor="middle">VPU_SELECT(cond,lhs)</text>
-  </g>
-  <g class="node">
-    <rect class="box vpu" x="620" y="324" width="120" height="40"/>
-    <text class="title" x="680" y="342" text-anchor="middle">VPU_COLLECT</text>
-    <text class="label" x="680" y="356" text-anchor="middle">(shared with VPU)</text>
-  </g>
-
-  <!-- Column MXU-dispatch (issue only, nonblocking) -->
-  <g class="node">
-    <rect class="box mxu" x="760" y="140" width="120" height="40"/>
-    <text class="title" x="820" y="158" text-anchor="middle">MXU</text>
-    <text class="label" x="820" y="172" text-anchor="middle">ctrl.start; pc++</text>
-  </g>
-
-  <!-- Column WAIT_MXU -->
-  <g class="node">
-    <rect class="box mxu" x="900" y="140" width="120" height="40"/>
-    <text class="title" x="960" y="158" text-anchor="middle">WAIT_MXU</text>
-    <text class="label" x="960" y="172" text-anchor="middle">stall while !ctrl.isDone</text>
-  </g>
-
-  <!-- Column LD_MXU_RESULT -->
-  <g class="node">
-    <rect class="box mxu" x="1040" y="140" width="140" height="40"/>
-    <text class="title" x="1110" y="158" text-anchor="middle">LD_MXU_RESULT</text>
-    <text class="label" x="1110" y="172" text-anchor="middle">ctrl.results → vrf[0]</text>
-  </g>
-
-  <!-- Terminal HALTED -->
-  <g class="node">
-    <rect class="box" x="540" y="500" width="120" height="40" rx="16" ry="16"/>
-    <text class="title" x="600" y="518" text-anchor="middle">HALTED</text>
-    <text class="label" x="600" y="532" text-anchor="middle">terminal</text>
-  </g>
-
-  <!-- ============ FORWARD edges from FETCH ============ -->
-  <!-- LOAD -->
-  <path class="ehead" d="M512,106 C380,108 260,110 168,138"/>
-  <text class="eopcode" x="290" y="128">LOAD_VREG</text>
-  <!-- STORE -->
-  <path class="ehead" d="M518,112 C440,122 360,126 282,138"/>
-  <text class="eopcode" x="380" y="134">STORE_VREG</text>
-  <!-- VPU -->
-  <path class="ehead" d="M548,118 C500,126 450,130 410,138"/>
-  <text class="eopcode" x="470" y="140">DISPATCH_VPU</text>
-  <!-- XLU -->
-  <path class="ehead" d="M600,123 L540,138"/>
-  <text class="eopcode" x="560" y="136">XLU/BC/TRANSPOSE</text>
-  <!-- SELECT -->
-  <path class="ehead" d="M650,119 C660,126 670,130 680,138"/>
-  <text class="eopcode" x="700" y="128">DISPATCH_SELECT</text>
-  <!-- MXU dispatch -->
-  <path class="ehead" d="M680,113 C720,122 770,128 810,138"/>
-  <text class="eopcode" x="770" y="130">DISPATCH_MXU</text>
-  <!-- WAIT_MXU -->
-  <path class="ehead" d="M688,108 C770,122 870,128 950,138"/>
-  <text class="eopcode" x="900" y="124">WAIT_MXU</text>
-  <!-- LD_MXU_R -->
-  <path class="ehead" d="M692,105 C830,110 960,118 1090,138"/>
-  <text class="eopcode" x="1020" y="122">LOAD_MXU_RESULT</text>
-  <!-- HALT -->
-  <path class="ehead" d="M600,122 L600,498"/>
-  <text class="eopcode" x="608" y="250">HALT</text>
-
-  <!-- ============ STEP 2 edges (multi-cycle dispatches) ============ -->
-  <!-- LOAD_REQ -> LOAD_RESP (1 cycle) -->
-  <path class="ehead" d="M120,180 L120,230"/>
-  <text class="ehint" x="128" y="210">next cycle</text>
-  <!-- VPU -> VPU_COLLECT (guarded on isDone) -->
-  <path class="eguard" d="M400,180 L400,230"/>
-  <text class="econd" x="408" y="210">vpu.isDone</text>
-  <!-- XLU_* -> XLU_COLLECT -->
-  <path class="ehead" d="M540,180 L540,230"/>
-  <text class="ehint" x="548" y="210">next cycle</text>
-  <!-- SELECT_COPY -> SELECT -->
-  <path class="ehead" d="M680,180 L680,230"/>
-  <text class="ehint" x="688" y="210">next cycle</text>
-  <!-- SELECT -> VPU_COLLECT -->
-  <path class="eguard" d="M680,272 L680,322"/>
-  <text class="econd" x="688" y="300">vpu.isDone</text>
-  <!-- WAIT_MXU self-loop (stall) -->
-  <path class="eguard" d="M960,136 C1000,110 1000,110 1020,135" />
-  <text class="econd" x="1025" y="110">!ctrl.isDone</text>
-
-  <!-- ============ BACK edges to FETCH ============ -->
-  <!-- single-cycle dispatches -->
-  <path class="eback" d="M178,142 C360,60 440,70 520,92"/>
-  <text class="ehint" x="320" y="72">↘ FETCH (pc++)</text>
-  <path class="eback" d="M320,142 C420,80 480,82 528,94"/>
-  <path class="eback" d="M820,142 C760,84 700,82 674,92"/>
-  <text class="ehint" x="740" y="86">pc++ (MXU runs in background)</text>
-  <path class="eback" d="M960,180 C900,230 720,180 688,120"/>
-  <text class="ehint" x="860" y="240">done → pc++</text>
-  <path class="eback" d="M1110,180 C980,230 700,150 682,114"/>
-
-  <!-- 2-cycle back-edges -->
-  <path class="eback" d="M120,272 C260,360 400,240 520,108"/>
-  <path class="eback" d="M400,272 C440,350 520,220 548,110"/>
-  <path class="eback" d="M540,272 C580,340 620,220 610,118"/>
-  <path class="eback" d="M680,364 C520,430 420,260 520,118"/>
-
-  <!-- HALT is terminal (no back-edge) -->
-
-  <!-- Legend -->
-  <g transform="translate(30,560)">
-    <text class="title" x="0" y="0">Edge legend</text>
-    <line x1="0" y1="14" x2="40" y2="14" class="ehead"/>
-    <text class="label" x="46" y="18">forward dispatch (next cycle)</text>
-    <line x1="210" y1="14" x2="250" y2="14" class="eguard"/>
-    <text class="label" x="256" y="18">guarded (conditional advance)</text>
-    <line x1="460" y1="14" x2="500" y2="14" class="eback"/>
-    <text class="label" x="506" y="18">return to FETCH (pc++)</text>
-    <line x1="680" y1="14" x2="720" y2="14" class="ecool"/>
-    <text class="label" x="726" y="18">(unused in this view)</text>
-  </g>
-</svg>
-</div>
-
-
 <div class="panel" style="margin-bottom:24px">
-<div class="cap" style="margin-bottom:10px">
-<strong>Parallel execution timeline.</strong> What actually runs concurrently
-on a kernel like <code>MXU-dispatch; VPU-add; VPU-relu; WAIT_MXU; LOAD_MXU_RESULT</code>.
-Time flows left → right in clock cycles. SXU fires one instruction per
-cycle (single-issue); execution units run in parallel for as long as the
-program doesn't demand their result.
+<div class="cap" style="margin-bottom:10px"><strong>Parallel execution timeline.</strong> Concurrency on a kernel like <code>MXU-dispatch; VPU-add; XLU-broadcast; VPU-relu; WAIT_MXU; LOAD_MXU_RESULT</code>. Time flows left → right in clock cycles. The main FSM is single-issue; MXU overlaps via dispatch+wait; XLU also overlaps via the background collect rule so its writeback happens while SXU fetches/executes the next op.</div>
+<div class="mxgraph" style="max-width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;min-height:360px;" data-mxgraph="{&quot;highlight&quot;: &quot;#0000ff&quot;, &quot;nav&quot;: true, &quot;resize&quot;: true, &quot;toolbar&quot;: &quot;zoom&quot;, &quot;edit&quot;: &quot;_blank&quot;, &quot;xml&quot;: &quot;&lt;mxGraphModel dx=\&quot;1200\&quot; dy=\&quot;800\&quot; grid=\&quot;0\&quot; gridSize=\&quot;10\&quot; guides=\&quot;0\&quot; tooltips=\&quot;1\&quot; connect=\&quot;1\&quot; arrows=\&quot;1\&quot; fold=\&quot;1\&quot; page=\&quot;1\&quot; pageScale=\&quot;1\&quot; pageWidth=\&quot;1200\&quot; pageHeight=\&quot;800\&quot; math=\&quot;0\&quot; shadow=\&quot;0\&quot;&gt;&lt;root&gt;&lt;mxCell id=\&quot;0\&quot;/&gt;&lt;mxCell id=\&quot;1\&quot; parent=\&quot;0\&quot;/&gt;    &lt;mxCell id=\&quot;tl-lbl-SXU\&quot; value=\&quot;SXU\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;10\&quot; y=\&quot;64\&quot; width=\&quot;60\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-lbl-MXU\&quot; value=\&quot;MXU\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;10\&quot; y=\&quot;124\&quot; width=\&quot;60\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-lbl-VPU\&quot; value=\&quot;VPU\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;10\&quot; y=\&quot;184\&quot; width=\&quot;60\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-lbl-XLU\&quot; value=\&quot;XLU\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;10\&quot; y=\&quot;244\&quot; width=\&quot;60\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-lbl-VMEM\&quot; value=\&quot;VMEM\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;10\&quot; y=\&quot;304\&quot; width=\&quot;60\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-0\&quot; value=\&quot;FETCH\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;80\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-1\&quot; value=\&quot;EXEC_MXU\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;142\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-2\&quot; value=\&quot;FETCH\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;204\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-3\&quot; value=\&quot;EXEC_VPU\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;266\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-4\&quot; value=\&quot;VPU_COLL\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;328\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-5\&quot; value=\&quot;FETCH\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;390\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-6\&quot; value=\&quot;XLU_DSP\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;452\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-7\&quot; value=\&quot;FETCH\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;514\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-8\&quot; value=\&quot;EXEC_VPU\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;576\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-9\&quot; value=\&quot;VPU_COLL\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;638\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-10\&quot; value=\&quot;FETCH\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;700\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-11\&quot; value=\&quot;WAIT\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;762\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-12\&quot; value=\&quot;WAIT\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;824\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-13\&quot; value=\&quot;WAIT\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;886\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-14\&quot; value=\&quot;WAIT\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;948\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-15\&quot; value=\&quot;FETCH\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1010\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-sxu-16\&quot; value=\&quot;LD_MXU_R\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1072\&quot; y=\&quot;48\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-mxu-long\&quot; value=\&quot;MXU pipeline (weight-stationary: stream \u2192 systolic \u2192 drain)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;142\&quot; y=\&quot;108\&quot; width=\&quot;930\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-vpu-fadd\&quot; value=\&quot;FADD\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;266\&quot; y=\&quot;168\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-vpu-frelu\&quot; value=\&quot;FRELU\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;576\&quot; y=\&quot;168\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-xlu-bc\&quot; value=\&quot;BROADCAST\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;452\&quot; y=\&quot;228\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-xlu-bg\&quot; value=\&quot;bg collect\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;514\&quot; y=\&quot;228\&quot; width=\&quot;60\&quot; height=\&quot;28\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-vmem\&quot; value=\&quot;(LOAD/STORE ops not shown)\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;100\&quot; y=\&quot;300\&quot; width=\&quot;400\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-ann1\&quot; value=\&quot;MXU dispatched (non-blocking)\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#f2cc60;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;142\&quot; y=\&quot;92\&quot; width=\&quot;230\&quot; height=\&quot;16\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-ann2\&quot; value=\&quot;XLU writeback happens during FETCH\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#7ee787;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;514\&quot; y=\&quot;212\&quot; width=\&quot;280\&quot; height=\&quot;16\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-ann3\&quot; value=\&quot;MXU done signal wakes SXU\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#7ee787;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1010\&quot; y=\&quot;92\&quot; width=\&quot;230\&quot; height=\&quot;16\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-0\&quot; value=\&quot;0\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;110\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-1\&quot; value=\&quot;1\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;172\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-2\&quot; value=\&quot;2\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;234\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-3\&quot; value=\&quot;3\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;296\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-4\&quot; value=\&quot;4\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;358\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-5\&quot; value=\&quot;5\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;420\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-6\&quot; value=\&quot;6\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;482\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-7\&quot; value=\&quot;7\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;544\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-8\&quot; value=\&quot;8\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;606\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-9\&quot; value=\&quot;9\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;668\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-10\&quot; value=\&quot;10\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;730\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-11\&quot; value=\&quot;11\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;792\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-12\&quot; value=\&quot;12\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;854\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-13\&quot; value=\&quot;13\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;916\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-14\&quot; value=\&quot;14\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;978\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-15\&quot; value=\&quot;15\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1040\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-16\&quot; value=\&quot;16\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1102\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;tl-c-17\&quot; value=\&quot;17\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#8b949e;fontSize=10;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1164\&quot; y=\&quot;30\&quot; width=\&quot;20\&quot; height=\&quot;14\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;&quot;}"></div>
 </div>
-<svg viewBox="0 0 1200 330" preserveAspectRatio="xMidYMid meet">
-  <!-- Cycle rule -->
-  <g>
-    <line x1="90" y1="30" x2="1180" y2="30" stroke="#30363d" stroke-width="1"/>
-    <text class="label" x="80" y="26" text-anchor="end">cycle</text>
-    <g font-size="9" fill="#8b949e">
-      <text x="110" y="22">0</text><text x="170" y="22">1</text>
-      <text x="230" y="22">2</text><text x="290" y="22">3</text>
-      <text x="350" y="22">4</text><text x="410" y="22">5</text>
-      <text x="470" y="22">6</text><text x="530" y="22">7</text>
-      <text x="590" y="22">8</text><text x="650" y="22">9</text>
-      <text x="710" y="22">10</text><text x="770" y="22">11</text>
-      <text x="830" y="22">12</text><text x="890" y="22">13</text>
-      <text x="950" y="22">14</text><text x="1010" y="22">15</text>
-      <text x="1070" y="22">16</text><text x="1130" y="22">17</text>
-    </g>
-    <g stroke="#30363d" stroke-width="0.5" stroke-dasharray="2 3">
-      <line x1="110" y1="30" x2="110" y2="300"/>
-      <line x1="170" y1="30" x2="170" y2="300"/>
-      <line x1="230" y1="30" x2="230" y2="300"/>
-      <line x1="290" y1="30" x2="290" y2="300"/>
-      <line x1="350" y1="30" x2="350" y2="300"/>
-      <line x1="410" y1="30" x2="410" y2="300"/>
-      <line x1="470" y1="30" x2="470" y2="300"/>
-      <line x1="530" y1="30" x2="530" y2="300"/>
-      <line x1="590" y1="30" x2="590" y2="300"/>
-      <line x1="650" y1="30" x2="650" y2="300"/>
-      <line x1="710" y1="30" x2="710" y2="300"/>
-      <line x1="770" y1="30" x2="770" y2="300"/>
-      <line x1="830" y1="30" x2="830" y2="300"/>
-      <line x1="890" y1="30" x2="890" y2="300"/>
-      <line x1="950" y1="30" x2="950" y2="300"/>
-      <line x1="1010" y1="30" x2="1010" y2="300"/>
-      <line x1="1070" y1="30" x2="1070" y2="300"/>
-      <line x1="1130" y1="30" x2="1130" y2="300"/>
-    </g>
-  </g>
-
-  <!-- SXU row -->
-  <text class="title" x="80" y="60" text-anchor="end">SXU</text>
-  <rect class="box sxu" x="110" y="44" width="60" height="30"/><text x="140" y="62" text-anchor="middle" font-size="9">FETCH</text>
-  <rect class="box sxu" x="170" y="44" width="60" height="30"/><text x="200" y="62" text-anchor="middle" font-size="9">EXEC_MXU</text>
-  <rect class="box sxu" x="230" y="44" width="60" height="30"/><text x="260" y="62" text-anchor="middle" font-size="9">FETCH</text>
-  <rect class="box sxu" x="290" y="44" width="60" height="30"/><text x="320" y="62" text-anchor="middle" font-size="9">LOAD_REQ</text>
-  <rect class="box sxu" x="350" y="44" width="60" height="30"/><text x="380" y="62" text-anchor="middle" font-size="9">LOAD_RESP</text>
-  <rect class="box sxu" x="410" y="44" width="60" height="30"/><text x="440" y="62" text-anchor="middle" font-size="9">FETCH</text>
-  <rect class="box vpu" x="470" y="44" width="60" height="30"/><text x="500" y="62" text-anchor="middle" font-size="9">EXEC_VPU</text>
-  <rect class="box vpu" x="530" y="44" width="60" height="30"/><text x="560" y="62" text-anchor="middle" font-size="9">VPU_COLL</text>
-  <rect class="box sxu" x="590" y="44" width="60" height="30"/><text x="620" y="62" text-anchor="middle" font-size="9">FETCH</text>
-  <rect class="box vpu" x="650" y="44" width="60" height="30"/><text x="680" y="62" text-anchor="middle" font-size="9">EXEC_VPU</text>
-  <rect class="box vpu" x="710" y="44" width="60" height="30"/><text x="740" y="62" text-anchor="middle" font-size="9">VPU_COLL</text>
-  <rect class="box sxu" x="770" y="44" width="60" height="30"/><text x="800" y="62" text-anchor="middle" font-size="9">FETCH</text>
-  <rect class="box mxu" x="830" y="44" width="240" height="30" stroke-dasharray="3 3"/>
-  <text x="950" y="62" text-anchor="middle" font-size="9">WAIT_MXU (stalls)</text>
-  <rect class="box sxu" x="1070" y="44" width="60" height="30"/><text x="1100" y="62" text-anchor="middle" font-size="9">FETCH</text>
-  <rect class="box mxu" x="1130" y="44" width="60" height="30"/><text x="1160" y="62" text-anchor="middle" font-size="9">LD_MXU_R</text>
-
-  <!-- MXU row -->
-  <text class="title" x="80" y="108" text-anchor="end">MXU</text>
-  <rect x="110" y="92" width="60" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="140" y="110" text-anchor="middle" font-size="9" fill="#8b949e">idle</text>
-  <rect class="box mxu" x="170" y="92" width="900" height="30"/>
-  <text x="620" y="110" text-anchor="middle" font-size="10">
-    <tspan font-weight="700">MXU pipeline</tspan>
-    <tspan fill="#8b949e">  (weight stream → systolic propagate → drain)</tspan>
-  </text>
-  <rect x="1070" y="92" width="60" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="1100" y="110" text-anchor="middle" font-size="9" fill="#8b949e">done</text>
-
-  <!-- VPU row -->
-  <text class="title" x="80" y="156" text-anchor="end">VPU</text>
-  <rect x="110" y="140" width="360" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="290" y="158" text-anchor="middle" font-size="9" fill="#8b949e">idle (MXU busy in parallel)</text>
-  <rect class="box vpu" x="470" y="140" width="60" height="30"/>
-  <text x="500" y="158" text-anchor="middle" font-size="9">FADD</text>
-  <rect x="530" y="140" width="120" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="590" y="158" text-anchor="middle" font-size="9" fill="#8b949e">writeback</text>
-  <rect class="box vpu" x="650" y="140" width="60" height="30"/>
-  <text x="680" y="158" text-anchor="middle" font-size="9">FRELU</text>
-  <rect x="710" y="140" width="420" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="900" y="158" text-anchor="middle" font-size="9" fill="#8b949e">idle</text>
-
-  <!-- FpReducer row (illustrative: when dispatched, SXU stalls in VPU_COLLECT) -->
-  <text class="title" x="80" y="204" text-anchor="end">FpReducer</text>
-  <rect x="110" y="188" width="1050" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="640" y="206" text-anchor="middle" font-size="9" fill="#8b949e">
-    (idle this kernel — FSM walks N cycles when a float SUM/PROD/MAX/MIN reducer is dispatched; SXU stalls in VPU_COLLECT until fpr.isDone)
-  </text>
-
-  <!-- XLU row -->
-  <text class="title" x="80" y="252" text-anchor="end">XLU</text>
-  <rect x="110" y="236" width="1050" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-  <text x="640" y="254" text-anchor="middle" font-size="9" fill="#8b949e">
-    (idle this kernel — transpose / scalar / row / col broadcast dispatch 1-cycle with a 1-cycle collect when used)
-  </text>
-
-  <!-- VMEM row -->
-  <text class="title" x="80" y="300" text-anchor="end">VMEM</text>
-  <rect class="box mem" x="290" y="284" width="60" height="30"/>
-  <text x="320" y="302" text-anchor="middle" font-size="9">read</text>
-  <rect class="box mem" x="350" y="284" width="60" height="30"/>
-  <text x="380" y="302" text-anchor="middle" font-size="9">resp</text>
-  <rect x="410" y="284" width="770" height="30" fill="none" stroke="#30363d" stroke-dasharray="2 2"/>
-
-  <!-- Annotation lines -->
-  <g stroke="#f2cc60" stroke-width="1" stroke-dasharray="4 3" fill="none" marker-end="url(#arrowp)">
-    <line x1="200" y1="74" x2="200" y2="92"/>
-  </g>
-  <text class="label" x="210" y="90" fill="#f2cc60">issue (non-blocking)</text>
-  <g stroke="#7ee787" stroke-width="1" stroke-dasharray="4 3" fill="none" marker-end="url(#arrowHot)">
-    <line x1="1070" y1="122" x2="1070" y2="74"/>
-  </g>
-  <text class="label" x="980" y="136" fill="#7ee787">done signal wakes SXU</text>
-</svg>
-</div>
-
-
 <div class="panel">
-<div class="cap" style="margin-bottom:10px">
-  <strong>Datapath — TensorCore.</strong> Drawn left-to-right like a NeuronCore-style diagram:
-  storage on the left, engines in the middle (one row each), a PSUM-like accumulator on the
-  right feeding the register file back. SXU is the <em>single</em> microsequencer at the top —
-  unlike NeuronCore which gives every engine its own SEQ.
-</div>
-<svg viewBox="0 0 1200 560" preserveAspectRatio="xMidYMid meet">
-  <defs>
-    <marker id="arrD" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3.5 L0,7 z" fill="#8b949e"/>
-    </marker>
-    <marker id="arrDh" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3.5 L0,7 z" fill="#7ee787"/>
-    </marker>
-    <marker id="arrDc" markerWidth="9" markerHeight="9" refX="8" refY="3.5"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3.5 L0,7 z" fill="#d2a8ff"/>
-    </marker>
-    <style>
-      .dp     { stroke: #8b949e; stroke-width: 1.3; fill: none; marker-end: url(#arrD); }
-      .dph    { stroke: #7ee787; stroke-width: 1.6; fill: none; marker-end: url(#arrDh); }
-      .dpc    { stroke: #d2a8ff; stroke-width: 1.2; fill: none; marker-end: url(#arrDc); }
-      .dpwb   { stroke: #f2cc60; stroke-width: 1.2; fill: none; marker-end: url(#arrD); stroke-dasharray: 4 3; }
-      .dprow  { fill: #141820; stroke: #30363d; rx: 4; ry: 4; }
-    </style>
-  </defs>
-
-  <!-- Chip wrapper -->
-  <rect class="chip" x="10" y="10" width="1180" height="540"/>
-  <text class="title" x="28" y="30">TinyTPUChip  ·  TensorCore  (one of N)</text>
-  <text class="label" x="28" y="44">LTR flow: storage → engines → accumulator → writeback</text>
-
-  <!-- SXU bar (shared, unlike NeuronCore per-engine SEQs) -->
-  <g>
-    <rect class="box sxu" x="30" y="58" width="1140" height="40"/>
-    <text class="title" x="600" y="76" text-anchor="middle">SXU  (single microsequencer — shared by all engines)</text>
-    <text class="label" x="600" y="90" text-anchor="middle">
-      FETCH → DECODE → dispatch { LOAD, STORE, DISPATCH_VPU, DISPATCH_XLU_*, DISPATCH_MXU, DISPATCH_SELECT, WAIT_MXU, LOAD_MXU_RESULT, HALT }
-    </text>
-  </g>
-
-  <!-- ================= LEFT: storage column ================= -->
-  <!-- Order: VRegFile, WeightSRAM, ActivSRAM, VMEM (top → bottom).
-       Places the MXU-local Int8 operand stores (Weight/Activ) next to the
-       top MXU engine row so the feed arrows are short; VMEM at the bottom
-       is the LOAD/STORE backing store and also the bridge to HBM. -->
-  <text class="title" x="120" y="118" text-anchor="middle">Storage (SBUF analog)</text>
-
-  <g>
-    <rect class="box mem" x="40" y="130" width="160" height="60"/>
-    <text class="title" x="120" y="150" text-anchor="middle">VRegFile</text>
-    <text class="label" x="120" y="166" text-anchor="middle">16 regs × (4×4 × Int32)</text>
-    <text class="label" x="120" y="180" text-anchor="middle">engine scratch</text>
-  </g>
-  <g>
-    <rect class="box mem" x="40" y="200" width="160" height="60"/>
-    <text class="title" x="120" y="220" text-anchor="middle">WeightSRAM</text>
-    <text class="label" x="120" y="236" text-anchor="middle">MXU-local: 4×4 × Int8 × depth</text>
-    <text class="label" x="120" y="250" text-anchor="middle">weight-stationary</text>
-  </g>
-  <g>
-    <rect class="box mem" x="40" y="270" width="160" height="60"/>
-    <text class="title" x="120" y="290" text-anchor="middle">ActivSRAM</text>
-    <text class="label" x="120" y="306" text-anchor="middle">MXU-local: 4 × Int8 × depth</text>
-    <text class="label" x="120" y="320" text-anchor="middle">per-row vector</text>
-  </g>
-  <g>
-    <rect class="box mem" x="40" y="340" width="160" height="60"/>
-    <text class="title" x="120" y="360" text-anchor="middle">VMEM</text>
-    <text class="label" x="120" y="376" text-anchor="middle">unified tile scratchpad</text>
-    <text class="label" x="120" y="390" text-anchor="middle">PAD_FILL / MATRIX_TILE / …</text>
-  </g>
-
-  <!-- ================= MIDDLE: engine rows ================= -->
-  <!-- No per-engine SEQ stubs: TinyTPU uses one shared SXU (top bar) and
-       that contrast with NeuronCore is already called out in the prose +
-       comparison table. Keeping the middle clean makes the buses readable. -->
-
-  <!-- Row 1: Tensor Engine analog = MXU (SystolicArray + Controller) -->
-  <g>
-    <rect class="box mxu" x="300" y="135" width="440" height="50"/>
-    <text class="title" x="520" y="155" text-anchor="middle">MXU (Tensor Engine)</text>
-    <text class="label" x="520" y="170" text-anchor="middle">SystolicArray 4×4 Int8 MACs  +  Controller FSM  (weight-stationary)</text>
-  </g>
-
-  <!-- Row 2: Vector Engine analog = VPU -->
-  <g>
-    <rect class="box vpu" x="300" y="205" width="440" height="50"/>
-    <text class="title" x="520" y="225" text-anchor="middle">VPU (Vector Engine)</text>
-    <text class="label" x="520" y="240" text-anchor="middle">int32 + float32 ALU: ADD/MUL/SUB/MAX/MIN/DIV/CMP/AND/OR/XOR/SHL/SHR/RELU/SELECT/COPY/F*</text>
-  </g>
-
-  <!-- Row 3: Scalar Engine analog = FpReducer (shared multi-cycle FP reducer) -->
-  <g>
-    <rect class="box vpu" x="300" y="275" width="440" height="50"/>
-    <text class="title" x="520" y="295" text-anchor="middle">FpReducer (Scalar / Reduce Engine)</text>
-    <text class="label" x="520" y="310" text-anchor="middle">1 FP adder + 1 FP multiplier + 1 FP comparator  ·  FSM-walked SUM/PROD/MAX/MIN</text>
-  </g>
-
-  <!-- Row 4: GPSIMD analog = XLU -->
-  <g>
-    <rect class="box xlu" x="300" y="345" width="440" height="50"/>
-    <text class="title" x="520" y="365" text-anchor="middle">XLU (cross-lane / GPSIMD-like)</text>
-    <text class="label" x="520" y="380" text-anchor="middle">TRANSPOSE  ·  BROADCAST (scalar / row / col)  ·  PERMUTE</text>
-  </g>
-
-  <!-- ================= RIGHT: accumulator / writeback ================= -->
-  <text class="title" x="880" y="118" text-anchor="middle">Accumulator (PSUM analog)</text>
-
-  <g>
-    <rect class="box mxu" x="780" y="135" width="200" height="50"/>
-    <text class="title" x="880" y="155" text-anchor="middle">MXU result reg</text>
-    <text class="label" x="880" y="170" text-anchor="middle">Int32 row, drained to VRF row 0</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="780" y="205" width="200" height="50"/>
-    <text class="title" x="880" y="225" text-anchor="middle">VPU resultReg</text>
-    <text class="label" x="880" y="240" text-anchor="middle">4×4 Int32 writeback buffer</text>
-  </g>
-  <g>
-    <rect class="box vpu" x="780" y="275" width="200" height="50"/>
-    <text class="title" x="880" y="295" text-anchor="middle">FpReducer.acc</text>
-    <text class="label" x="880" y="310" text-anchor="middle">broadcast-to-tile on isDone</text>
-  </g>
-  <g>
-    <rect class="box xlu" x="780" y="345" width="200" height="50"/>
-    <text class="title" x="880" y="365" text-anchor="middle">XLU output</text>
-    <text class="label" x="880" y="380" text-anchor="middle">lane-permuted vreg tile</text>
-  </g>
-
-  <!-- =============== Off-chip / chip-level =============== -->
-  <g>
-    <rect class="box mem" x="40" y="430" width="200" height="70"/>
-    <text class="title" x="140" y="452" text-anchor="middle">HBMModel</text>
-    <text class="label" x="140" y="468" text-anchor="middle">configurable-latency DRAM</text>
-    <text class="label" x="140" y="484" text-anchor="middle">backing store</text>
-  </g>
-  <g>
-    <rect class="box xlu" x="270" y="430" width="200" height="70"/>
-    <text class="title" x="370" y="452" text-anchor="middle">ChipNoC (ring)</text>
-    <text class="label" x="370" y="468" text-anchor="middle">base for collectives</text>
-    <text class="label" x="370" y="484" text-anchor="middle">(broadcast / allreduce TBD)</text>
-  </g>
-  <g>
-    <rect class="box sxu" x="500" y="430" width="200" height="70"/>
-    <text class="title" x="600" y="452" text-anchor="middle">SparseCore</text>
-    <text class="label" x="600" y="468" text-anchor="middle">embedding lookup</text>
-    <text class="label" x="600" y="484" text-anchor="middle">sum-pool reduction</text>
-  </g>
-  <g>
-    <rect class="box" x="730" y="430" width="200" height="70" fill="#141820"/>
-    <text class="title" x="830" y="452" text-anchor="middle">Other TensorCores × (N-1)</text>
-    <text class="label" x="830" y="468" text-anchor="middle">(replicated identical core)</text>
-    <text class="label" x="830" y="484" text-anchor="middle">share HBM via NoC</text>
-  </g>
-
-  <!-- =============== EDGES =============== -->
-  <!-- Dispatch and read buses enter each engine at OFFSET y-positions on
-       the left edge, so the gray dispatch arrow and the green vreg-input
-       arrow don't stack on top of each other. Convention:
-         dispatch  → engine_top + 15  (upper part of left edge)
-         vs / vs2  → engine_top + 35  (lower part of left edge)
-  -->
-
-  <!-- Dispatch bus: single vertical line from SXU bar down the left side
-       of the engine column, with one tee per engine at the UPPER entry. -->
-  <path class="dp" d="M260,98 L260,360"/>
-  <path class="dp" d="M260,150 L300,150"/>
-  <path class="dp" d="M260,220 L300,220"/>
-  <path class="dp" d="M260,290 L300,290"/>
-  <path class="dp" d="M260,360 L300,360"/>
-  <text class="label" x="266" y="130">dispatch</text>
-
-  <!-- Read bus for VRegFile → VPU / FpReducer / XLU, offset so the green
-       arrow enters each engine at the LOWER part of its left edge. Short
-       stub from VRegFile's right edge down to the bus, then tees into the
-       three consuming engines (MXU does not read VRegFile directly). -->
-  <path class="dph" d="M200,170 L280,170"/>
-  <path class="dph" d="M280,170 L280,380"/>
-  <path class="dph" d="M280,240 L300,240"/>
-  <path class="dph" d="M280,310 L300,310"/>
-  <path class="dph" d="M280,380 L300,380"/>
-  <text class="label" x="285" y="398" fill="#7ee787">vs / vs2</text>
-
-  <!-- MXU Int8 operand feeds: short diagonals from WeightSRAM and
-       ActivSRAM into MXU's LOWER entry (~y=175), so they don't overlap
-       with the dispatch tee at y=150. -->
-  <path class="dph" d="M200,225 C240,210 270,190 300,175"/>
-  <text class="label" x="204" y="218" fill="#7ee787">weights</text>
-  <path class="dph" d="M200,285 C250,260 275,195 300,180"/>
-  <text class="label" x="204" y="278" fill="#7ee787">activations</text>
-
-  <!-- VMEM ↔ VRegFile (SXU-driven LOAD/STORE) routed along the OUTER
-       left edge of the storage column so it bypasses WeightSRAM and
-       ActivSRAM instead of slicing through them. Two parallel L-shapes:
-       inner (x=30) = STORE (VRegFile→VMEM); outer (x=22) = LOAD (VMEM→VRegFile). -->
-  <path class="dp" d="M40,155 L30,155 L30,375 L40,375"/>
-  <path class="dp" d="M40,370 L22,370 L22,160 L40,160"/>
-  <g transform="translate(14,260) rotate(-90)">
-    <text class="label" x="0" y="0" text-anchor="middle" fill="#8b949e">LOAD / STORE</text>
-  </g>
-
-  <!-- Engines → Accumulator (writes) : one short LTR arrow per row. -->
-  <path class="dph" d="M740,160 L780,160"/>
-  <path class="dph" d="M740,230 L780,230"/>
-  <path class="dph" d="M740,300 L780,300"/>
-  <path class="dph" d="M740,370 L780,370"/>
-
-  <!-- Accumulator → VRegFile writeback. Instead of four curves slicing
-       across the engine rows, funnel every accumulator into a vertical
-       return bus just right of the accumulator column, run it up above
-       the engines (y=120), back left across the top, and drop it onto
-       VRegFile's right edge. One visual path, four logical writers. -->
-  <path class="dpwb" d="M980,160 L1000,160"/>
-  <path class="dpwb" d="M980,230 L1000,230"/>
-  <path class="dpwb" d="M980,300 L1000,300"/>
-  <path class="dpwb" d="M980,370 L1000,370"/>
-  <path class="dpwb" d="M1000,370 L1000,120"/>
-  <path class="dpwb" d="M1000,120 L205,120"/>
-  <path class="dpwb" d="M205,120 L205,150"/>
-  <text class="label" x="1006" y="244" fill="#f2cc60">writeback</text>
-  <text class="label" x="600" y="114" text-anchor="middle" fill="#f2cc60">writeback to VRegFile  (vd)</text>
-
-  <!-- MXU → VPU epilogue: short arrow between the MXU result reg and the
-       VPU resultReg inside the accumulator column. -->
-  <path class="dpc" d="M880,185 L880,205"/>
-  <text class="label" x="888" y="200" fill="#d2a8ff">SXU_LOAD_MXU_RESULT</text>
-
-  <!-- HBM connects to every tile-sized store inside the core:
-         - VMEM (short vertical pair, directly above HBM)
-         - WeightSRAM + ActivSRAM (via a preload bus in the gutter at x=220
-           so it clears VMEM and the weights/activations feed curves).
-       Drawn as plain control edges since these are DMA-style preloads,
-       not per-tick engine reads. -->
-  <!-- HBM ↔ VMEM -->
-  <path class="dp" d="M140,430 L140,400"/>
-  <path class="dp" d="M130,400 L130,430"/>
-  <!-- HBM → WeightSRAM / ActivSRAM preload bus -->
-  <path class="dp" d="M220,430 L220,230 L200,230"/>
-  <path class="dp" d="M220,300 L200,300"/>
-  <text class="label" x="228" y="410" fill="#8b949e">preload</text>
-
-  <!-- NoC connects the tensor cores -->
-  <path class="dp" d="M240,465 L270,465"/>
-  <path class="dp" d="M470,465 L500,465"/>
-  <path class="dp" d="M700,465 L730,465"/>
-
-  <!-- Legend -->
-  <g transform="translate(960, 430)">
-    <rect class="box" x="0" y="0" width="210" height="70" fill="#141820"/>
-    <text class="title" x="10" y="16">Edge legend</text>
-    <line x1="10"  y1="28" x2="36" y2="28" class="dp"/>
-    <text class="label" x="42" y="32">control / dispatch</text>
-    <line x1="10"  y1="42" x2="36" y2="42" class="dph"/>
-    <text class="label" x="42" y="46">data (read / write)</text>
-    <line x1="10"  y1="56" x2="36" y2="56" class="dpwb"/>
-    <text class="label" x="42" y="60">writeback to VRegFile</text>
-    <line x1="120" y1="56" x2="146" y2="56" class="dpc"/>
-    <text class="label" x="152" y="60">epilogue</text>
-  </g>
-</svg>
+<div class="cap" style="margin-bottom:10px"><strong>Datapath — TensorCore.</strong> Storage on the left, engines in the middle, PSUM bucket bank + per-engine result regs on the right feeding VRegFile back. Weight/Activation SRAMs are double-buffered; WeightDMA / ActivationDMA preload the inactive bank in parallel with an MXU dispatch draining the active bank. TranscUnit handles EXP2/LOG2/SIN/COS via a shared multi-cycle walker.</div>
+<div class="mxgraph" style="max-width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;min-height:700px;" data-mxgraph="{&quot;highlight&quot;: &quot;#0000ff&quot;, &quot;nav&quot;: true, &quot;resize&quot;: true, &quot;toolbar&quot;: &quot;zoom&quot;, &quot;edit&quot;: &quot;_blank&quot;, &quot;xml&quot;: &quot;&lt;mxGraphModel dx=\&quot;1200\&quot; dy=\&quot;800\&quot; grid=\&quot;0\&quot; gridSize=\&quot;10\&quot; guides=\&quot;0\&quot; tooltips=\&quot;1\&quot; connect=\&quot;1\&quot; arrows=\&quot;1\&quot; fold=\&quot;1\&quot; page=\&quot;1\&quot; pageScale=\&quot;1\&quot; pageWidth=\&quot;1200\&quot; pageHeight=\&quot;800\&quot; math=\&quot;0\&quot; shadow=\&quot;0\&quot;&gt;&lt;root&gt;&lt;mxCell id=\&quot;0\&quot;/&gt;&lt;mxCell id=\&quot;1\&quot; parent=\&quot;0\&quot;/&gt;    &lt;mxCell id=\&quot;dp-sxu\&quot; value=\&quot;SXU  (single microsequencer + background XLU collect rule)\nLOAD / STORE / DISPATCH_{VPU, XLU_*, MXU, MXU_OS, SELECT} / WAIT_MXU / LOAD_{MXU,VPU,XLU}_RESULT /\nPSUM_{WRITE,ACC,READ,READ_ROW,CLEAR,ACC_ROW} / MXU_CLEAR / SET_PRED_IF_ZERO / SKIP_IF_PRED / HALT\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;20\&quot; width=\&quot;1120\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-storhdr\&quot; value=\&quot;Storage (SBUF analog)\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;96\&quot; width=\&quot;160\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-enghdr\&quot; value=\&quot;Engines\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;280\&quot; y=\&quot;96\&quot; width=\&quot;440\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-acchdr\&quot; value=\&quot;Accumulator + result regs\&quot; style=\&quot;text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontColor=#e6edf3;fontSize=10;fontStyle=1;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;820\&quot; y=\&quot;96\&quot; width=\&quot;340\&quot; height=\&quot;18\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-vrf\&quot; value=\&quot;VRegFile\n16 \u00d7 (4\u00d74 \u00d7 Int32)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;130\&quot; width=\&quot;160\&quot; height=\&quot;50\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-wdb\&quot; value=\&quot;WeightSRAM_DB\n2-bank \u00b7 active reads, inactive writes\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;210\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-adb\&quot; value=\&quot;ActivationSRAM_DB\n2-bank \u00b7 per-row Int8\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;280\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-vmem\&quot; value=\&quot;VMEM\nunified tile scratchpad (depth 32)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;390\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-mxu\&quot; value=\&quot;MXU (Tensor Engine)\nSystolicArray 4\u00d74 Int8 + Controller \u00b7 WS + OS\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;280\&quot; y=\&quot;130\&quot; width=\&quot;440\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-vpu\&quot; value=\&quot;VPU (Vector Engine)\nint32 + float32 ALU \u00b7 55 opcodes\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;280\&quot; y=\&quot;210\&quot; width=\&quot;440\&quot; height=\&quot;70\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-fpr\&quot; value=\&quot;FpReducer\nFADD + FMUL + FCMP walker\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;280\&quot; y=\&quot;300\&quot; width=\&quot;215\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-trs\&quot; value=\&quot;TranscUnit\nEXP2 / LOG2 / SIN / COS (Remez)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;505\&quot; y=\&quot;300\&quot; width=\&quot;215\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-xlu\&quot; value=\&quot;XLU (cross-lane / GPSIMD-like)\nTRANSPOSE \u00b7 BROADCAST \u00b7 PERMUTE\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;280\&quot; y=\&quot;380\&quot; width=\&quot;440\&quot; height=\&quot;70\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-psum\&quot; value=\&quot;PSUMBank\n8 buckets \u00d7 4\u00d74 Int32\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;820\&quot; y=\&quot;130\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-mxures\&quot; value=\&quot;MXU result reg\nInt32 row\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2d3a;strokeColor=#58a6ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1000\&quot; y=\&quot;130\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-vpures\&quot; value=\&quot;VPU resultReg\n4\u00d74 Int32 buffer\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;820\&quot; y=\&quot;210\&quot; width=\&quot;340\&quot; height=\&quot;70\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-fpracc\&quot; value=\&quot;FpReducer.acc / TranscUnit.acc\nbroadcast-to-tile on isDone\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#24293a;strokeColor=#d2a8ff;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;820\&quot; y=\&quot;300\&quot; width=\&quot;340\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-xlures\&quot; value=\&quot;XLU resultReg\nlane-permuted tile\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;820\&quot; y=\&quot;380\&quot; width=\&quot;340\&quot; height=\&quot;70\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-wdma\&quot; value=\&quot;WeightDMA\nbackground preload\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;250\&quot; y=\&quot;475\&quot; width=\&quot;170\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-adma\&quot; value=\&quot;ActivationDMA\nbackground preload\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;440\&quot; y=\&quot;475\&quot; width=\&quot;170\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-hbm\&quot; value=\&quot;HBMModel\nconfigurable-latency DRAM\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a1e22;strokeColor=#ff7b72;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;40\&quot; y=\&quot;475\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-noc\&quot; value=\&quot;ChipNoC (ring)\nbase for collectives\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1e2a1f;strokeColor=#7ee787;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;635\&quot; y=\&quot;475\&quot; width=\&quot;170\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-sc\&quot; value=\&quot;SparseCore\nembedding lookup\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#2a241a;strokeColor=#f2cc60;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;820\&quot; y=\&quot;475\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-otc\&quot; value=\&quot;Other TensorCores \u00d7 (N-1)\&quot; style=\&quot;rounded=1;whiteSpace=wrap;html=1;fontColor=#e6edf3;fontSize=11;fillColor=#1f2630;strokeColor=#30363d;\&quot; vertex=\&quot;1\&quot; parent=\&quot;1\&quot;&gt;&lt;mxGeometry x=\&quot;1000\&quot; y=\&quot;475\&quot; width=\&quot;160\&quot; height=\&quot;60\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-r-vpu\&quot; value=\&quot;vs/vs2\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vrf\&quot; target=\&quot;dp-vpu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-r-fpr\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vrf\&quot; target=\&quot;dp-fpr\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-r-xlu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vrf\&quot; target=\&quot;dp-xlu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-w-mxu\&quot; value=\&quot;weights\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-wdb\&quot; target=\&quot;dp-mxu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-a-mxu\&quot; value=\&quot;activations\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.9;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-adb\&quot; target=\&quot;dp-mxu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-vl\&quot; value=\&quot;LOAD\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vmem\&quot; target=\&quot;dp-vrf\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-vs\&quot; value=\&quot;STORE\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.2;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vrf\&quot; target=\&quot;dp-vmem\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-e-mxu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-mxu\&quot; target=\&quot;dp-psum\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-p-res\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-psum\&quot; target=\&quot;dp-mxures\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-e-vpu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vpu\&quot; target=\&quot;dp-vpures\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-e-fpr\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-fpr\&quot; target=\&quot;dp-fpracc\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-e-trs\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-trs\&quot; target=\&quot;dp-fpracc\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-e-xlu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-xlu\&quot; target=\&quot;dp-xlures\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-wb-mxu\&quot; value=\&quot;writeback\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#f2cc60;dashed=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-mxures\&quot; target=\&quot;dp-vrf\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-wb-vpu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#f2cc60;dashed=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0.9;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vpures\&quot; target=\&quot;dp-vrf\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-wb-xlu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#f2cc60;dashed=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0.7;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-xlures\&quot; target=\&quot;dp-vrf\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-ep-mxu\&quot; value=\&quot;LOAD_MXU_RESULT\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#d2a8ff;strokeWidth=1.2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.9;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-mxures\&quot; target=\&quot;dp-vpu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-ep-vpu\&quot; value=\&quot;LOAD_VPU_RESULT\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#d2a8ff;strokeWidth=1.2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-vpures\&quot; target=\&quot;dp-vpu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-ep-xlu\&quot; value=\&quot;LOAD_XLU_RESULT\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#d2a8ff;strokeWidth=1.2;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-xlures\&quot; target=\&quot;dp-vpu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-ps-sxu\&quot; value=\&quot;PSUM_*\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#d2a8ff;strokeWidth=1.2;exitX=0.8;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-sxu\&quot; target=\&quot;dp-psum\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-d-mxu\&quot; value=\&quot;dispatch\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.3;exitY=1;exitDx=0;exitDy=0;entryX=0.6;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-sxu\&quot; target=\&quot;dp-mxu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-d-vpu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.4;exitY=1;exitDx=0;exitDy=0;entryX=0.6;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-sxu\&quot; target=\&quot;dp-vpu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-d-xlu\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.6;entryY=0;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-sxu\&quot; target=\&quot;dp-xlu\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-dma-w\&quot; value=\&quot;preload\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.6;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-wdma\&quot; target=\&quot;dp-wdb\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-dma-a\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#7ee787;strokeWidth=2;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.6;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-adma\&quot; target=\&quot;dp-adb\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-hb-vmem\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-hbm\&quot; target=\&quot;dp-vmem\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-hb-wdma\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-hbm\&quot; target=\&quot;dp-wdma\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-hb-adma\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-hbm\&quot; target=\&quot;dp-adma\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-nc-1\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-adma\&quot; target=\&quot;dp-noc\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-nc-2\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-noc\&quot; target=\&quot;dp-sc\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;\n    &lt;mxCell id=\&quot;dp-nc-3\&quot; style=\&quot;edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;endArrow=classic;strokeColor=#8b949e;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;\&quot; edge=\&quot;1\&quot; parent=\&quot;1\&quot; source=\&quot;dp-sc\&quot; target=\&quot;dp-otc\&quot;&gt;&lt;mxGeometry relative=\&quot;1\&quot; as=\&quot;geometry\&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;&quot;}"></div>
 </div>
 
 <h2>How TinyTPU stacks up against AWS NeuronCore</h2>
 <div class="panel">
 <p class="cap" style="margin-top:0">
   Both are "matrix + vector + scalar + SIMD engines reading from a shared scratchpad."
-  The structural differences are all about <em>issue and control</em>: NeuronCore
-  gives every engine its own SEQ and a dedicated PSUM accumulator bank; TinyTPU
-  has <em>one</em> SXU sequencer driving all engines, and reuses the VRegFile
-  for accumulation.
+  TinyTPU started with a single shared sequencer and no PSUM bank; recent architectural
+  pushes closed several structural gaps (PSUM bucket bank, dual-issue XLU, output-stationary
+  dataflow mode, double-buffered SRAMs with DMA engines, a transcendental unit). The
+  remaining differences are mostly scale and a sync engine.
 </p>
 <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:8px">
   <thead>
     <tr style="color:var(--dim); text-align:left">
-      <th style="padding:6px 8px; font-weight:600; width:24%">concept</th>
-      <th style="padding:6px 8px; font-weight:600; width:38%">AWS NeuronCore</th>
-      <th style="padding:6px 8px; font-weight:600; width:38%">TinyTPU TensorCore</th>
+      <th style="padding:6px 8px; font-weight:600; width:22%">concept</th>
+      <th style="padding:6px 8px; font-weight:600; width:39%">AWS NeuronCore</th>
+      <th style="padding:6px 8px; font-weight:600; width:39%">TinyTPU TensorCore</th>
     </tr>
   </thead>
   <tbody>
     <tr><td style="padding:6px 8px; color:var(--dim)">matrix engine</td>
         <td style="padding:6px 8px">Tensor Engine (large systolic, mixed-precision)</td>
-        <td style="padding:6px 8px">MXU: 4×4 <code>Int8</code> systolic, Int32 accumulator</td></tr>
+        <td style="padding:6px 8px">MXU: 4×4 <code>Int8</code> systolic, Int32 accum.
+             Two dataflow modes: weight-stationary (<code>start</code>) and
+             output-stationary (<code>startOS</code> + <code>clearArray</code>).</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">vector engine</td>
         <td style="padding:6px 8px">Vector Engine (wide SIMD, FP32 / BF16)</td>
-        <td style="padding:6px 8px">VPU: 4×4 int32/float32 ALU with shared <code>FpReducer</code></td></tr>
+        <td style="padding:6px 8px">VPU: 4×4 int32/float32 ALU; multi-cycle reducers
+             via <code>FpReducer</code>; transcendentals (EXP2/LOG2/SIN/COS) via
+             <code>TranscUnit</code> walker.</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">scalar / reduce engine</td>
         <td style="padding:6px 8px">Scalar Engine (ops on single values, softmax-style reductions)</td>
-        <td style="padding:6px 8px">fused into VPU; multi-cycle FP reductions via <code>FpReducer</code></td></tr>
+        <td style="padding:6px 8px">fused into VPU; <code>FpReducer</code> covers
+             float SUM/PROD/MAX/MIN at tile / row / col granularity.</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">SIMD / custom</td>
-        <td style="padding:6px 8px">GPSIMD Engine (general SIMD; custom kernels, transcendentals)</td>
-        <td style="padding:6px 8px">XLU: cross-lane broadcast / transpose / permute only
-             (no general SIMD — gap vs NeuronCore)</td></tr>
+        <td style="padding:6px 8px">GPSIMD Engine (general SIMD, custom kernels, transcendentals)</td>
+        <td style="padding:6px 8px">XLU: cross-lane broadcast / transpose / permute.
+             Transcendentals now in TranscUnit; general custom SIMD still a gap.</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">sequencer topology</td>
         <td style="padding:6px 8px"><strong>Per-engine SEQ</strong> — each engine has its own
              instruction stream; engines run independently</td>
-        <td style="padding:6px 8px"><strong>Single SXU</strong> — one microprogram
-             fans out to all engines; parallelism is only via MXU-dispatch +
-             WAIT_MXU (background issue)</td></tr>
+        <td style="padding:6px 8px"><strong>Single SXU + dual-issue XLU</strong>:
+             one microprogram fans out; MXU overlaps via dispatch/wait; XLU
+             overlaps via a background <code>do_xlu_collect_bg</code> rule.
+             VPU still single-issue.</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">shared scratchpad</td>
         <td style="padding:6px 8px">SBUF — large on-chip buffer, every engine reads/writes</td>
         <td style="padding:6px 8px">VMEM + VRegFile — same role, smaller footprint</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">accumulator</td>
-        <td style="padding:6px 8px"><strong>PSUM</strong> — dedicated partial-sum buffer shared
-             by Tensor/Vector/Scalar</td>
-        <td style="padding:6px 8px">no dedicated PSUM; MXU result reg drains into
-             VRegFile, VPU has its own resultReg. The
-             <code>SXU_LOAD_MXU_RESULT</code> path is the moral equivalent
-             for single-K-tile epilogues only</td></tr>
+        <td style="padding:6px 8px"><strong>PSUM</strong> — dedicated partial-sum buffer
+             shared by Tensor/Vector/Scalar</td>
+        <td style="padding:6px 8px"><strong>PSUMBank</strong> (8 buckets × 4×4 Int32)
+             with row-granular write/accumulate/read access, driven by both
+             Controller (per-dispatch deposit via <code>startPsum</code>) and
+             SXU opcodes. Multi-K-tile GEMM epilogue runs entirely in hardware.</td></tr>
+    <tr><td style="padding:6px 8px; color:var(--dim)">operand buffers</td>
+        <td style="padding:6px 8px">direct HBM→SBUF→engine</td>
+        <td style="padding:6px 8px"><code>WeightSRAM_DB</code> + <code>ActivationSRAM_DB</code>:
+             2-bank ping-pong, <code>WeightDMA</code> / <code>ActivationDMA</code>
+             preload inactive bank in parallel with an MXU dispatch draining the
+             active bank.</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">sync / barrier</td>
         <td style="padding:6px 8px">dedicated <strong>Sync Engine</strong></td>
-        <td style="padding:6px 8px">none — SXU serialization is the only barrier. No
-             <code>BARRIER</code> / <code>IF</code> / <code>ENDIF</code> yet
-             (in TODO's hardware gaps)</td></tr>
+        <td style="padding:6px 8px">no sync engine yet. <code>SET_PRED_IF_ZERO</code> +
+             <code>SKIP_IF_PRED</code> are the baby IF/BARRIER primitives; real
+             BARRIER / IF / ENDIF still TODO.</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">off-chip</td>
         <td style="padding:6px 8px">HBM ↔ SBUF (high-bandwidth)</td>
-        <td style="padding:6px 8px">HBMModel ↔ VMEM (behavioral latency; no explicit
-             spill/fill compiler support yet)</td></tr>
+        <td style="padding:6px 8px">HBMModel ↔ VMEM &amp; WeightSRAM_DB / ActivationSRAM_DB
+             via DMA stubs; no compiler-managed spill/fill yet.</td></tr>
     <tr><td style="padding:6px 8px; color:var(--dim)">multi-device</td>
         <td style="padding:6px 8px">NeuronCores × N per chip, chips via NeuronLink, collectives in hardware</td>
-        <td style="padding:6px 8px">TinyTPUChip has a ring NoC + SparseCore; no collective
-             primitives wired yet</td></tr>
+        <td style="padding:6px 8px">TinyTPUChip has a ring NoC + SparseCore; no
+             collective primitives wired yet</td></tr>
   </tbody>
 </table>
-
-<p class="cap" style="margin-top:14px"><strong>Short version:</strong></p>
-<ul>
-  <li>TinyTPU <strong>mirrors the engine taxonomy</strong> — matrix / vector / scalar / SIMD
-      — but <strong>collapses it onto one sequencer</strong>. Everything SXU dispatches runs
-      in sequence; only MXU truly overlaps via the dispatch+wait split.</li>
-  <li>TinyTPU has <strong>no PSUM</strong>. Partial-sum accumulation lives inside
-      Controller for the MXU; epilogue fuses by loading that result back into a VRegFile
-      row that VPU then reads. This limits multi-K-tile chained GEMM epilogues (still a TODO).</li>
-  <li>TinyTPU has <strong>no sync engine and no general-purpose SIMD engine</strong>.
-      Both are ambitions, not primitives today (BARRIER / IF / ENDIF and transcendentals
-      are on the hardware-gap list).</li>
-  <li>To match NeuronCore's parallelism surface, the two structural moves are
-      (a) a second issue slot / small scoreboard on SXU so VPU and XLU can overlap
-      MXU, and (b) a dedicated PSUM bank so epilogues don't need to round-trip
-      through VRegFile.</li>
-</ul>
 </div>
 
 <h2>Concurrency rules — what overlaps</h2>
 <div class="panel" style="padding:18px 24px">
 <ul>
-  <li><strong>MXU runs in parallel with SXU.</strong> <code>DISPATCH_MXU</code> is
-      issue-only — the Controller latches weight base / activation base / tile length
-      and starts streaming. SXU advances PC immediately; it only synchronizes when a
-      downstream op needs the result, via an explicit <code>WAIT_MXU</code> or via
-      <code>LOAD_MXU_RESULT</code>.</li>
-  <li><strong>VPU collect blocks SXU for 1 cycle</strong> (single-cycle ALU) —
-      <code>EXEC_VPU</code> then <code>EXEC_VPU_COLLECT</code>. This is a pipelined
-      2-stage dispatch, not a stall.</li>
-  <li><strong>Multi-cycle FP reducers stall SXU</strong> (SUM/PROD/MAX/MIN tile).
-      <code>EXEC_VPU_COLLECT</code> is guarded on <code>vpu.isDone</code>; while
-      the FpReducer walks the 16-element tile (~16 cycles) SXU is held in the
-      collect state.</li>
-  <li><strong>XLU is single-cycle.</strong> Broadcast / transpose ops have the same
-      dispatch + 1-cycle-collect shape as VPU.</li>
-  <li><strong>VMEM read latency = 1 cycle</strong>: <code>EXEC_LOAD_REQ</code> then
-      <code>EXEC_LOAD_RESP</code>; VMEM stores are single-cycle.</li>
-  <li><strong>Single-issue, register-renamed by hand.</strong> No bypass network —
-      dependencies resolve through the 2-cycle read-after-write observable in the
-      VRegFile. Program must insert an intervening op (or simply not read vd until
-      the cycle after the write) if it wants to observe the result.</li>
-  <li><strong>What does NOT overlap today:</strong> two VPU ops; VPU ops against
-      their own prior result (no forwarding); XLU and VPU simultaneously (both go
-      through the same SXU issue slot). Adding a second issue slot or a small
-      scoreboard is the next structural move if we care about beyond-MXU
-      concurrency.</li>
+  <li><strong>MXU runs in parallel with SXU.</strong>
+      <code>DISPATCH_MXU</code> / <code>DISPATCH_MXU_OS</code> are issue-only —
+      the Controller latches operand bases / tile length and starts streaming.
+      SXU advances PC immediately; it synchronizes via <code>WAIT_MXU</code>,
+      <code>LOAD_MXU_RESULT</code>, or a PSUM read.</li>
+  <li><strong>XLU runs in parallel with the main FSM.</strong> Each XLU
+      dispatch fires <code>xlu.execute(…)</code>, sets <code>xlu_busy</code>+
+      <code>xlu_dst</code>, advances pc, and returns to FETCH. The next cycle,
+      <code>do_xlu_collect_bg</code> writes <code>vrf[xlu_dst]</code> while the
+      main FSM fetches/executes the next non-XLU op. Structural-hazard guard
+      <code>!xlu_busy</code> blocks back-to-back XLU dispatches.</li>
+  <li><strong>OS-mode MXU accumulator-hold.</strong> In
+      <code>DF_OUTPUT_STATIONARY</code> mode, drain skips <code>array.clearAll</code>
+      so consecutive <code>startOS</code> calls accumulate in-place.
+      <code>SXU_MXU_CLEAR</code> starts a fresh epoch; WS dispatches pre-clear.</li>
+  <li><strong>DB SRAM preload-parallel-to-dispatch.</strong> Writes target the
+      inactive bank; reads serve the active bank. DMA kick runs concurrently
+      with an ongoing Controller dispatch; an outer <code>swap</code> flips
+      the pointer between tiles.</li>
+  <li><strong>VPU collect blocks SXU for 1 cycle</strong> (single-cycle ALU).
+      Multi-cycle FP reducers + TranscUnit walker extend this to N cycles via
+      <code>vpu.isDone</code> guarding <code>EXEC_VPU_COLLECT</code>.</li>
+  <li><strong>PSUM ops are 1-cycle</strong> except <code>PSUM_READ</code>
+      (2-step: req + resp). Row-granular variants all single-cycle.</li>
+  <li><strong>VMEM read latency = 1 cycle</strong>: <code>EXEC_LOAD_REQ</code>
+      then <code>EXEC_LOAD_RESP</code>; stores are single-cycle.</li>
+  <li><strong>What does NOT overlap today:</strong> two VPU ops; a VPU op
+      reading its own prior result (no forwarding); back-to-back XLU ops;
+      VPU + FpReducer / TranscUnit (all share the VPU issue slot).</li>
 </ul>
 </div>
 
@@ -906,24 +184,22 @@ program doesn't demand their result.
 
 <div class="panel">
 <div class="cap" style="margin-bottom:10px"><strong>Instruction encoding</strong> — one SXU instr per row, 10 fields</div>
-<svg viewBox="0 0 560 210" preserveAspectRatio="xMidYMid meet">
-  <defs>
-    <marker id="arrow3" markerWidth="10" markerHeight="10" refX="9" refY="4"
-            orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L9,4 L0,8 z" fill="#8b949e"/>
-    </marker>
-  </defs>
-  <g transform="translate(0,0)">
-    <rect class="box sxu" x="10" y="10" width="540" height="36"/>
-    <text class="title" x="280" y="33" text-anchor="middle">sxu_op  vd  vs  vs2  lane  vpu_op  …  arg8  arg9</text>
-  </g>
-  <g transform="translate(10,60)">
-    <text class="label" x="0" y="0">sxu_op 2 = DISPATCH_VPU, then vpu_op indexes into 50+ float/int ALUs and reducers</text>
-    <text class="label" x="0" y="18">sxu_op 7 = HALT; bundles always end with it</text>
-    <text class="label" x="0" y="36">SXU waits on <tspan fill="#d2a8ff">vpu.isDone</tspan> between dispatches — FpReducer takes ~N cycles</text>
-    <text class="label" x="0" y="54">data records (VMEM/WMEM/AMEM) live in a separate section before instrs</text>
-  </g>
-</svg>
+<ul>
+  <li>25 SXU opcodes: <code>LOAD_VREG</code>(0) … <code>HALT</code>(7) …
+      <code>DISPATCH_MXU</code>(4), <code>PSUM_*</code>(15–19, 22),
+      <code>DISPATCH_MXU_OS</code>(23), <code>MXU_CLEAR</code>(24)</li>
+  <li><code>sxu_op</code>=2 (DISPATCH_VPU) indexes into 55 float/int ALUs +
+      reducers + transcendentals</li>
+  <li>SXU waits on <code>vpu.isDone</code> between VPU dispatches —
+      FpReducer / TranscUnit take N cycles</li>
+  <li>XLU dispatches fire the bg collect rule; structural guard
+      <code>!xlu_busy</code> blocks back-to-back XLU</li>
+  <li>data records (VMEM/WMEM/AMEM) live in a separate section before instrs</li>
+  <li>PSUM bucket idx reuses <code>vmemAddr</code>;
+      <code>vregDst[1:0]</code>=row;  <code>vregSrc2[1:0]</code>=psum_mode</li>
+  <li>TASM mnemonics: <code>MXU_OS</code>, <code>MXU_CLEAR</code>,
+      <code>PSUM_*</code>, <code>LOAD_{VPU,XLU}_RESULT</code></li>
+</ul>
 </div>
 
 <div class="panel">
@@ -931,57 +207,61 @@ program doesn't demand their result.
 <table style="width:100%; border-collapse:collapse; font-size:11px">
   <thead>
     <tr style="color:var(--dim); text-align:left">
-      <th style="padding:4px 6px; font-weight:600">op</th>
-      <th style="padding:4px 6px; font-weight:600">scalar</th>
-      <th style="padding:4px 6px; font-weight:600">row (ax=1)</th>
-      <th style="padding:4px 6px; font-weight:600">col (ax=0)</th>
-      <th style="padding:4px 6px; font-weight:600">combine</th>
+      <th style="padding:4px 6px">op</th>
+      <th style="padding:4px 6px">scalar</th>
+      <th style="padding:4px 6px">row (ax=1)</th>
+      <th style="padding:4px 6px">col (ax=0)</th>
+      <th style="padding:4px 6px">combine</th>
     </tr>
   </thead>
-  <tbody style="color:var(--ink)">
-    <tr><td style="padding:3px 6px; color:var(--dim)">int sum</td>
+  <tbody>
+    <tr><td style="padding:3px 6px;color:var(--dim)">int sum</td>
         <td style="padding:3px 6px"><code>SUM_REDUCE_TILE</code></td>
         <td style="padding:3px 6px"><code>SUM_REDUCE</code></td>
         <td style="padding:3px 6px"><code>SUM_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>ADD</code></td></tr>
-    <tr><td style="padding:3px 6px; color:var(--dim)">int max</td>
+    <tr><td style="padding:3px 6px;color:var(--dim)">int max</td>
         <td style="padding:3px 6px"><code>MAX_REDUCE_TILE</code></td>
         <td style="padding:3px 6px"><code>MAX_REDUCE</code></td>
         <td style="padding:3px 6px"><code>MAX_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>MAX</code></td></tr>
-    <tr><td style="padding:3px 6px; color:var(--dim)">int min</td>
+    <tr><td style="padding:3px 6px;color:var(--dim)">int min</td>
         <td style="padding:3px 6px"><code>MIN_REDUCE_TILE</code></td>
         <td style="padding:3px 6px"><code>MIN_REDUCE</code></td>
         <td style="padding:3px 6px"><code>MIN_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>MIN</code></td></tr>
-    <tr><td style="padding:3px 6px; color:var(--dim)">int prod</td>
+    <tr><td style="padding:3px 6px;color:var(--dim)">int prod</td>
         <td style="padding:3px 6px"><code>MUL_REDUCE_TILE</code></td>
         <td style="padding:3px 6px"><code>MUL_REDUCE</code></td>
         <td style="padding:3px 6px"><code>MUL_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>MUL</code></td></tr>
-    <tr><td style="padding:3px 6px; color:var(--dim)">float sum</td>
+    <tr><td style="padding:3px 6px;color:var(--dim)">float sum</td>
         <td style="padding:3px 6px"><code style="color:var(--accent2)">FSUM_REDUCE_TILE*</code></td>
         <td style="padding:3px 6px"><code>FSUM_REDUCE</code></td>
         <td style="padding:3px 6px"><code>FSUM_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>FADD</code></td></tr>
-    <tr><td style="padding:3px 6px; color:var(--dim)">float max</td>
+    <tr><td style="padding:3px 6px;color:var(--dim)">float max</td>
         <td style="padding:3px 6px"><code style="color:var(--accent2)">FMAX_REDUCE_TILE*</code></td>
         <td style="padding:3px 6px"><code>FMAX_REDUCE</code></td>
         <td style="padding:3px 6px"><code>FMAX_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>FMAX</code></td></tr>
-    <tr><td style="padding:3px 6px; color:var(--dim)">float min</td>
+    <tr><td style="padding:3px 6px;color:var(--dim)">float min</td>
         <td style="padding:3px 6px"><code style="color:var(--accent2)">FMIN_REDUCE_TILE*</code></td>
         <td style="padding:3px 6px"><code>FMIN_REDUCE</code></td>
         <td style="padding:3px 6px"><code>FMIN_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>FMIN</code></td></tr>
-    <tr><td style="padding:3px 6px; color:var(--dim)">float prod</td>
+    <tr><td style="padding:3px 6px;color:var(--dim)">float prod</td>
         <td style="padding:3px 6px"><code style="color:var(--accent2)">FPROD_REDUCE_TILE*</code></td>
         <td style="padding:3px 6px"><code>FPROD_REDUCE</code></td>
         <td style="padding:3px 6px"><code>FPROD_REDUCE_COL</code></td>
         <td style="padding:3px 6px"><code>FMUL</code></td></tr>
   </tbody>
 </table>
-<div class="cap" style="margin-top:8px; font-size:10px">* = multi-cycle via shared FpReducer</div>
+<div class="cap" style="margin-top:8px; font-size:10px">* = multi-cycle via shared FpReducer.
+  Float SUM reductions optionally fuse a post-reduction scalar FMUL
+  (e.g. <code>mean = sum × (1/N)</code>) inside the same kernel.
+  Transcendental VPU ops (<code>EXP2</code>, <code>LOG2</code>,
+  <code>SIN</code>, <code>COS</code>) walk multi-cycle via <code>TranscUnit</code>.</div>
 </div>
 
 </div>
@@ -989,18 +269,49 @@ program doesn't demand their result.
 <h2>Where each piece lives</h2>
 <div class="panel" style="padding:18px 24px">
 <ul>
-  <li><code>tinygrad/tinygrad/runtime/ops_tinytpu.py</code> — Python renderer + runtime: UOp → SXU bundle, SXU_PROGRAM executor, sim driver.</li>
-  <li><code>scripts/tasm.py</code> — textual bundle assembler/disassembler; opcode table mirrored from Python renderer.</li>
-  <li><code>src/VPU.bsv</code> — 4×4 lane integer + float ALU; hoisted per-column precomputes; shared <code>FpReducer</code> for float reducers.</li>
-  <li><code>src/FpReducer.bsv</code> — one-adder / one-comparator FSM shared by all float SUM/MAX/MIN/PROD reducers.</li>
-  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; stalls on <code>vpu.isDone</code> for multi-cycle reducers.</li>
-  <li><code>src/TensorCore.bsv</code>, <code>src/SystolicArray.bsv</code>, <code>src/Controller.bsv</code> — MXU stack + per-core integration.</li>
-  <li><code>src/XLU.bsv</code> — cross-lane ops (broadcast/transpose/permute).</li>
-  <li><code>src/VMEM.bsv</code>, <code>src/VRegFile.bsv</code>, <code>src/WeightSRAM.bsv</code>, <code>src/ActivationSRAM.bsv</code> — storage.</li>
-  <li><code>src/ChipNoC.bsv</code>, <code>src/HBMModel.bsv</code>, <code>src/SparseCore.bsv</code>, <code>src/TinyTPUChip.bsv</code> — chip-level.</li>
-  <li><code>test/TbTinyTPURuntime.bsv</code> + <code>bdpi/tinytpu_io.c</code> — the bluesim runtime that Python tests dispatch bundles to.</li>
+  <li><code>tinygrad/tinygrad/runtime/ops_tinytpu.py</code> — Python renderer + runtime:
+      UOp → SXU bundle, SXU_PROGRAM executor, sim driver. ~40 pattern-match renderers
+      including self-square / self-cube, swish / silu, softsign, clip / hardtanh,
+      single-bound clamp, leaky_relu, all the transcendentals, plus silent-bug guards.</li>
+  <li><code>scripts/tasm.py</code> — textual bundle assembler/disassembler; opcode
+      table mirrors the Python renderer and the BSV <code>SxuOpCode</code> enum.</li>
+  <li><code>src/VPU.bsv</code> — 4×4 lane integer + float ALU; delegates float
+      reductions to <code>FpReducer</code> and transcendentals to <code>TranscUnit</code>.</li>
+  <li><code>src/FpReducer.bsv</code> — 1 FADD + 1 FMUL + 1 FCMP FSM shared by all
+      float SUM / MAX / MIN / PROD reducers (tile / row / col granularity).</li>
+  <li><code>src/TranscUnit.bsv</code> — multi-cycle walker implementing EXP2 / LOG2 /
+      SIN / COS via Remez minimax polynomials + range reduction.</li>
+  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; 25 SXU opcodes +
+      background <code>do_xlu_collect_bg</code> dual-issue rule + 1-bit predicate.</li>
+  <li><code>src/TensorCore.bsv</code>, <code>src/SystolicArray.bsv</code>,
+      <code>src/Controller.bsv</code> — MXU stack + per-core integration. Controller
+      carries a <code>DataflowMode</code> register; <code>startOS</code> preserves
+      accum; <code>clearArray</code> is the explicit reset.</li>
+  <li><code>src/PSUMBank.bsv</code> — 8-bucket × 4×4 Int32 accumulator with
+      row-granular access. Shared by Controller + <code>PSUM_*</code> SXU opcodes.</li>
+  <li><code>src/XLU.bsv</code> — cross-lane ops (broadcast / transpose / permute).</li>
+  <li><code>src/VMEM.bsv</code>, <code>src/VRegFile.bsv</code> — unified scratchpad +
+      engine scratch.</li>
+  <li><code>src/WeightSRAM.bsv</code>, <code>src/ActivationSRAM.bsv</code> — plain
+      MXU-local operand stores; embedded as <code>.plain</code> sub-interface of
+      the DB variants.</li>
+  <li><code>src/WeightSRAMDB.bsv</code>, <code>src/ActivationSRAMDB.bsv</code> —
+      double-buffered 2-bank ping-pong wrappers with <code>swap</code> method.</li>
+  <li><code>src/WeightDMA.bsv</code>, <code>src/ActivationDMA.bsv</code> — minimal
+      DMA stub state machines that stream synthetic tile patterns into the inactive
+      DB bank over N cycles.</li>
+  <li><code>src/ChipNoC.bsv</code>, <code>src/HBMModel.bsv</code>,
+      <code>src/SparseCore.bsv</code>, <code>src/TinyTPUChip.bsv</code> — chip-level.</li>
+  <li><code>test/TbTinyTPURuntime.bsv</code> + <code>bdpi/tinytpu_io.c</code> — the
+      bluesim runtime that Python tests dispatch bundles to.</li>
+  <li>BSV TBs: <code>TbCtrlOS</code>, <code>TbCtrlDB</code>, <code>TbCtrlDBDMA</code>,
+      <code>TbWeightDMA</code>, <code>TbActivationDMA</code>, <code>TbTranscUnit</code>,
+      <code>TbSxuPSUM</code>, <code>TbCtrlPSUM</code> — 95 unit tests across all
+      subsystems.</li>
 </ul>
 </div>
 
+
+<script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
 </body>
 </html>
