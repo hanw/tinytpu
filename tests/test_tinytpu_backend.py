@@ -1149,6 +1149,20 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 2.0).numpy()
     np.testing.assert_array_equal(result, a ** 2.0)
 
+  def test_softplus_not_silently_min(self):
+    # Regression: softplus = log(1+exp(x)) decomposes to MAX+MUL+EXP2+
+    # LOG2 with no WHERE. The `minimum(x, c)` MAX+MUL float path
+    # silently matched on just the MAX+MUL signature and emitted
+    # (x < c).where(x, c), dropping the EXP2/LOG2 chain. The renderer
+    # now also rejects kernels carrying EXP2/LOG2/SIN/SQRT/RECIPROCAL
+    # so softplus cleanly routes to UNSUPPORTED.
+    a = np.array([-1., 0., 1., 2.], dtype=np.float32)
+    try:
+      got = Tensor(a, dtype="float", device="TINYTPU").softplus().numpy()
+    except NotImplementedError:
+      return
+    np.testing.assert_allclose(got, np.log1p(np.exp(a)), atol=0.02)
+
   def test_correctness_sweep_int32(self):
     # Int32 sibling of test_correctness_sweep_float — exercises many int
     # Tensor methods to guard against regressions.
