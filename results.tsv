@@ -555,3 +555,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	memory-3	1	iter 36: memory refresh end-of-push-2	checkpoint 2026-04-20 updated with iters 24-35 landings	memory-only	end of 2nd 40-iter push cold-resume ready	next session picks up cold
 2026-04-20	vfy-final	1	iter 37: final verification end-of-push-2	BSV 95 tests + Python 1031 passed + 1 skipped; 36 iters clean second 40-iter push substantially closed	all green	end of second 40-iter push	next session cold-resume
 2026-04-20	edd1f7a	1	lean	pipe_refines_abs + multi variant	lake build ok	none (proof add-on)	continue push 3 bool-cast
+2026-04-20	f280fd4	1	tinytpu+tests	bool tensor Tensor.sum() correct	sim tests: 2 new + 119 regress pass	none (bugfix)	continue push 3 hardware
