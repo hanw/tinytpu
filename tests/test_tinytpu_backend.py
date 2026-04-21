@@ -1149,6 +1149,22 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 2.0).numpy()
     np.testing.assert_array_equal(result, a ** 2.0)
 
+  def test_clip_matches_reference(self):
+    # Tensor.clip(lo, hi) / hardtanh decomposes to nested WHERE+CMPLT
+    # with two float CONSTs. Dedicated renderer detects the pattern
+    # and emits FMIN+FMAX.
+    a = np.array([-3., -1., 0., 1., 3.], dtype=np.float32)
+    t = Tensor(a, dtype="float", device="TINYTPU")
+    for lo, hi in [(-1., 1.), (0., 2.), (-0.5, 0.5)]:
+      got = t.clip(lo, hi).numpy()
+      np.testing.assert_allclose(got, np.clip(a, lo, hi), atol=1e-5)
+
+  def test_hardtanh_matches_reference(self):
+    # Tensor.hardtanh() == clip(-1, 1).
+    a = np.array([-3., -1., 0., 1., 3.], dtype=np.float32)
+    got = Tensor(a, dtype="float", device="TINYTPU").hardtanh().numpy()
+    np.testing.assert_allclose(got, np.clip(a, -1., 1.), atol=1e-5)
+
   def test_softplus_not_silently_min(self):
     # Regression: softplus = log(1+exp(x)) decomposes to MAX+MUL+EXP2+
     # LOG2 with no WHERE. The `minimum(x, c)` MAX+MUL float path
