@@ -599,7 +599,54 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
-## Recommended Next Iterations (updated 2026-04-20, end of 40-iter push)
+## Recommended Next Iterations (refreshed 2026-04-20, mid second 40-iter push)
+
+Current state: 883 backend tests pass + 90 BSV unit tests (VPU 48 +
+FpReducer 7 + PSUMBank 9 + SXU 6 + SxuPSUM 2 + CtrlPSUM 1 + CtrlOS 1 +
+CtrlDB 2 + CtrlDBDMA 2 + WSRAMDB 3 + ASRAMDB 3 + WeightDMA 3 +
+ActivationDMA 3 + TranscUnit 5).
+
+Landings in this second push (iters 1-23):
+
+- **Item #8 (OS MXU): PE accumulator-hold DONE.** startOS skips
+  array.clearAll on drain; start/startPsum now pre-clear so WS always
+  runs fresh. clearArray() method + SXU_MXU_CLEAR opcode (24) + TASM
+  `MXU_CLEAR` mnemonic. End-to-end sim tests cover OS back-to-back
+  accumulate + MXU_CLEAR reset.
+- **Item #4 (Dual-issue XLU): DONE.** XLU dispatch advances pc
+  immediately; do_xlu_collect_bg writes the result one cycle later
+  (XLU.result has 1-cycle latency). Structural-hazard guard
+  `!xlu_busy` on every XLU dispatch rule. Chained-XLU sim test
+  covers the path.
+- **Item #5 (DMA stubs): DONE stubs + integration.** WeightDMA +
+  ActivationDMA synthesize deterministic tile patterns into inactive
+  DB bank; standalone TBs + ping-pong TbCtrlDBDMA where MXU
+  dispatches tile A on active while DMA preloads tile B on inactive.
+  TensorCore default-wiring to DB SRAMs deferred (breaks existing
+  preload semantics; needs an API revamp).
+- **Composite activations + renderers:**
+  - Self-cube `x**3` renderer (MUL(x, MUL(x, x)) pattern).
+  - Self-square renderer tightened — no longer false-matches `x**4`.
+  - Swish / silu renderer (x * sigmoid(x)).
+  - Softsign renderer (x / (1 + |x|)).
+- **Reducer silent-bug round-up:** Five pattern guards added to
+  scalar / col / row reducers so the following compound kernels route
+  to UNSUPPORTED instead of silently returning a wrong answer:
+  * hardtanh / clip (relu false-match via multi-CMPLT).
+  * softsign (abs false-match via abs-in-MUL-RECIPROCAL tree).
+  * `sum(abs(x))` (pre-reduce WHERE/CMPLT).
+  * `reciprocal().sum()` / `exp().sum()` (pre-reduce transcendental).
+  * `sum(x*x)` / `sum(-x)` / `max(-x)` (pre-reduce data-path MUL).
+  * `log(x+k)`, `exp(x+k)`, `sin(x+k)` scaled renderers now require
+    LOAD-terminated non-const factors, refusing compound shifts.
+- **Correctness wins:**
+  - Float `mean()` now returns correct results (reducer post-op now
+    remapped to FADD/FMUL for float reductions).
+  - Float `mean(axis=0)` / `mean(axis=1)` on fused kernels (col/row
+    reducers now detect post-reduction FMUL(const)).
+  - Float softsign end-to-end correct.
+
+## Recommended Next Iterations (updated 2026-04-20, end of FIRST 40-iter push)
 
 Current state: 1006 Python tests + 87 BSV unit tests (VPU 48 +
 FpReducer 7 + PSUMBank 9 + SXU 6 + SxuPSUM 2 + CtrlPSUM 1 + CtrlOS 1 +
