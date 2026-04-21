@@ -560,3 +560,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	68b902c	1	systolic+test	feedPair streaming + getMatrix drain	make test-array pass (WS + OS 2x2 matmul)	none	iter 42 Controller OS FSM
 2026-04-20	b57243c	1	ctrl+test	startOsReal + FSM + full-matrix drain	make test-ctrl-os-real pass (4x4 I@W = W)	none	iter 43 SXU/TASM OS-real opcode
 2026-04-21	b92cd7d	1	os cleanup	unified naming: accumulate (23) + OS (25)	ctrl-os+ctrl-accumulate+sxu+tasm pass	none	iter 45 IS dataflow
+2026-04-21	13b93cf	1	sramdb	writeActive front-door method	test-wsram-db+asram-db pass	none	iter 46 TensorCore DB wire-in
