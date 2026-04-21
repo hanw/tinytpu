@@ -1149,6 +1149,15 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 2.0).numpy()
     np.testing.assert_array_equal(result, a ** 2.0)
 
+  def test_leaky_relu_matches_reference(self):
+    # leaky_relu(x, alpha) = max(alpha*x, x) for alpha in (0, 1).
+    a = np.array([-3., -1., 0., 1., 3.], dtype=np.float32)
+    t = Tensor(a, dtype="float", device="TINYTPU")
+    for alpha in [0.01, 0.1, 0.25]:
+      got = t.leaky_relu(alpha).numpy()
+      ref = np.where(a < 0, a * alpha, a)
+      np.testing.assert_allclose(got, ref, atol=1e-5)
+
   def test_clip_matches_reference(self):
     # Tensor.clip(lo, hi) / hardtanh decomposes to nested WHERE+CMPLT
     # with two float CONSTs. Dedicated renderer detects the pattern
