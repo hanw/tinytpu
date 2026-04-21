@@ -29,7 +29,14 @@ export mkWeightSRAMDB;
 // Embed WeightSRAM_IFC as a sub-interface so Controller can take the
 // DB module's `plain` view and the outer caller drives `swap` directly.
 interface WeightSRAMDB_IFC#(numeric type depth, numeric type rows, numeric type cols);
+   // `plain` writes go to the INACTIVE bank (DMA-overlap semantics);
+   // reads go to the ACTIVE bank. This is what Controller consumes.
    interface WeightSRAM_IFC#(depth, rows, cols) plain;
+   // Explicit same-bank writer for front-door preloads ("preload then
+   // dispatch immediately"). Writes the ACTIVE bank so a follow-up
+   // Controller dispatch on the same address sees the data.
+   method Action writeActive(UInt#(TLog#(depth)) addr,
+                             Vector#(rows, Vector#(cols, Int#(8))) data);
    method Action swap;
    method Bit#(1) activeBank;
 endinterface
@@ -65,6 +72,12 @@ module mkWeightSRAMDB(WeightSRAMDB_IFC#(depth, rows, cols))
          return resp;
       endmethod
    endinterface
+
+   method Action writeActive(UInt#(TLog#(depth)) addr,
+                             Vector#(rows, Vector#(cols, Int#(8))) data);
+      if (active == 0) mem_a.upd(addr, data);
+      else             mem_b.upd(addr, data);
+   endmethod
 
    method Action swap;
       active <= ~active;

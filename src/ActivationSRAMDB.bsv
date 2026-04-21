@@ -15,6 +15,11 @@ export mkActivationSRAMDB;
 // take `asramDB.plain` and the outer caller drives `swap` directly.
 interface ActivationSRAMDB_IFC#(numeric type depth, numeric type rows);
    interface ActivationSRAM_IFC#(depth, rows) plain;
+   // Front-door preload: writes the ACTIVE bank so a subsequent
+   // Controller dispatch using the same address reads the value.
+   // Use the plain.write path for DMA-overlap writes to the INACTIVE
+   // bank instead.
+   method Action writeActive(UInt#(TLog#(depth)) addr, Vector#(rows, Int#(8)) data);
    method Action swap;
    method Bit#(1) activeBank;
 endinterface
@@ -46,6 +51,11 @@ module mkActivationSRAMDB(ActivationSRAMDB_IFC#(depth, rows))
          return resp;
       endmethod
    endinterface
+
+   method Action writeActive(UInt#(TLog#(depth)) addr, Vector#(rows, Int#(8)) data);
+      if (active == 0) mem_a.upd(addr, data);
+      else             mem_b.upd(addr, data);
+   endmethod
 
    method Action swap;
       active <= ~active;
