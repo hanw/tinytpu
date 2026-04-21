@@ -1149,6 +1149,43 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 2.0).numpy()
     np.testing.assert_array_equal(result, a ** 2.0)
 
+  def test_correctness_sweep_int32(self):
+    # Int32 sibling of test_correctness_sweep_float — exercises many int
+    # Tensor methods to guard against regressions.
+    a = np.array([-3, -2, -1, 0, 1, 2, 3], dtype=np.int32)
+    b = np.array([10, 20, 30, 40, 50, 60, 70], dtype=np.int32)
+    t = Tensor(a, dtype="int32", device="TINYTPU")
+    y = Tensor(b, dtype="int32", device="TINYTPU")
+    cases = [
+      ("abs",      lambda: t.abs(),           np.abs(a)),
+      ("neg",      lambda: -t,                -a),
+      ("x+y",      lambda: t + y,             a + b),
+      ("x-y",      lambda: t - y,             a - b),
+      ("x*y",      lambda: t * y,             a * b),
+      ("max(x,y)", lambda: t.maximum(y),      np.maximum(a, b)),
+      ("min(x,y)", lambda: t.minimum(y),      np.minimum(a, b)),
+      ("x+5",      lambda: t + 5,             a + 5),
+      ("x*3",      lambda: t * 3,             a * 3),
+      ("relu",     lambda: t.relu(),          np.maximum(a, 0)),
+      ("sum",      lambda: t.sum(),           a.sum()),
+      ("max",      lambda: t.max(),           a.max()),
+      ("min",      lambda: t.min(),           a.min()),
+      ("prod",     lambda: Tensor(np.array([1, 2, 3, 4], dtype=np.int32),
+                                   dtype="int32", device="TINYTPU").prod(),
+                     24),
+      ("x==y",     lambda: t == y,            a == b),
+      ("x<y",      lambda: t < y,             a < b),
+    ]
+    failures = []
+    for name, fn, ref in cases:
+      try:
+        got = fn().numpy()
+        np.testing.assert_array_equal(got, ref)
+      except (AssertionError, NotImplementedError) as e:
+        failures.append(f"{name}: {str(e).splitlines()[0]}")
+    if failures:
+      self.fail("int32 correctness sweep failures:\n  " + "\n  ".join(failures))
+
   def test_correctness_sweep_float(self):
     # Broad sanity sweep: exercises several float Tensor methods on
     # TINYTPU and compares against numpy reference. Catches future
