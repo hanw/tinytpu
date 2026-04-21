@@ -599,6 +599,31 @@ Estimate: **500-800 iterations**
 - [ ] Clear software fallback policy where hardware is not appropriate
 - [ ] Stable performance/profiling story
 
+## Recommended Next Iterations (refreshed 2026-04-20, end of second 40-iter push)
+
+Current state: 889 backend tests pass + 95 BSV unit tests. ~120 new
+Python tests added this push.
+
+Second-push additional landings (iters 24-31):
+
+- **clip / hardtanh renderer** — nested WHERE+CMPLT with 2 float CONSTs
+  now emits FMIN+FMAX per tile.
+- **single-bound clamp renderer** — clamp(min=c) / clamp(max=c) with
+  c != 0 emit FMAX / FMIN per tile. clamp(min=0) still routes through
+  RELU (semantically equivalent).
+- **RELU pattern guard tightening** — requires CMPLT's CONST operand
+  to be 0.0, so clamp(max=c) for c != 0 no longer silently false-matches
+  as RELU.
+- **leaky_relu renderer** — max(alpha*x, x) for 0 < alpha < 1 via
+  FMUL + FMAX.
+- **softplus min-const false-match guard** — the float-min-const
+  path now rejects kernels carrying transcendentals / reciprocals,
+  so softplus stops silently rendering as minimum(x, 0).
+- **x**4 regression guard** — self-square tightens to require LOAD
+  tails.
+- **Broad float / int32 correctness sweeps** — 17 float ops + 16 int
+  ops compared against numpy reference to catch future regressions.
+
 ## Recommended Next Iterations (refreshed 2026-04-20, mid second 40-iter push)
 
 Current state: 883 backend tests pass + 90 BSV unit tests (VPU 48 +
