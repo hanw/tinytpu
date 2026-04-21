@@ -57,11 +57,60 @@ module mkTbSystolicArray();
    //   col1 = 10 + 24 = 34
    rule check_results (cycle == 3);
       Vector#(2, Int#(32)) res = arr.getResults;
-      $display("Cycle %0d: results = [%0d, %0d]", cycle, res[0], res[1]);
-      if (res[0] == 23 && res[1] == 34) begin
-         $display("PASS: 2x2 matrix-vector multiply correct");
+      $display("Cycle %0d: WS results = [%0d, %0d]", cycle, res[0], res[1]);
+      if (res[0] != 23 || res[1] != 34) begin
+         $display("FAIL: expected WS [23, 34]");
+         $finish(1);
+      end
+   endrule
+
+   // -- OS streaming dataflow: 2x2 @ 2x2 matmul via feedPair staircase.
+   // A = [[1,2],[3,4]], W = [[5,6],[7,8]], expected C = [[19,22],[43,50]].
+   // Staircase feed:
+   //   cycle 4: w_top=[5,0], a_left=[1,0]
+   //   cycle 5: w_top=[7,6], a_left=[2,3]
+   //   cycle 6: w_top=[0,8], a_left=[0,4]
+   rule os_clear (cycle == 4);
+      arr.clearAll;
+   endrule
+
+   rule os_feed0 (cycle == 5);
+      Vector#(2, Int#(8)) w = newVector; w[0] = 5; w[1] = 0;
+      Vector#(2, Int#(8)) a = newVector; a[0] = 1; a[1] = 0;
+      arr.feedPair(w, a);
+   endrule
+
+   rule os_feed1 (cycle == 6);
+      Vector#(2, Int#(8)) w = newVector; w[0] = 7; w[1] = 6;
+      Vector#(2, Int#(8)) a = newVector; a[0] = 2; a[1] = 3;
+      arr.feedPair(w, a);
+   endrule
+
+   rule os_feed2 (cycle == 7);
+      Vector#(2, Int#(8)) w = newVector; w[0] = 0; w[1] = 8;
+      Vector#(2, Int#(8)) a = newVector; a[0] = 0; a[1] = 4;
+      arr.feedPair(w, a);
+   endrule
+
+   // The far-corner PE[1][1] sees its staircase entry one cycle after
+   // PE[0][1] and PE[1][0], so a flush cycle keeps it aligned.
+   rule os_feed3 (cycle == 8);
+      Vector#(2, Int#(8)) w = replicate(0);
+      Vector#(2, Int#(8)) a = replicate(0);
+      arr.feedPair(w, a);
+   endrule
+
+   rule os_check (cycle == 9);
+      // Last feed was at cycle 7; values committed at cycle 8.
+      let m = arr.getMatrix;
+      $display("Cycle %0d: OS matrix =", cycle);
+      $display("  [%0d, %0d]", m[0][0], m[0][1]);
+      $display("  [%0d, %0d]", m[1][0], m[1][1]);
+      if (m[0][0] == 19 && m[0][1] == 22 &&
+          m[1][0] == 43 && m[1][1] == 50) begin
+         $display("PASS: OS 2x2 matmul correct");
       end else begin
-         $display("FAIL: expected [23, 34]");
+         $display("FAIL: expected [[19,22],[43,50]]");
       end
       $finish(0);
    endrule
