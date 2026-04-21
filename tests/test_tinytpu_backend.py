@@ -1149,6 +1149,47 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = (Tensor(a, dtype="float", device="TINYTPU") ** 2.0).numpy()
     np.testing.assert_array_equal(result, a ** 2.0)
 
+  def test_correctness_sweep_float(self):
+    # Broad sanity sweep: exercises several float Tensor methods on
+    # TINYTPU and compares against numpy reference. Catches future
+    # regressions in any individual renderer without requiring a
+    # dedicated test per op.
+    a = np.array([-3., -2., -1., 0., 1., 2., 3.], dtype=np.float32)
+    t = Tensor(a, dtype="float", device="TINYTPU")
+    cases = [
+      ("abs",      lambda: t.abs(),           np.abs(a)),
+      ("relu",     lambda: t.relu(),          np.maximum(a, 0)),
+      ("exp",      lambda: t.exp(),           np.exp(a)),
+      ("sin",      lambda: t.sin(),           np.sin(a)),
+      ("cos",      lambda: t.cos(),           np.cos(a)),
+      ("silu",     lambda: t.silu(),          a / (1 + np.exp(-a))),
+      ("softsign", lambda: t.softsign(),      a / (1 + np.abs(a))),
+      ("square",   lambda: t ** 2,            a ** 2),
+      ("cube",     lambda: t ** 3,            a ** 3),
+      ("negate",   lambda: -t,                -a),
+      ("reciprocal", lambda: Tensor(np.array([1., 2., 4., 8.]), dtype="float", device="TINYTPU").reciprocal(),
+                     1.0 / np.array([1., 2., 4., 8.])),
+      ("log",      lambda: Tensor(np.array([1., 2., 4., 8.]), dtype="float", device="TINYTPU").log(),
+                     np.log(np.array([1., 2., 4., 8.]))),
+      ("sqrt",     lambda: Tensor(np.array([1., 4., 16., 64.]), dtype="float", device="TINYTPU").sqrt(),
+                     np.sqrt(np.array([1., 4., 16., 64.]))),
+      ("mean",     lambda: t.mean(),          a.mean()),
+      ("sum",      lambda: t.sum(),           a.sum()),
+      ("max",      lambda: t.max(),           a.max()),
+      ("min",      lambda: t.min(),           a.min()),
+      ("prod",     lambda: Tensor(np.array([1., 2., 3., 4.]), dtype="float", device="TINYTPU").prod(),
+                     24.0),
+    ]
+    failures = []
+    for name, fn, ref in cases:
+      try:
+        got = fn().numpy()
+        np.testing.assert_allclose(got, ref, rtol=0.05, atol=0.05)
+      except (AssertionError, NotImplementedError) as e:
+        failures.append(f"{name}: {str(e).splitlines()[0]}")
+    if failures:
+      self.fail("float correctness sweep failures:\n  " + "\n  ".join(failures))
+
   def test_silu_matches_reference(self):
     # swish / silu = x * sigmoid(x). tinygrad's UOp graph chains a
     # self-multiply around the sigmoid pattern, which the sigmoid
