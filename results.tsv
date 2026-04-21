@@ -548,3 +548,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	clip	1	Iter 29: clip/hardtanh renderer	Tensor.clip(lo,hi) and Tensor.hardtanh() lower to FMIN+FMAX per tile	backend 888/888 (+2)	clip/hardtanh end-to-end	softplus still UNSUPPORTED
 2026-04-20	leaky	1	Iter 30: leaky_relu renderer	leaky_relu via 3-op FMUL+FMAX microprogram	backend 888/888 (+1)	Tensor.leaky_relu() end-to-end	elu/selu/mish renderers
 2026-04-20	clamp1	1	Iter 31: single-bound clamp + relu-zero guard	clamp(min=c)/clamp(max=c) for c!=0 emit FMAX/FMIN; relu pattern now requires CMPLT's CONST to be 0	backend 889/889 (+1)	single-bound clamp works	var/std / softmax
+2026-04-20	todo-end-2	1	iter 32: end-of-push-2 TODO refresh	iters 24-31 landings summarized in TODO	docs-only	end-of-push-2 snapshot	var/std + softmax
