@@ -540,3 +540,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	exp2sin-guard	1	Item#10 iter: tighten scaled-exp2/sin inputs	compound-input exp2/sin no longer silently drop inner sub-expressions	backend 881/881 (unchanged; new patterns rejected)	scaled-renderer input validation	per-param type safety
 2026-04-20	premul-guard	1	Item#10 iter: pre-reduction MUL guard	sum(x*x)/sum(-x)/max(-x) no longer silently strip pre-reduction MULs	backend 882/882 (+1)	reducer refuses compound int kernels	pre-reduction MUL renderer
 2026-04-20	axis-premul	1	Item#10 iter: axis reducer pre-MUL guard	row/col reducers mirror scalar guard; sum(x*x,axis) and max(-x,axis) no longer silently drop pre-reduction MULs	backend 883/883 (+1)	no silent axis-reduce wrong results	fused axis reduce+mul support
+2026-04-20	todo-mid	1	iter 24: TODO mid-push refresh	landings 1-23 summarized	docs-only	mid-push snapshot	more renderer fixes
