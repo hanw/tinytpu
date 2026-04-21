@@ -1179,6 +1179,22 @@ class TestTinyTPUBackend(unittest.TestCase):
       return
     np.testing.assert_allclose(got, np.log(a + 5), atol=0.02)
 
+  def test_sum_x_times_x_not_silently_sum(self):
+    # Regression: sum(x*x) / sum(-x) / max(-x) used to silently return
+    # sum(x) / max(x) because the scalar-reduce renderer ignored
+    # pre-reduction data-path MULs. Guard now rejects kernels with
+    # extra data-path MUL unless a post_op detection fires (sum(x*c)
+    # still works).
+    a = np.array([1, 2, 3, 4], dtype=np.int32)
+    for fn, ref in [(lambda t: (t*t).sum(), (a*a).sum()),
+                    (lambda t: (-t).sum(), (-a).sum()),
+                    (lambda t: (-t).max(), (-a).max())]:
+      try:
+        got = fn(Tensor(a, dtype="int32", device="TINYTPU")).numpy()
+      except NotImplementedError:
+        continue
+      np.testing.assert_array_equal(got, ref)
+
   def test_abs_sum_not_silently_sum(self):
     # Regression: sum(abs(x)) was silently returning sum(x) because the
     # reducer ignored the WHERE+CMPLT-based abs subtree. The renderer now
