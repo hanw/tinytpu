@@ -552,3 +552,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	vfy-2	1	iter 33: final verification end of push-2	BSV 95 tests green; Python 1031 passed + 1 skipped; 31 iters clean	all green	end of second 40-iter push	cold resume from memory
 2026-04-20	colbc-float	1	Iter 34: col-broadcast float remap	ADD/SUB/MUL/etc in col-broadcast renderer now remap to F-variants for float tensors	backend 889/889	float col-broadcast no longer bit-reinterprets	deeper col-broadcast shape bug remains
 2026-04-20	rowbc-float	1	Iter 35: row-broadcast float remap	same fix as iter 34 applied to row-broadcast renderer	backend 889/889	float row-broadcast no longer bit-reinterprets	
+2026-04-20	memory-3	1	iter 36: memory refresh end-of-push-2	checkpoint 2026-04-20 updated with iters 24-35 landings	memory-only	end of 2nd 40-iter push cold-resume ready	next session picks up cold
