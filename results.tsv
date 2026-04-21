@@ -545,3 +545,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-20	sweep-int	1	Iter 26: int32 correctness sweep	16-op Tensor method sweep vs numpy reference	backend 885/885 (+1)	int regression net	bool correctness fix
 2026-04-20	memory-2	1	iter 27: memory refresh mid-push	full checkpoint 2026-04-20; project_status updated; MEMORY index bumped	memory-only	mid-push resume ready	next session picks up cold
 2026-04-20	softplus-guard	1	Iter 28: softplus min-const false-match guard	float min-const path no longer silently matches softplus/MAX+MUL+transcendental kernels	backend 886/886 (+1)	no silent softplus-as-min	softplus dedicated renderer
+2026-04-20	clip	1	Iter 29: clip/hardtanh renderer	Tensor.clip(lo,hi) and Tensor.hardtanh() lower to FMIN+FMAX per tile	backend 888/888 (+2)	clip/hardtanh end-to-end	softplus still UNSUPPORTED
