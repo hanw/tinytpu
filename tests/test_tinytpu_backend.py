@@ -1179,6 +1179,18 @@ class TestTinyTPUBackend(unittest.TestCase):
       return
     np.testing.assert_allclose(got, np.log(a + 5), atol=0.02)
 
+  def test_axis_sum_x_times_x_not_silently_sum(self):
+    # Regression counterpart to the scalar version: sum(x*x, axis=0/1)
+    # used to silently return sum(x, axis=0/1). Row/col reducers now
+    # reject pre-reduction data-path MUL alongside a SUM/MAX combine.
+    a = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.int32)
+    for axis, ref in [(0, (a*a).sum(axis=0)), (1, (a*a).sum(axis=1))]:
+      try:
+        got = (Tensor(a, dtype="int32", device="TINYTPU") ** 2).sum(axis=axis).numpy()
+      except NotImplementedError:
+        continue
+      np.testing.assert_array_equal(got, ref)
+
   def test_sum_x_times_x_not_silently_sum(self):
     # Regression: sum(x*x) / sum(-x) / max(-x) used to silently return
     # sum(x) / max(x) because the scalar-reduce renderer ignored
