@@ -71,6 +71,9 @@ $(BUILDDIR)/mkTbCtrlPSUM.bexe: $(BUILDDIR)/TbCtrlPSUM.bo
 $(BUILDDIR)/mkTbCtrlOS.bexe: $(BUILDDIR)/TbCtrlOS.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlOS $(BUILDDIR)/mkTbCtrlOS.ba
 
+$(BUILDDIR)/mkTbCtrlOsReal.bexe: $(BUILDDIR)/TbCtrlOsReal.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlOsReal $(BUILDDIR)/mkTbCtrlOsReal.ba
+
 $(BUILDDIR)/mkTbCtrlDB.bexe: $(BUILDDIR)/TbCtrlDB.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlDB $(BUILDDIR)/mkTbCtrlDB.ba
 
@@ -158,6 +161,9 @@ test-ctrl-psum: $(BUILDDIR)/mkTbCtrlPSUM.bexe
 test-ctrl-os: $(BUILDDIR)/mkTbCtrlOS.bexe
 	$<
 
+test-ctrl-os-real: $(BUILDDIR)/mkTbCtrlOsReal.bexe
+	$<
+
 test-ctrl-db: $(BUILDDIR)/mkTbCtrlDB.bexe
 	$<
 
@@ -223,6 +229,7 @@ $(BUILDDIR)/TbScalarUnit.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray
 $(BUILDDIR)/TbSxuPSUM.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlPSUM.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlOS.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
+$(BUILDDIR)/TbCtrlOsReal.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlDB.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/WeightSRAMDB.bo $(BUILDDIR)/ActivationSRAMDB.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/WeightDMA.bo: $(BUILDDIR)/WeightSRAMDB.bo
 $(BUILDDIR)/TbWeightDMA.bo: $(BUILDDIR)/WeightDMA.bo $(BUILDDIR)/WeightSRAMDB.bo
