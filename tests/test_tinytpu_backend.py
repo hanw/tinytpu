@@ -1158,6 +1158,21 @@ class TestTinyTPUBackend(unittest.TestCase):
       ref = np.where(a < 0, a * alpha, a)
       np.testing.assert_allclose(got, ref, atol=1e-5)
 
+  def test_clamp_single_bound_matches_reference(self):
+    # Regression: single-bound clamp (clamp(min=c) or clamp(max=c) with
+    # c != 0) used to false-match the RELU pattern or a FCMPLT+SELECT
+    # that returned wrong results. Dedicated single-bound clamp
+    # renderer now emits FMAX (for min bound) or FMIN (for max bound).
+    a = np.array([-3., -1., 0., 1., 3.], dtype=np.float32)
+    t = Tensor(a, dtype="float", device="TINYTPU")
+    for c in [-2.0, 0.5, 2.0]:
+      got = t.clamp(min_=c).numpy()
+      np.testing.assert_allclose(got, np.maximum(a, c), atol=1e-5,
+          err_msg=f"clamp(min_={c})")
+      got2 = t.clamp(max_=c).numpy()
+      np.testing.assert_allclose(got2, np.minimum(a, c), atol=1e-5,
+          err_msg=f"clamp(max_={c})")
+
   def test_clip_matches_reference(self):
     # Tensor.clip(lo, hi) / hardtanh decomposes to nested WHERE+CMPLT
     # with two float CONSTs. Dedicated renderer detects the pattern
