@@ -52,9 +52,9 @@ _SXU = {
     "SET_PRED_IF_ZERO":       20,
     "SKIP_IF_PRED":           21,
     "PSUM_ACCUMULATE_ROW":    22,
-    "DISPATCH_MXU_OS":        23,
-    "MXU_CLEAR":              24,
-    "DISPATCH_MXU_OS_REAL":   25,
+    "DISPATCH_MXU_ACCUMULATE": 23,
+    "MXU_CLEAR":               24,
+    "DISPATCH_MXU_OS":         25,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -387,16 +387,18 @@ def assemble(text: str) -> str:
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=tlen))
 
-            elif kw == "MXU_OS":
-                # MXU_OS WMEM[W], AMEM[A], tiles=N
-                # Routes through Controller.startOS (dfMode=OS); operand
-                # fields identical to MXU. PSUM routing not supported here
-                # yet (OS + PSUM combination lands in a later iter).
-                rest = line[len("MXU_OS"):].strip()
+            elif kw == "MXU_ACCUMULATE":
+                # MXU_ACCUMULATE WMEM[W], AMEM[A], tiles=N
+                # Routes through Controller.startAccumulate: WS feed path
+                # with drain-time PE clear skipped. Consecutive dispatches
+                # sum col-sums into the same PE accumulator; clearArray
+                # starts a fresh epoch. Operand fields identical to MXU.
+                # PSUM routing is not supported on this path.
+                rest = line[len("MXU_ACCUMULATE"):].strip()
                 parts = [p.strip() for p in rest.split(",")]
                 if len(parts) != 3:
                     raise SyntaxError(
-                        "MXU_OS syntax: MXU_OS WMEM[W], AMEM[A], tiles=N")
+                        "MXU_ACCUMULATE syntax: MXU_ACCUMULATE WMEM[W], AMEM[A], tiles=N")
                 wbase = _parse_mem("WMEM", parts[0])
                 abase = _parse_mem("AMEM", parts[1])
                 tm = re.fullmatch(r"tiles=(\d+)", parts[2], re.IGNORECASE)
@@ -404,7 +406,7 @@ def assemble(text: str) -> str:
                     raise SyntaxError(
                         f"expected tiles=N, got {parts[2]!r}")
                 tlen = int(tm.group(1))
-                out.append(_instr(_SXU["DISPATCH_MXU_OS"],
+                out.append(_instr(_SXU["DISPATCH_MXU_ACCUMULATE"],
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=tlen))
 
@@ -413,23 +415,23 @@ def assemble(text: str) -> str:
                 # Used between OS-mode accumulation epochs.
                 out.append(_instr(_SXU["MXU_CLEAR"]))
 
-            elif kw == "MXU_OS_REAL":
-                # MXU_OS_REAL WMEM[W], AMEM[A], k=N
+            elif kw == "MXU_OS":
+                # MXU_OS WMEM[W], AMEM[A], k=N
                 # Real output-stationary dispatch. W loaded as a kLen x cols
                 # tile; activations read as k column-vectors from AMEM.
-                # Routes through Controller.startOsReal.
-                rest = line[len("MXU_OS_REAL"):].strip()
+                # Routes through Controller.startOS.
+                rest = line[len("MXU_OS"):].strip()
                 parts = [p.strip() for p in rest.split(",")]
                 if len(parts) != 3:
                     raise SyntaxError(
-                        "MXU_OS_REAL syntax: MXU_OS_REAL WMEM[W], AMEM[A], k=N")
+                        "MXU_OS syntax: MXU_OS WMEM[W], AMEM[A], k=N")
                 wbase = _parse_mem("WMEM", parts[0])
                 abase = _parse_mem("AMEM", parts[1])
                 km = re.fullmatch(r"k=(\d+)", parts[2], re.IGNORECASE)
                 if not km:
                     raise SyntaxError(f"expected k=N, got {parts[2]!r}")
                 klen = int(km.group(1))
-                out.append(_instr(_SXU["DISPATCH_MXU_OS_REAL"],
+                out.append(_instr(_SXU["DISPATCH_MXU_OS"],
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=klen))
 
@@ -580,17 +582,17 @@ def disassemble(wire: str) -> str:
                             f"tiles={mxuTLen}, {mode_kw}=PSUM[{vregDst}], "
                             f"psum_row={vregSrc & 0x3}")
 
-                elif opc == _SXU["DISPATCH_MXU_OS"]:
+                elif opc == _SXU["DISPATCH_MXU_ACCUMULATE"]:
                     out.append(
-                        f"MXU_OS WMEM[{mxuWBase}], AMEM[{mxuABase}], "
+                        f"MXU_ACCUMULATE WMEM[{mxuWBase}], AMEM[{mxuABase}], "
                         f"tiles={mxuTLen}")
 
                 elif opc == _SXU["MXU_CLEAR"]:
                     out.append("MXU_CLEAR")
 
-                elif opc == _SXU["DISPATCH_MXU_OS_REAL"]:
+                elif opc == _SXU["DISPATCH_MXU_OS"]:
                     out.append(
-                        f"MXU_OS_REAL WMEM[{mxuWBase}], AMEM[{mxuABase}], "
+                        f"MXU_OS WMEM[{mxuWBase}], AMEM[{mxuABase}], "
                         f"k={mxuTLen}")
 
                 elif opc == _SXU["WAIT_MXU"]:

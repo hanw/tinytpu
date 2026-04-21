@@ -71,8 +71,8 @@ $(BUILDDIR)/mkTbCtrlPSUM.bexe: $(BUILDDIR)/TbCtrlPSUM.bo
 $(BUILDDIR)/mkTbCtrlOS.bexe: $(BUILDDIR)/TbCtrlOS.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlOS $(BUILDDIR)/mkTbCtrlOS.ba
 
-$(BUILDDIR)/mkTbCtrlOsReal.bexe: $(BUILDDIR)/TbCtrlOsReal.bo
-	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlOsReal $(BUILDDIR)/mkTbCtrlOsReal.ba
+$(BUILDDIR)/mkTbCtrlAccumulate.bexe: $(BUILDDIR)/TbCtrlAccumulate.bo
+	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlAccumulate $(BUILDDIR)/mkTbCtrlAccumulate.ba
 
 $(BUILDDIR)/mkTbCtrlDB.bexe: $(BUILDDIR)/TbCtrlDB.bo
 	$(BSC) $(BSCFLAGS) -o $@ -e mkTbCtrlDB $(BUILDDIR)/mkTbCtrlDB.ba
@@ -161,7 +161,7 @@ test-ctrl-psum: $(BUILDDIR)/mkTbCtrlPSUM.bexe
 test-ctrl-os: $(BUILDDIR)/mkTbCtrlOS.bexe
 	$<
 
-test-ctrl-os-real: $(BUILDDIR)/mkTbCtrlOsReal.bexe
+test-ctrl-accumulate: $(BUILDDIR)/mkTbCtrlAccumulate.bexe
 	$<
 
 test-ctrl-db: $(BUILDDIR)/mkTbCtrlDB.bexe
@@ -229,7 +229,7 @@ $(BUILDDIR)/TbScalarUnit.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray
 $(BUILDDIR)/TbSxuPSUM.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlPSUM.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlOS.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
-$(BUILDDIR)/TbCtrlOsReal.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
+$(BUILDDIR)/TbCtrlAccumulate.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbCtrlDB.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/WeightSRAMDB.bo $(BUILDDIR)/ActivationSRAMDB.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/WeightDMA.bo: $(BUILDDIR)/WeightSRAMDB.bo
 $(BUILDDIR)/TbWeightDMA.bo: $(BUILDDIR)/WeightDMA.bo $(BUILDDIR)/WeightSRAMDB.bo
@@ -245,6 +245,6 @@ $(BUILDDIR)/TinyTPUChip.bo: $(BUILDDIR)/TensorCore.bo $(BUILDDIR)/SparseCore.bo 
 $(BUILDDIR)/TbTinyTPUChip.bo: $(BUILDDIR)/TinyTPUChip.bo
 $(BUILDDIR)/TbTinyTPURuntime.bo: $(BUILDDIR)/TensorCore.bo
 
-.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-fpreducer test-psumbank test-sxu test-sxu-psum test-ctrl-psum test-ctrl-os test-tc test-sc test-hbm test-noc test-chip runtime-tb runtime-tb-trace test-trace
+.PHONY: clean test test-pe test-array test-accel test-4x4 test-xlu test-vmem test-vregfile test-vpu test-fpreducer test-psumbank test-sxu test-sxu-psum test-ctrl-psum test-ctrl-os test-ctrl-accumulate test-tc test-sc test-hbm test-noc test-chip runtime-tb runtime-tb-trace test-trace
 clean:
 	rm -rf $(BUILDDIR)

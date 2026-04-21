@@ -207,17 +207,17 @@ def test_wait_mxu():
     assert wire[0] == "2 5 0 0 0 0 0 0 0 0"
 
 
-def test_mxu_os():
-    wire = wire_lines(assemble("MXU_OS WMEM[2], AMEM[4], tiles=3\nHALT\nEND\n"))
-    # DISPATCH_MXU_OS opc=23, mxuWBase=2, mxuABase=4, mxuTLen=3.
-    # Other operand fields zero — OS dispatch has no psum plumbing.
+def test_mxu_accumulate():
+    wire = wire_lines(assemble("MXU_ACCUMULATE WMEM[2], AMEM[4], tiles=3\nHALT\nEND\n"))
+    # DISPATCH_MXU_ACCUMULATE opc=23, mxuWBase=2, mxuABase=4, mxuTLen=3.
+    # WS feed with drain-clear skipped; no PSUM plumbing.
     assert wire[0] == "2 23 0 0 0 0 0 2 4 3"
 
 
-def test_mxu_os_roundtrip():
-    src = "MXU_OS WMEM[2], AMEM[4], tiles=3\nHALT\nEND\n"
+def test_mxu_accumulate_roundtrip():
+    src = "MXU_ACCUMULATE WMEM[2], AMEM[4], tiles=3\nHALT\nEND\n"
     text = disassemble(assemble(src))
-    assert "MXU_OS WMEM[2], AMEM[4], tiles=3" in text
+    assert "MXU_ACCUMULATE WMEM[2], AMEM[4], tiles=3" in text
 
 
 def test_mxu_clear():
@@ -232,16 +232,17 @@ def test_mxu_clear_roundtrip():
     assert "MXU_CLEAR" in text
 
 
-def test_mxu_os_real():
-    wire = wire_lines(assemble("MXU_OS_REAL WMEM[2], AMEM[4], k=3\nHALT\nEND\n"))
-    # DISPATCH_MXU_OS_REAL opc=25, mxuWBase=2, mxuABase=4, mxuTLen(=kLen)=3.
+def test_mxu_os():
+    wire = wire_lines(assemble("MXU_OS WMEM[2], AMEM[4], k=3\nHALT\nEND\n"))
+    # DISPATCH_MXU_OS opc=25, mxuWBase=2, mxuABase=4, mxuTLen(=kLen)=3.
+    # Real OS: feedPair staircase + full-matrix drain.
     assert wire[0] == "2 25 0 0 0 0 0 2 4 3"
 
 
-def test_mxu_os_real_roundtrip():
-    src = "MXU_OS_REAL WMEM[2], AMEM[4], k=3\nHALT\nEND\n"
+def test_mxu_os_roundtrip():
+    src = "MXU_OS WMEM[2], AMEM[4], k=3\nHALT\nEND\n"
     text = disassemble(assemble(src))
-    assert "MXU_OS_REAL WMEM[2], AMEM[4], k=3" in text
+    assert "MXU_OS WMEM[2], AMEM[4], k=3" in text
 
 
 def test_halt():

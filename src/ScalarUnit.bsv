@@ -60,27 +60,23 @@ typedef enum {
    // granular MXU path — lets a VPU sequence deposit partial results
    // into a PSUM bucket row without overwriting the other rows.
    SXU_PSUM_ACCUMULATE_ROW,
-   // Output-stationary MXU dispatch. Same operand layout as
-   // SXU_DISPATCH_MXU (mxuWBase / mxuABase / mxuTLen) but routes
-   // through Controller.startOS so dfModeReg latches OS for the
-   // dispatch. PE accumulator-hold and operand-swap land in later
-   // iters — today the FSM runs the same WS behavior. Appended at the
-   // tail of the enum so existing opcode encodings stay stable.
-   SXU_DISPATCH_MXU_OS,
-   // Explicitly zero the systolic-array PE accumulators. OS-mode
-   // dispatches intentionally preserve the accumulator across
-   // consecutive startOS calls so the caller can accumulate over K
-   // tiles; MXU_CLEAR starts a fresh OS epoch. Single-cycle, no
-   // operand fields used. Appended at the tail to keep encoding
-   // stable.
+   // WS with cross-dispatch accumulator-hold. Same operand layout as
+   // SXU_DISPATCH_MXU but routes through Controller.startAccumulate
+   // so the drain-time clear is skipped; back-to-back dispatches sum
+   // their col-sums into the same PE accumulator (multi-K-tile GEMM).
+   // Not a distinct dataflow — the PE still holds a preloaded weight.
+   SXU_DISPATCH_MXU_ACCUMULATE,
+   // Explicitly zero the systolic-array PE accumulators. Needed
+   // between accumulate epochs and before re-entering WS from OS.
+   // Single-cycle, no operand fields used.
    SXU_MXU_CLEAR,
    // Real output-stationary dispatch. Routes through
-   // Controller.startOsReal: both weights and activations stream as
-   // a staircase, each PE holds its own psum, drain returns the full
+   // Controller.startOS: both weights and activations stream as a
+   // staircase, each PE holds its own psum, drain returns the full
    // (rows x cols) matrix via resultsMatrix() (read through
    // LOAD_MXU_RESULT-row opcodes later). Operand layout reuses the
    // MXU triple (wBase/aBase/tileLen where tileLen = kLen).
-   SXU_DISPATCH_MXU_OS_REAL
+   SXU_DISPATCH_MXU_OS
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -132,7 +128,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_OS_REAL, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -212,8 +208,8 @@ module mkScalarUnit#(
          SXU_BROADCAST_COL: pc_state <= SXU_EXEC_XLU_BROADCAST_COL;
          SXU_DISPATCH_XLU_TRANSPOSE: pc_state <= SXU_EXEC_XLU_TRANSPOSE;
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
+         SXU_DISPATCH_MXU_ACCUMULATE: pc_state <= SXU_EXEC_MXU_ACCUMULATE;
          SXU_DISPATCH_MXU_OS: pc_state <= SXU_EXEC_MXU_OS;
-         SXU_DISPATCH_MXU_OS_REAL: pc_state <= SXU_EXEC_MXU_OS_REAL;
          SXU_MXU_CLEAR:    pc_state <= SXU_EXEC_MXU_CLEAR;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
@@ -587,10 +583,23 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // DISPATCH_MXU_OS: trigger Controller.startOS, advance pc. Same operand
-   // fields as SXU_DISPATCH_MXU; PSUM routing is not available in OS mode
-   // yet (the OS + PSUM fusion is a later iter). Behavior-wise today this
-   // runs the WS FSM — the observable difference is Controller.dfModeReg.
+   // DISPATCH_MXU_ACCUMULATE: WS feed path with drain-time clear
+   // skipped, so consecutive dispatches sum their col-sums into the
+   // same PE accumulator. Same operand layout as SXU_DISPATCH_MXU.
+   // PSUM routing is not available on this path.
+   rule do_mxu_accumulate (pc_state == SXU_EXEC_MXU_ACCUMULATE);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_ACCUMULATE pc=%0d", cycle, pc);
+`endif
+      ctrl.startAccumulate(truncate(curInstr.mxuWBase),
+                           truncate(curInstr.mxuABase),
+                           truncate(curInstr.mxuTLen));
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_MXU_OS: real output-stationary dispatch. Routes through
+   // Controller.startOS with (wBase, aBase, kLen=tileLen).
    rule do_mxu_os (pc_state == SXU_EXEC_MXU_OS);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_OS pc=%0d", cycle, pc);
@@ -598,19 +607,6 @@ module mkScalarUnit#(
       ctrl.startOS(truncate(curInstr.mxuWBase),
                    truncate(curInstr.mxuABase),
                    truncate(curInstr.mxuTLen));
-      pc <= pc + 1;
-      pc_state <= SXU_FETCH;
-   endrule
-
-   // DISPATCH_MXU_OS_REAL: real output-stationary dispatch. Routes
-   // through Controller.startOsReal with (wBase, aBase, kLen=tileLen).
-   rule do_mxu_os_real (pc_state == SXU_EXEC_MXU_OS_REAL);
-`ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_OS_REAL pc=%0d", cycle, pc);
-`endif
-      ctrl.startOsReal(truncate(curInstr.mxuWBase),
-                       truncate(curInstr.mxuABase),
-                       truncate(curInstr.mxuTLen));
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

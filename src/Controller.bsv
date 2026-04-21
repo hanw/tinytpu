@@ -15,10 +15,10 @@ typedef enum {
    Idle,
    LoadWeights,
    LoadWeightsResp,
-   LoadWeightsRespOS,   // OS-real: buffer tile, don't preload into PEs
-   LoadActsOS,          // OS-real: prefetch K activation vectors into buffer
-   StreamActivations,   // WS + old "OS" (accumulator-hold) feed path
-   StreamOS,            // OS-real: feedPair staircase, K + skew cycles
+   LoadWeightsRespOS,   // OS: buffer tile, don't preload into PEs
+   LoadActsOS,          // OS: prefetch K activation vectors into buffer
+   StreamActivations,   // WS + WS-accumulate feed path
+   StreamOS,            // OS: feedPair staircase, K + skew cycles
    Drain,
    Done
 } ControlState deriving (Bits, Eq, FShow);
@@ -27,18 +27,19 @@ typedef enum {
 //  - DF_WEIGHT_STATIONARY: the default. loadWeights once, stream
 //    activations through, drain column sums. Clears the accumulator
 //    at drain time so consecutive starts each begin from zero.
-//  - DF_OUTPUT_STATIONARY: variant that runs the WS feed path but
-//    skips the drain-time clear, so back-to-back startOS calls
-//    accumulate across K-tiles. Useful for multi-tile GEMM; it is
-//    NOT a distinct dataflow (the PE still holds a preloaded weight).
-//  - DF_OUTPUT_STATIONARY_REAL: real OS dataflow. No preload — each
-//    cycle feeds one weight row and one activation column as a
-//    staircase; psums accumulate per-PE; drain returns the full
-//    (rows x cols) matrix via resultsMatrix().
+//  - DF_WEIGHT_STATIONARY_ACCUMULATE: runs the WS feed path but
+//    skips the drain-time clear, so back-to-back startAccumulate calls
+//    add partial results into the same PE accumulator (multi-K-tile
+//    GEMM). NOT a distinct dataflow — the PE still holds a preloaded
+//    weight; only the clear gating differs from WS.
+//  - DF_OUTPUT_STATIONARY: real OS dataflow. No preload — each cycle
+//    feeds one weight row and one activation column as a staircase;
+//    psums accumulate per-PE; drain returns the full (rows x cols)
+//    matrix via resultsMatrix().
 typedef enum {
    DF_WEIGHT_STATIONARY,
-   DF_OUTPUT_STATIONARY,
-   DF_OUTPUT_STATIONARY_REAL
+   DF_WEIGHT_STATIONARY_ACCUMULATE,
+   DF_OUTPUT_STATIONARY
 } DataflowMode deriving (Bits, Eq, FShow);
 
 interface Controller_IFC#(numeric type rows, numeric type cols, numeric type depth);
@@ -54,22 +55,24 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
                            UInt#(8) psumAddr,
                            UInt#(TLog#(rows)) psumRow,
                            PsumMode psumMode);
-   // Output-stationary variant. Flips dfModeReg to DF_OUTPUT_STATIONARY for
-   // the duration of the dispatch and runs the existing WS FSM (operand
-   // swap + PE accumulator-hold land in later iterations). Exposes the
-   // mode transition to consumers so SXU can dispatch via an OS opcode.
-   method Action startOS(UInt#(TLog#(depth)) weightBase,
-                         UInt#(TLog#(depth)) actBase,
-                         UInt#(TLog#(depth)) tileLen);
+   // WS with cross-dispatch accumulator-hold. Runs the same feed path
+   // as start() but skips the drain-time clearAll, so consecutive
+   // startAccumulate calls sum partial psums into the same PE. The
+   // caller uses clearArray() to begin a fresh accumulation epoch.
+   // Useful for multi-tile GEMM K-reduction in hardware. Not a
+   // distinct dataflow from WS.
+   method Action startAccumulate(UInt#(TLog#(depth)) weightBase,
+                                 UInt#(TLog#(depth)) actBase,
+                                 UInt#(TLog#(depth)) tileLen);
    // Real output-stationary dispatch. Runs the feedPair staircase:
    // each cycle reads one activation vector (length rows) from
    // ActivationSRAM and one weight row (length cols) from the tile
    // stored at weightBase, feeding both as the systolic wavefront.
    // kLen is the inner reduction depth (must be <= rows with the
    // current single-tile weight SRAM read).
-   method Action startOsReal(UInt#(TLog#(depth)) weightBase,
-                             UInt#(TLog#(depth)) actBase,
-                             UInt#(TLog#(depth)) kLen);
+   method Action startOS(UInt#(TLog#(depth)) weightBase,
+                         UInt#(TLog#(depth)) actBase,
+                         UInt#(TLog#(depth)) kLen);
    // Explicitly reset the systolic-array PE accumulators. Needed between
    // OS-mode epochs: OS dispatches intentionally preserve accumulator
    // state across consecutive starts so the caller can accumulate over
@@ -151,21 +154,21 @@ module mkController#(
 `endif
 
    // Phase 1: Issue weight read request. The next-state depends on
-   // the dataflow mode: WS / old-OS preload into the array, OS-real
-   // buffers the tile and streams rows per cycle.
+   // the dataflow mode: WS / WS-accumulate preload into the array,
+   // OS buffers the tile and streams rows per cycle.
    rule do_load_weights (cstate == LoadWeights);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=MXU ev=LOAD_W addr=%0d", cycle, wBase);
 `endif
       wSRAM.readReq(wBase);
-      if (dfModeReg == DF_OUTPUT_STATIONARY_REAL)
+      if (dfModeReg == DF_OUTPUT_STATIONARY)
          cstate <= LoadWeightsRespOS;
       else
          cstate <= LoadWeightsResp;
    endrule
 
-   // Phase 2 (WS / old-OS): Receive weight data, preload into array,
-   // and issue first activation read.
+   // Phase 2 (WS / WS-accumulate): Receive weight data, preload into
+   // the array, and issue first activation read.
    rule do_load_weights_resp (cstate == LoadWeightsResp);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=MXU ev=LOAD_W_RESP", cycle);
@@ -178,9 +181,9 @@ module mkController#(
       cstate <= StreamActivations;
    endrule
 
-   // Phase 2 (OS-real): Buffer the weight tile, issue the first
-   // activation read, and go into the activation-prefetch state so
-   // we can assemble the K x rows activation matrix up front.
+   // Phase 2 (OS): Buffer the weight tile, issue the first activation
+   // read, and go into the activation-prefetch state so we can
+   // assemble the K x rows activation matrix up front.
    rule do_load_weights_resp_os (cstate == LoadWeightsRespOS);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=MXU ev=LOAD_W_RESP_OS", cycle);
@@ -301,10 +304,12 @@ module mkController#(
       let r = array.getResults;
       outputBuf <= r;
       matrixBuf <= array.getMatrix;
-      // In WS mode, clear the PE accumulators so the next dispatch starts
-      // from zero. OS modes preserve them: the old-OS mode accumulates
-      // col-sums across K-tiles; OS-real leaves a full matrix of psums
-      // that the consumer reads via resultsMatrix() before clearing.
+      // DF_WEIGHT_STATIONARY clears the array so each dispatch starts
+      // from zero. The other two modes preserve the accumulator:
+      // DF_WEIGHT_STATIONARY_ACCUMULATE lets consecutive dispatches
+      // sum their col-sums; DF_OUTPUT_STATIONARY leaves a full matrix
+      // of per-PE psums that the consumer reads via resultsMatrix()
+      // and clears explicitly with clearArray().
       if (dfModeReg == DF_WEIGHT_STATIONARY)
          array.clearAll;
       case (psumModeReg)
@@ -363,9 +368,9 @@ module mkController#(
       cstate <= LoadWeights;
    endmethod
 
-   method Action startOS(UInt#(TLog#(depth)) weightBase,
-                         UInt#(TLog#(depth)) actBase,
-                         UInt#(TLog#(depth)) tileLen) if (cstate == Idle || cstate == Done);
+   method Action startAccumulate(UInt#(TLog#(depth)) weightBase,
+                                 UInt#(TLog#(depth)) actBase,
+                                 UInt#(TLog#(depth)) tileLen) if (cstate == Idle || cstate == Done);
       wBase  <= weightBase;
       aBase  <= actBase;
       tLen   <= tileLen;
@@ -373,29 +378,29 @@ module mkController#(
       streamCycle <= 0;
       firstActRead <= False;
       psumModeReg <= PSUM_OFF;
-      dfModeReg   <= DF_OUTPUT_STATIONARY;
+      dfModeReg   <= DF_WEIGHT_STATIONARY_ACCUMULATE;
       cstate <= LoadWeights;
    endmethod
 
-   method Action startOsReal(UInt#(TLog#(depth)) weightBase,
-                             UInt#(TLog#(depth)) actBase,
-                             UInt#(TLog#(depth)) kLen)
+   method Action startOS(UInt#(TLog#(depth)) weightBase,
+                         UInt#(TLog#(depth)) actBase,
+                         UInt#(TLog#(depth)) kLen)
          if (cstate == Idle || cstate == Done);
       wBase  <= weightBase;
       aBase  <= actBase;
       osKLen <= kLen;
-      // The WS-side counters are reset here too so a follow-up WS
-      // dispatch starts from a clean slate even if the caller skips
-      // the explicit clearArray between modes.
+      // WS-side counters reset so a follow-up WS dispatch starts from
+      // a clean slate even if the caller skips the explicit clearArray
+      // between modes.
       tLen   <= 0;
       actIdx <= 0;
       streamCycle <= 0;
       firstActRead <= False;
       osFeedCycle  <= 0;
       psumModeReg <= PSUM_OFF;
-      dfModeReg   <= DF_OUTPUT_STATIONARY_REAL;
-      // OS-real consumers are expected to start from a cleared array
-      // so each dispatch's psum matrix reflects only its own inputs.
+      dfModeReg   <= DF_OUTPUT_STATIONARY;
+      // OS consumers start from a cleared array so each dispatch's
+      // psum matrix reflects only its own inputs.
       array.clearAll;
       cstate <= LoadWeights;
    endmethod

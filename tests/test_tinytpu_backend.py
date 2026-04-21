@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5345,19 +5345,16 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       with self.assertRaisesRegex(RuntimeError, "simulator did not report `status ok`"):
         _run_bundle(str(sim), "4\n")
 
-  def test_mxu_os_dispatches_equivalent_to_ws(self):
-    # End-to-end sim check that SXU_DISPATCH_MXU_OS drives the Controller
-    # through the OS path. Today the OS path still runs WS behavior (PE
-    # accumulator-hold + operand-swap land in later iters), so identity
-    # weights × [1,2,3,4] must still produce [1,2,3,4] in the MXU output
-    # register. The test's purpose is to prove the opcode is wired
-    # through the SXU fetch → Controller.startOS → dispatch chain.
+  def test_mxu_accumulate_single_dispatch_matches_ws(self):
+    # DISPATCH_MXU_ACCUMULATE runs the WS feed path with drain-time
+    # clear skipped; a single dispatch off a zeroed array behaves
+    # identically to WS. Identity weights * [1,2,3,4] = [1,2,3,4].
     sim = os.environ["TINYTPU_SIM"]
     ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
     bundle = _bundle(
       _wmem(0, ident_weights),
       _amem(0, [1, 2, 3, 4]),
-      _mxu_os(0, 0, 1),                         # DISPATCH_MXU_OS
+      _mxu_accumulate(0, 0, 1),
       _wait_mxu(),
       _halt(),
       "3 1",                                    # OUTPUT_MXU
@@ -5390,18 +5387,18 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     # Every lane/sublane must carry the broadcast scalar 20.
     self.assertEqual(tile[0:4], [20, 20, 20, 20])
 
-  def test_mxu_os_accumulator_hold_across_dispatches(self):
-    # Two back-to-back OS dispatches must accumulate in the PE
-    # accumulators. Identity weights * [1,2,3,4] = [1,2,3,4] per dispatch,
-    # so after two dispatches the drained result is [2,4,6,8].
+  def test_mxu_accumulate_across_dispatches(self):
+    # Back-to-back MXU_ACCUMULATE dispatches must preserve the PE
+    # accumulator state. Identity weights * [1,2,3,4] = [1,2,3,4] per
+    # dispatch, so two dispatches drain [2,4,6,8].
     sim = os.environ["TINYTPU_SIM"]
     ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
     bundle = _bundle(
       _wmem(0, ident_weights),
       _amem(0, [1, 2, 3, 4]),
-      _mxu_os(0, 0, 1),                         # OS dispatch #1 -> [1,2,3,4]
+      _mxu_accumulate(0, 0, 1),
       _wait_mxu(),
-      _mxu_os(0, 0, 1),                         # OS dispatch #2 accumulates
+      _mxu_accumulate(0, 0, 1),
       _wait_mxu(),
       _halt(),
       "3 1",                                    # OUTPUT_MXU
@@ -5410,19 +5407,18 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     out = _run_bundle(sim, bundle)
     self.assertEqual(_parse_sim_output(out), [2, 4, 6, 8])
 
-  def test_mxu_clear_resets_os_accumulator(self):
-    # OS dispatch, MXU_CLEAR, OS dispatch -> fresh [1,2,3,4]. Verifies
-    # SXU_MXU_CLEAR reaches ctrl.clearArray and zeroes PE accumulators
-    # between OS-mode accumulation epochs.
+  def test_mxu_clear_resets_accumulator(self):
+    # MXU_ACCUMULATE, MXU_CLEAR, MXU_ACCUMULATE -> fresh [1,2,3,4].
+    # Verifies SXU_MXU_CLEAR zeroes PE accumulators between epochs.
     sim = os.environ["TINYTPU_SIM"]
     ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
     bundle = _bundle(
       _wmem(0, ident_weights),
       _amem(0, [1, 2, 3, 4]),
-      _mxu_os(0, 0, 1),                         # OS dispatch #1 -> [1,2,3,4]
+      _mxu_accumulate(0, 0, 1),
       _wait_mxu(),
-      _mxu_clear(),                             # zero PE accumulators
-      _mxu_os(0, 0, 1),                         # OS dispatch #2 fresh
+      _mxu_clear(),
+      _mxu_accumulate(0, 0, 1),
       _wait_mxu(),
       _halt(),
       "3 1",                                    # OUTPUT_MXU
