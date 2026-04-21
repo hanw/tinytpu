@@ -73,7 +73,14 @@ typedef enum {
    // tiles; MXU_CLEAR starts a fresh OS epoch. Single-cycle, no
    // operand fields used. Appended at the tail to keep encoding
    // stable.
-   SXU_MXU_CLEAR
+   SXU_MXU_CLEAR,
+   // Real output-stationary dispatch. Routes through
+   // Controller.startOsReal: both weights and activations stream as
+   // a staircase, each PE holds its own psum, drain returns the full
+   // (rows x cols) matrix via resultsMatrix() (read through
+   // LOAD_MXU_RESULT-row opcodes later). Operand layout reuses the
+   // MXU triple (wBase/aBase/tileLen where tileLen = kLen).
+   SXU_DISPATCH_MXU_OS_REAL
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -125,7 +132,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_OS_REAL, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -206,6 +213,7 @@ module mkScalarUnit#(
          SXU_DISPATCH_XLU_TRANSPOSE: pc_state <= SXU_EXEC_XLU_TRANSPOSE;
          SXU_DISPATCH_MXU: pc_state <= SXU_EXEC_MXU;
          SXU_DISPATCH_MXU_OS: pc_state <= SXU_EXEC_MXU_OS;
+         SXU_DISPATCH_MXU_OS_REAL: pc_state <= SXU_EXEC_MXU_OS_REAL;
          SXU_MXU_CLEAR:    pc_state <= SXU_EXEC_MXU_CLEAR;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
@@ -590,6 +598,19 @@ module mkScalarUnit#(
       ctrl.startOS(truncate(curInstr.mxuWBase),
                    truncate(curInstr.mxuABase),
                    truncate(curInstr.mxuTLen));
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_MXU_OS_REAL: real output-stationary dispatch. Routes
+   // through Controller.startOsReal with (wBase, aBase, kLen=tileLen).
+   rule do_mxu_os_real (pc_state == SXU_EXEC_MXU_OS_REAL);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_OS_REAL pc=%0d", cycle, pc);
+`endif
+      ctrl.startOsReal(truncate(curInstr.mxuWBase),
+                       truncate(curInstr.mxuABase),
+                       truncate(curInstr.mxuTLen));
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

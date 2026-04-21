@@ -232,6 +232,18 @@ def test_mxu_clear_roundtrip():
     assert "MXU_CLEAR" in text
 
 
+def test_mxu_os_real():
+    wire = wire_lines(assemble("MXU_OS_REAL WMEM[2], AMEM[4], k=3\nHALT\nEND\n"))
+    # DISPATCH_MXU_OS_REAL opc=25, mxuWBase=2, mxuABase=4, mxuTLen(=kLen)=3.
+    assert wire[0] == "2 25 0 0 0 0 0 2 4 3"
+
+
+def test_mxu_os_real_roundtrip():
+    src = "MXU_OS_REAL WMEM[2], AMEM[4], k=3\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "MXU_OS_REAL WMEM[2], AMEM[4], k=3" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"
