@@ -510,11 +510,57 @@ ratio — the top ones would most change what TinyTPU can run.
       infrastructure for future BARRIER / IF / ENDIF work.
 - [~] **Output-stationary dataflow mode on MXU.** Scaffolding landed:
       Controller exposes a `DataflowMode` enum (`DF_WEIGHT_STATIONARY`,
-      `DF_OUTPUT_STATIONARY`), a `dfModeReg` register, and a
-      `getDataflowMode` interface method. No behavior change yet —
-      always stays in WS. Remaining: `startOS()` method, Controller
-      FSM variant that streams both operands, PE accumulator-hold
-      mode, end-to-end test.
+      `DF_OUTPUT_STATIONARY`), `startOS()` method, SXU opcode
+      `SXU_DISPATCH_MXU_OS`, `SXU_MXU_CLEAR`, and drain-time clear gated
+      on mode so consecutive `startOS` calls preserve the PE accumulator.
+      **What today's "OS mode" actually is:** weight-stationary dataflow
+      with cross-dispatch accumulator-hold. PEs still hold a single
+      loaded weight; activations still stream in the same direction;
+      drain still returns col-sums. *It is not a distinct dataflow.*
+      Remaining for real OS: per-cycle weight streaming alongside
+      activations, `PE.feedPair(w, a)` that accumulates with both
+      inputs arriving from neighbors, full-tile drain shape (return
+      the 4×4 element-wise accumulator instead of col-sums), and a
+      Controller FSM variant that feeds both operands each cycle.
+
+### MXU dataflow roadmap
+
+The four canonical systolic dataflows, ranked by TinyTPU fit:
+
+- [x] **Weight-stationary (WS).** Fully implemented. Weights loaded
+      once, activations + partial sums flow. Good for weight-heavy
+      layers; matches TPU / NVDLA. Plus the current "OS mode" is a WS
+      variant with accumulator-hold across dispatches — useful for
+      multi-K-tile GEMM and already covered by PSUMBank at a different
+      granularity.
+- [ ] **Output-stationary (OS) — real.** Psum stays in PE, both
+      weights and activations stream. Maximizes psum reuse: each
+      output element is a short in-place reduction. High value for
+      depthwise conv and attention kernels. Needs new PE semantics
+      (`feedPair(w, a)`), new SystolicArray feed direction, full-tile
+      drain, new Controller FSM. Highest-impact dataflow extension.
+- [ ] **Input-stationary / activation-stationary (IS).** Mirror of
+      WS with operands swapped: activations stay in PE, weights +
+      psums flow. Cheapest to add since the PE structure is identical
+      — just reverse which operand gets preloaded. Wins on batch=1
+      inference where activations are large and weights can stream
+      cheaply from HBM.
+- [ ] **Row-stationary (RS) — Eyeriss-style.** Each PE holds a row
+      of the filter kernel, slides over a row of activations,
+      accumulates a row of the output. Optimized for convolution's
+      triple-reuse pattern. Overkill for a 4×4 pure-matmul engine;
+      skip unless the array grows + conv kernels become the bottleneck.
+
+Hybrids worth noting:
+
+- [ ] **K-batching / multi-tile accumulation** (already done via
+      PSUMBank): scheduling overlay on top of any stationary mode.
+- [ ] **No-local-reuse (NLR):** nothing stationary, everything
+      streams. Simplest PE, worst reuse. Intentionally skipped — no
+      reason to implement as a first-class mode.
+
+Practical priority order: finish real OS → add IS (cheap symmetric
+variant) → skip RS + NLR.
 
 ### Tier 3 — chip-level scale-out
 
