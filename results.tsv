@@ -578,3 +578,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	136af66	1	test	dual-issue XLU cycle-span guard	901 backend pass	locks in iter 49 win	iter 61 next
 2026-04-21	e7befdd	1	ctrl+sxu	MXU_OS_ACCUMULATE (33) — multi-K-tile OS	tasm 98 + 902 backend pass	real OS scaling past K==rows	iter 62 next
 2026-04-21	a85d3ed	1	lean	accumulate_compose theorem	lake build ok	formal OS-accumulate correctness	iter 63 next
+2026-04-21	ef029a5	1	sxu	VNEG opcode 34	tasm 100 + backend pass	none	iter 64 next
