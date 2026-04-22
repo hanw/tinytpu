@@ -24,7 +24,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                // clamped to [-128, 127] independently.
                VPU_PACKED_I8_ADD, VPU_PACKED_I8_SUB,
                VPU_PACKED_I8_MAX, VPU_PACKED_I8_MIN,
-               VPU_PACKED_I8_NEG, VPU_PACKED_I8_RELU }
+               VPU_PACKED_I8_NEG, VPU_PACKED_I8_RELU,
+               VPU_PACKED_I8_CMPLT, VPU_PACKED_I8_CMPEQ }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -109,6 +110,22 @@ function Int#(32) packed_i8_relu(Int#(32) a);
    match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
    return pack_i8x4((a0 > 0) ? a0 : 0, (a1 > 0) ? a1 : 0,
                     (a2 > 0) ? a2 : 0, (a3 > 0) ? a3 : 0);
+endfunction
+
+// Byte-wise signed less-than: 0xFF (-1) if true, 0x00 if false per byte.
+function Int#(32) packed_i8_cmplt(Int#(32) a, Int#(32) b);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
+   return pack_i8x4((a0 < b0) ? -1 : 0, (a1 < b1) ? -1 : 0,
+                    (a2 < b2) ? -1 : 0, (a3 < b3) ? -1 : 0);
+endfunction
+
+// Byte-wise equal: 0xFF (-1) if equal, 0x00 otherwise.
+function Int#(32) packed_i8_cmpeq(Int#(32) a, Int#(32) b);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
+   return pack_i8x4((a0 == b0) ? -1 : 0, (a1 == b1) ? -1 : 0,
+                    (a2 == b2) ? -1 : 0, (a3 == b3) ? -1 : 0);
 endfunction
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -420,6 +437,14 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_PACKED_I8_RELU: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = packed_i8_relu(src1[s][l]);
+            end
+            VPU_PACKED_I8_CMPLT: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_cmplt(src1[s][l], src2[s][l]);
+            end
+            VPU_PACKED_I8_CMPEQ: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_cmpeq(src1[s][l], src2[s][l]);
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)

@@ -131,6 +131,8 @@ _VPU = {
     "PACKED_I8_MIN":     58,
     "PACKED_I8_NEG":     59,
     "PACKED_I8_RELU":    60,
+    "PACKED_I8_CMPLT":   61,
+    "PACKED_I8_CMPEQ":   62,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 

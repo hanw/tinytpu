@@ -5760,6 +5760,46 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], expected_neg, "PACKED_I8_NEG mismatch")
     self.assertEqual(tiles[1], expected_relu, "PACKED_I8_RELU mismatch")
 
+  def test_vpu_packed_i8_cmplt_cmpeq(self):
+    # Push 4 iter 6: byte-wise signed less-than and equal. Each byte of
+    # the result is 0xFF (int8 -1) if the predicate holds, else 0x00.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+
+    bytes_a = [(-5, 10, 0, 127), (0, 0, 0, 0), (50, -50, 100, -100)] + [(0, 0, 0, 0)] * 13
+    bytes_b = [(0, -10, 0, -128), (0, 1, -1, 0), (50, -50, 50, -50)] + [(0, 0, 0, 0)] * 13
+    src1_tile = [pack_i8x4(*bs) for bs in bytes_a]
+    src2_tile = [pack_i8x4(*bs) for bs in bytes_b]
+
+    pi8_lt = _VPU_OPS["PACKED_I8_CMPLT"]
+    pi8_eq = _VPU_OPS["PACKED_I8_CMPEQ"]
+    bundle = _bundle(
+      _vmem(0, src1_tile),
+      _vmem(1, src2_tile),
+      _load(0, 0),
+      _load(1, 1),
+      _vpu(2, 0, pi8_lt, 1),
+      _vpu(3, 0, pi8_eq, 1),
+      _store(2, 2),
+      _store(3, 3),
+      _halt(),
+      _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 2)
+    expected_lt = [pack_i8x4(*tuple((-1 if a < b else 0) for a, b in zip(ba, bb)))
+                   for ba, bb in zip(bytes_a, bytes_b)]
+    expected_eq = [pack_i8x4(*tuple((-1 if a == b else 0) for a, b in zip(ba, bb)))
+                   for ba, bb in zip(bytes_a, bytes_b)]
+    self.assertEqual(tiles[0], expected_lt, "PACKED_I8_CMPLT mismatch")
+    self.assertEqual(tiles[1], expected_eq, "PACKED_I8_CMPEQ mismatch")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0
