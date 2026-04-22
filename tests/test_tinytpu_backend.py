@@ -5440,6 +5440,46 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       expected = [W_flat[r * 4 + c] for c in range(4)] + [0] * 12
       self.assertEqual(tile, expected, f"OS row {r}: got {tile} want {expected}")
 
+  def test_mxu_os_end_to_end_nontrivial_matmul(self):
+    # OS dispatch with A != I to exercise the full staircase:
+    #   A = [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]  (arange+1)
+    #   W = [[1,0,0,0],[0,2,0,0],[0,0,3,0],[0,0,0,4]]         (diagonal)
+    # Expected C[r][c] = A[r][c]*W[c][c] = A[r][c]*(c+1).
+    # AMEM[k] = column k of A = (A[0][k], A[1][k], A[2][k], A[3][k]).
+    sim = os.environ["TINYTPU_SIM"]
+    W_diag_flat = [1, 0, 0, 0,  0, 2, 0, 0,  0, 0, 3, 0,  0, 0, 0, 4]
+    # Columns of A:
+    A_col0 = [1, 5, 9, 13]
+    A_col1 = [2, 6, 10, 14]
+    A_col2 = [3, 7, 11, 15]
+    A_col3 = [4, 8, 12, 16]
+    bundle = _bundle(
+      _wmem(0, W_diag_flat),
+      _amem(0, A_col0),
+      _amem(1, A_col1),
+      _amem(2, A_col2),
+      _amem(3, A_col3),
+      _mxu_os(0, 0, 4),
+      _wait_mxu(),
+      _load_mxu_matrix_row(0, 0), _store(0, 0),
+      _load_mxu_matrix_row(1, 1), _store(1, 1),
+      _load_mxu_matrix_row(2, 2), _store(2, 2),
+      _load_mxu_matrix_row(3, 3), _store(3, 3),
+      _halt(),
+      _output_vmem(0), _output_vmem(1), _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 4)
+    # A row r times W diag: [(A[r][c])*(c+1) for c in 0..3]
+    for r in range(4):
+      expected_row = [(4 * r + c + 1) * (c + 1) for c in range(4)]
+      expected_tile = expected_row + [0] * 12
+      self.assertEqual(tiles[r], expected_tile,
+                       f"OS non-trivial row {r}: got {tiles[r]} want {expected_tile}")
+
   def test_mxu_clear_resets_accumulator(self):
     # MXU_ACCUMULATE, MXU_CLEAR, MXU_ACCUMULATE -> fresh [1,2,3,4].
     # Verifies SXU_MXU_CLEAR zeroes PE accumulators between epochs.
