@@ -296,6 +296,29 @@ def test_vzero_roundtrip():
     assert "VZERO v4" in text
 
 
+def test_vfill():
+    wire = wire_lines(assemble("VFILL v3, imm=-5\nHALT\nEND\n"))
+    # -5 as unsigned byte = 251.
+    assert wire[0] == "2 31 0 3 0 0 0 251 0 0"
+
+
+def test_vfill_roundtrip():
+    src = "VFILL v3, imm=-5\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "VFILL v3, imm=-5" in text
+
+
+def test_vmov():
+    wire = wire_lines(assemble("VMOV v2, v7\nHALT\nEND\n"))
+    assert wire[0] == "2 32 0 2 7 0 0 0 0 0"
+
+
+def test_vmov_roundtrip():
+    src = "VMOV v2, v7\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "VMOV v2, v7" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"

@@ -100,7 +100,13 @@ typedef enum {
    // VZERO: write zeros to vregDst in one cycle. Saves the "preload zero
    // tile into VMEM + LOAD into vreg" two-instruction dance when a
    // program just needs a clean starting accumulator.
-   SXU_VZERO
+   SXU_VZERO,
+   // VFILL: broadcast a signed 8-bit constant to every lane of every
+   // sublane of vregDst. The constant is taken from the mxuWBase field
+   // (UInt#(8) cast to Int#(8) then sign-extended to Int#(32)).
+   SXU_VFILL,
+   // VMOV: copy vregSrc -> vregDst in one cycle.
+   SXU_VMOV
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -152,7 +158,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -250,6 +256,8 @@ module mkScalarUnit#(
          SXU_LOOP_BEGIN: pc_state <= SXU_EXEC_LOOP_BEGIN;
          SXU_LOOP_END:   pc_state <= SXU_EXEC_LOOP_END;
          SXU_VZERO:      pc_state <= SXU_EXEC_VZERO;
+         SXU_VFILL:      pc_state <= SXU_EXEC_VFILL;
+         SXU_VMOV:       pc_state <= SXU_EXEC_VMOV;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -590,6 +598,32 @@ module mkScalarUnit#(
       Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
       v[0] = ctrl.results;
       vrf.write(truncate(curInstr.vregDst), v);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // VFILL: broadcast an 8-bit signed immediate to all lanes of all
+   // sublanes of vregDst. The immediate lives in mxuWBase.
+   rule do_vfill (pc_state == SXU_EXEC_VFILL);
+      Int#(8)  imm8 = unpack(pack(curInstr.mxuWBase));
+      Int#(32) val  = signExtend(imm8);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=VFILL pc=%0d dst=v%0d imm=%0d",
+               cycle, pc, curInstr.vregDst, val);
+`endif
+      vrf.write(truncate(curInstr.vregDst), replicate(replicate(val)));
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // VMOV: copy vregSrc into vregDst in one cycle.
+   rule do_vmov (pc_state == SXU_EXEC_VMOV);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=VMOV pc=%0d dst=v%0d src=v%0d",
+               cycle, pc, curInstr.vregDst, curInstr.vregSrc);
+`endif
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      vrf.write(truncate(curInstr.vregDst), src);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

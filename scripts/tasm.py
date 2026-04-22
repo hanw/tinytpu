@@ -60,6 +60,8 @@ _SXU = {
     "LOOP_BEGIN":              28,
     "LOOP_END":                29,
     "VZERO":                   30,
+    "VFILL":                   31,
+    "VMOV":                    32,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -467,6 +469,33 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["VZERO"], vregDst=dst))
 
+            elif kw == "VFILL":
+                # VFILL v{dst}, imm={N} — broadcast signed 8-bit N to every lane.
+                rest = line[len("VFILL"):].strip()
+                parts = [p.strip() for p in rest.split(",")]
+                if len(parts) != 2:
+                    raise SyntaxError("VFILL syntax: VFILL v{dst}, imm=N")
+                dst = _parse_vreg(parts[0])
+                im = re.fullmatch(r"imm=(-?\d+)", parts[1], re.IGNORECASE)
+                if not im:
+                    raise SyntaxError(f"expected imm=N, got {parts[1]!r}")
+                imm_i8 = int(im.group(1))
+                if not -128 <= imm_i8 <= 127:
+                    raise SyntaxError(f"VFILL imm must be int8 (-128..127), got {imm_i8}")
+                # Encode as unsigned byte in mxuWBase so bsc can unpack to Int#(8).
+                out.append(_instr(_SXU["VFILL"], vregDst=dst,
+                                  mxuWBase=imm_i8 & 0xFF))
+
+            elif kw == "VMOV":
+                # VMOV v{dst}, v{src}
+                rest = line[len("VMOV"):].strip()
+                parts = [p.strip() for p in rest.split(",")]
+                if len(parts) != 2:
+                    raise SyntaxError("VMOV syntax: VMOV v{dst}, v{src}")
+                dst = _parse_vreg(parts[0])
+                src = _parse_vreg(parts[1])
+                out.append(_instr(_SXU["VMOV"], vregDst=dst, vregSrc=src))
+
             elif kw == "READ_CYCLE":
                 # READ_CYCLE v{dst} — write the SXU cycle counter as
                 # Int#(32) into row 0 lane 0 of vdst.
@@ -665,6 +694,14 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["VZERO"]:
                     out.append(f"VZERO v{vregDst}")
+
+                elif opc == _SXU["VFILL"]:
+                    # mxuWBase is UInt#(8); treat as signed int8.
+                    imm = mxuWBase if mxuWBase < 128 else mxuWBase - 256
+                    out.append(f"VFILL v{vregDst}, imm={imm}")
+
+                elif opc == _SXU["VMOV"]:
+                    out.append(f"VMOV v{vregDst}, v{vregSrc}")
 
                 elif opc == _SXU["LOAD_VPU_RESULT"]:
                     out.append(f"LOAD_VPU_RESULT v{vregDst}")
