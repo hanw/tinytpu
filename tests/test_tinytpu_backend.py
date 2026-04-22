@@ -5619,6 +5619,28 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     tile = _parse_vmem_output(out)
     self.assertEqual(tile, [-7] * 16)
 
+  def test_new_sxu_opcodes_compose(self):
+    # Exercise VFILL + VNEG + VABS + VMOV + LOOP + VPU together:
+    #   v0 := -3 tile
+    #   loop 2x { v1 := -v0; v2 := |v1|; v0 := v2 }
+    # After 2 iterations, v0 should be |3| = 3 (negating twice + abs).
+    sim = os.environ["TINYTPU_SIM"]
+    bundle = _bundle(
+      _vfill(0, -3),
+      _loop_begin(2),
+      _vneg(1, 0),          # v1 := -v0
+      _vabs(2, 1),          # v2 := |v1|
+      _vmov(0, 2),          # v0 := v2
+      _loop_end(),
+      _store(0, 0),
+      _halt(),
+      _output_vmem(0),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile, [3] * 16)
+
   def test_vabs_handles_signs(self):
     sim = os.environ["TINYTPU_SIM"]
     bundle = _bundle(
