@@ -593,3 +593,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	6ce6a0c	1	verify	submodule sync + clean state check	submodule e2439f52 (tinytpu-iterations)	none	iter 76 final TODO
 2026-04-21	62051ec	1	todo	note VABS/VZERO renderer adoption	none (docs)	push 3 wrapping	iter 77 final
 2026-04-21	0c0cb15	1	push-3-done	final regression: 1007 backend+tasm + 36 SXU opcodes + real OS + DB default + dual-issue unblocked	BSV 54/54 pass	push 3 (iters 38-77) complete	hand off to next session via checkpoint
+2026-04-22	3595c3b	1	sxu+loop	nested LOOP via depth-4 stack	907 backend pass (+2 nested)	Item: Nested SXU_LOOP closed	iter 2 VPU dual-issue
