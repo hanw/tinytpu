@@ -704,9 +704,25 @@ def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
     # Full VPU opcode range including EXP2/LOG2/SIN/COS transcendentals
     # and the packed-int8 quantized ops at the tail.
-    assert len(_VPU) == 57
+    assert len(_VPU) == 59
     codes = sorted(_VPU.values())
-    assert codes == list(range(57))
+    assert codes == list(range(59))
+
+
+def test_vpu_packed_i8_max_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nLOAD  v1, VMEM[1]\nVPU   v2 = PACKED_I8_MAX(v0, v1)\nSTORE VMEM[2], v2\nHALT\nEND\n"
+    wire = assemble(prog)
+    vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
+    assert vpu_line.split()[5] == "57"
+    assert "PACKED_I8_MAX(v0, v1)" in disassemble(wire)
+
+
+def test_vpu_packed_i8_min_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nLOAD  v1, VMEM[1]\nVPU   v2 = PACKED_I8_MIN(v0, v1)\nSTORE VMEM[2], v2\nHALT\nEND\n"
+    wire = assemble(prog)
+    vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
+    assert vpu_line.split()[5] == "58"
+    assert "PACKED_I8_MIN(v0, v1)" in disassemble(wire)
 
 
 def test_vpu_packed_i8_sub_roundtrip():

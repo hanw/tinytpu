@@ -22,7 +22,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                // bits[31:24]). Saturating add is the first quantized-
                // inference primitive — four 8-bit adders per lane, each
                // clamped to [-128, 127] independently.
-               VPU_PACKED_I8_ADD, VPU_PACKED_I8_SUB }
+               VPU_PACKED_I8_ADD, VPU_PACKED_I8_SUB,
+               VPU_PACKED_I8_MAX, VPU_PACKED_I8_MIN }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -74,6 +75,20 @@ function Int#(32) packed_i8_sub(Int#(32) a, Int#(32) b);
    match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
    return pack_i8x4(sat_sub_i8(a0, b0), sat_sub_i8(a1, b1),
                     sat_sub_i8(a2, b2), sat_sub_i8(a3, b3));
+endfunction
+
+// Byte-wise signed max.
+function Int#(32) packed_i8_max(Int#(32) a, Int#(32) b);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
+   return pack_i8x4(max(a0, b0), max(a1, b1), max(a2, b2), max(a3, b3));
+endfunction
+
+// Byte-wise signed min.
+function Int#(32) packed_i8_min(Int#(32) a, Int#(32) b);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
+   return pack_i8x4(min(a0, b0), min(a1, b1), min(a2, b2), min(a3, b3));
 endfunction
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -369,6 +384,14 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_PACKED_I8_SUB: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = packed_i8_sub(src1[s][l], src2[s][l]);
+            end
+            VPU_PACKED_I8_MAX: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_max(src1[s][l], src2[s][l]);
+            end
+            VPU_PACKED_I8_MIN: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_min(src1[s][l], src2[s][l]);
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)

@@ -5684,6 +5684,46 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tile, expected,
                      f"PACKED_I8_SUB: got {tile}, expected {expected}")
 
+  def test_vpu_packed_i8_max_min_lane_wise(self):
+    # Push 4 iter 4: PACKED_I8_MAX/MIN work byte-wise on packed signed
+    # int8 lanes. Cover: positive, negative, mixed signs.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+
+    bytes_a = [(10, -20, 50, -100), (127, 0, -128, 1), (5, 5, 5, 5)] + [(0, 0, 0, 0)] * 13
+    bytes_b = [(3, 40, -50, 100), (1, 0, 127, -1), (0, 10, -10, 5)] + [(0, 0, 0, 0)] * 13
+    src1_tile = [pack_i8x4(*bs) for bs in bytes_a]
+    src2_tile = [pack_i8x4(*bs) for bs in bytes_b]
+
+    pi8_max = _VPU_OPS["PACKED_I8_MAX"]
+    pi8_min = _VPU_OPS["PACKED_I8_MIN"]
+    bundle = _bundle(
+      _vmem(0, src1_tile),
+      _vmem(1, src2_tile),
+      _load(0, 0),
+      _load(1, 1),
+      _vpu(2, 0, pi8_max, 1),
+      _vpu(3, 0, pi8_min, 1),
+      _store(2, 2),
+      _store(3, 3),
+      _halt(),
+      _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 2)
+    expected_max = [pack_i8x4(*tuple(max(a, b) for a, b in zip(ba, bb)))
+                    for ba, bb in zip(bytes_a, bytes_b)]
+    expected_min = [pack_i8x4(*tuple(min(a, b) for a, b in zip(ba, bb)))
+                    for ba, bb in zip(bytes_a, bytes_b)]
+    self.assertEqual(tiles[0], expected_max, "PACKED_I8_MAX mismatch")
+    self.assertEqual(tiles[1], expected_min, "PACKED_I8_MIN mismatch")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

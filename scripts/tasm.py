@@ -127,6 +127,8 @@ _VPU = {
     "COS":               54,
     "PACKED_I8_ADD":     55,
     "PACKED_I8_SUB":     56,
+    "PACKED_I8_MAX":     57,
+    "PACKED_I8_MIN":     58,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
