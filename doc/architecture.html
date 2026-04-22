@@ -1,8 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>TinyTPU — Datapath &amp; Compilation Flow</title>
+wrote /Users/hanwang/p/tinytpu/doc/architecture.html (324 lines)
+itle>TinyTPU — Datapath &amp; Compilation Flow</title>
 <style>
   :root {
     --bg: #0f1115;
@@ -185,9 +182,16 @@
 <div class="panel">
 <div class="cap" style="margin-bottom:10px"><strong>Instruction encoding</strong> — one SXU instr per row, 10 fields</div>
 <ul>
-  <li>25 SXU opcodes: <code>LOAD_VREG</code>(0) … <code>HALT</code>(7) …
+  <li>36 SXU opcodes: <code>LOAD_VREG</code>(0) … <code>HALT</code>(7) …
       <code>DISPATCH_MXU</code>(4), <code>PSUM_*</code>(15–19, 22),
-      <code>DISPATCH_MXU_OS</code>(23), <code>MXU_CLEAR</code>(24)</li>
+      <code>DISPATCH_MXU_ACCUMULATE</code>(23) (was the old misnomer
+      <code>MXU_OS</code>), <code>MXU_CLEAR</code>(24),
+      <code>DISPATCH_MXU_OS</code>(25) (real OS),
+      <code>LOAD_MXU_MATRIX_ROW</code>(26), <code>READ_CYCLE</code>(27),
+      <code>LOOP_BEGIN</code>(28)/<code>LOOP_END</code>(29),
+      <code>VZERO</code>(30)/<code>VFILL</code>(31)/<code>VMOV</code>(32),
+      <code>DISPATCH_MXU_OS_ACCUMULATE</code>(33),
+      <code>VNEG</code>(34)/<code>VABS</code>(35)</li>
   <li><code>sxu_op</code>=2 (DISPATCH_VPU) indexes into 55 float/int ALUs +
       reducers + transcendentals</li>
   <li>SXU waits on <code>vpu.isDone</code> between VPU dispatches —
@@ -281,7 +285,7 @@
       float SUM / MAX / MIN / PROD reducers (tile / row / col granularity).</li>
   <li><code>src/TranscUnit.bsv</code> — multi-cycle walker implementing EXP2 / LOG2 /
       SIN / COS via Remez minimax polynomials + range reduction.</li>
-  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; 25 SXU opcodes +
+  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; 36 SXU opcodes +
       background <code>do_xlu_collect_bg</code> dual-issue rule + 1-bit predicate.</li>
   <li><code>src/TensorCore.bsv</code>, <code>src/SystolicArray.bsv</code>,
       <code>src/Controller.bsv</code> — MXU stack + per-core integration. Controller
