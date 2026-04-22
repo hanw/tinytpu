@@ -597,3 +597,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	6bd27de	1	vpu	VPU_PACKED_I8_ADD saturating opcode	tasm 103 + backend 908 pass (+1 tasm, +1 backend)	Item: int8 packed ADD	iter 3 PACKED_I8_SUB
 2026-04-22	c28bcf3	1	vpu	VPU_PACKED_I8_SUB saturating opcode	tasm 104 + backend 909 pass	Item: int8 packed SUB	iter 4 PACKED_I8_MAX
 2026-04-22	7759823	1	vpu	VPU_PACKED_I8_MAX/MIN signed byte-wise	tasm 106 + backend 910 pass	Item: int8 packed MAX/MIN	iter 5 PACKED_I8_NEG/ABS
+2026-04-22	db2f203	1	vpu	VPU_PACKED_I8_NEG + RELU	tasm 108 + backend 911 pass	Item: int8 packed NEG/RELU	iter 6 transcunit tanh
