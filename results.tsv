@@ -575,3 +575,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	042796a	1	sxu	VZERO opcode 30 (single-cycle zero vreg)	tasm 92 + backend clean	none	iter 58 VFILL
 2026-04-21	08ba1ff	1	sxu	VFILL (31) + VMOV (32) single-cycle	tasm 96 pass; 3 E2E tests	none	iter 59 combined test
 2026-04-21	2f21712	1	test	LOOP accumulator integration test	900 backend pass	none	iter 60 read results panel
+2026-04-21	136af66	1	test	dual-issue XLU cycle-span guard	901 backend pass	locks in iter 49 win	iter 61 next
