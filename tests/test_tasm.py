@@ -245,6 +245,18 @@ def test_mxu_os_roundtrip():
     assert "MXU_OS WMEM[2], AMEM[4], k=3" in text
 
 
+def test_load_mxu_matrix_row():
+    wire = wire_lines(assemble("LOAD_MXU_MATRIX_ROW v5, row=2\nHALT\nEND\n"))
+    # LOAD_MXU_MATRIX_ROW opc=26, vregDst=5, vregSrc=2.
+    assert wire[0] == "2 26 0 5 2 0 0 0 0 0"
+
+
+def test_load_mxu_matrix_row_roundtrip():
+    src = "LOAD_MXU_MATRIX_ROW v5, row=2\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "LOAD_MXU_MATRIX_ROW v5, row=2" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"

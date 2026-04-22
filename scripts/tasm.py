@@ -55,6 +55,7 @@ _SXU = {
     "DISPATCH_MXU_ACCUMULATE": 23,
     "MXU_CLEAR":               24,
     "DISPATCH_MXU_OS":         25,
+    "LOAD_MXU_MATRIX_ROW":     26,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -442,6 +443,24 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["LOAD_MXU_RESULT"], vregDst=dst))
 
+            elif kw == "LOAD_MXU_MATRIX_ROW":
+                # LOAD_MXU_MATRIX_ROW v{dst}, row={N}
+                # Copies ctrl.resultsMatrix[N] into row 0 of vdst.
+                rest = line[len("LOAD_MXU_MATRIX_ROW"):].strip()
+                parts = [p.strip() for p in rest.split(",")]
+                if len(parts) != 2:
+                    raise SyntaxError(
+                        "LOAD_MXU_MATRIX_ROW syntax: LOAD_MXU_MATRIX_ROW v{dst}, row=N")
+                dst = _parse_vreg(parts[0])
+                rm = re.fullmatch(r"row=(\d+)", parts[1], re.IGNORECASE)
+                if not rm:
+                    raise SyntaxError(f"expected row=N, got {parts[1]!r}")
+                row = int(rm.group(1))
+                # Reuse the vregSrc field as the row selector — matches
+                # ScalarUnit.do_load_mxu_matrix_row decoding.
+                out.append(_instr(_SXU["LOAD_MXU_MATRIX_ROW"],
+                                  vregDst=dst, vregSrc=row))
+
             elif kw == "LOAD_VPU_RESULT":
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["LOAD_VPU_RESULT"], vregDst=dst))
@@ -600,6 +619,10 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["LOAD_MXU_RESULT"]:
                     out.append(f"LOAD_MXU_RESULT v{vregDst}")
+
+                elif opc == _SXU["LOAD_MXU_MATRIX_ROW"]:
+                    out.append(
+                        f"LOAD_MXU_MATRIX_ROW v{vregDst}, row={vregSrc}")
 
                 elif opc == _SXU["LOAD_VPU_RESULT"]:
                     out.append(f"LOAD_VPU_RESULT v{vregDst}")

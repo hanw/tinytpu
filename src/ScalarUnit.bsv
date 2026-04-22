@@ -73,10 +73,17 @@ typedef enum {
    // Real output-stationary dispatch. Routes through
    // Controller.startOS: both weights and activations stream as a
    // staircase, each PE holds its own psum, drain returns the full
-   // (rows x cols) matrix via resultsMatrix() (read through
-   // LOAD_MXU_RESULT-row opcodes later). Operand layout reuses the
-   // MXU triple (wBase/aBase/tileLen where tileLen = kLen).
-   SXU_DISPATCH_MXU_OS
+   // (rows x cols) matrix via resultsMatrix(). Operand layout reuses
+   // the MXU triple (wBase/aBase/tileLen where tileLen = kLen).
+   SXU_DISPATCH_MXU_OS,
+   // Load one row of the MXU matrix result into row 0 of vregDst.
+   // Intended for consuming OS dispatches (where every PE holds its
+   // own psum). vregSrc[1:0] selects the source row; vregDst is the
+   // target vreg. Other sublanes of vregDst are zeroed, matching
+   // SXU_LOAD_MXU_RESULT semantics. WS dispatches leave the matrix
+   // holding per-PE pre-column-sum state — reading rows there is
+   // usually not what you want; use SXU_LOAD_MXU_RESULT for WS.
+   SXU_LOAD_MXU_MATRIX_ROW
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -128,7 +135,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -213,6 +220,7 @@ module mkScalarUnit#(
          SXU_MXU_CLEAR:    pc_state <= SXU_EXEC_MXU_CLEAR;
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
+         SXU_LOAD_MXU_MATRIX_ROW: pc_state <= SXU_EXEC_LOAD_MXU_MATRIX_ROW;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -552,6 +560,21 @@ module mkScalarUnit#(
 `endif
       Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
       v[0] = ctrl.results;
+      vrf.write(truncate(curInstr.vregDst), v);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // LOAD_MXU_MATRIX_ROW: copy ctrl.resultsMatrix[vregSrc[1:0]] into
+   // row 0 of vregDst. Used by OS consumers to walk the full drain.
+   rule do_load_mxu_matrix_row (pc_state == SXU_EXEC_LOAD_MXU_MATRIX_ROW);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=LOAD_MXU_MATRIX_ROW pc=%0d dst=v%0d row=%0d",
+               cycle, pc, curInstr.vregDst, curInstr.vregSrc & 4'h3);
+`endif
+      Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
+      UInt#(TLog#(sublanes)) rowIdx = truncate(curInstr.vregSrc);
+      v[0] = ctrl.resultsMatrix[rowIdx];
       vrf.write(truncate(curInstr.vregDst), v);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
