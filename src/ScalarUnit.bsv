@@ -89,7 +89,14 @@ typedef enum {
    // profiling: `READ_CYCLE v0; ...; READ_CYCLE v1; SUB v2, v1, v0`
    // measures the span of a program region without needing host-side
    // timestamp plumbing.
-   SXU_READ_CYCLE
+   SXU_READ_CYCLE,
+   // LOOP_BEGIN: sets loopCounter := mxuTLen and records the pc of the
+   // instruction immediately after LOOP_BEGIN as the loop-return pc.
+   // LOOP_END decrements loopCounter; if it's still > 1, pc jumps back
+   // to loopReturnPc. Otherwise loopCounter clears to 0 and pc advances
+   // past LOOP_END. Single-level nesting only.
+   SXU_LOOP_BEGIN,
+   SXU_LOOP_END
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -141,7 +148,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -196,6 +203,13 @@ module mkScalarUnit#(
    Reg#(Bool)                    xlu_busy <- mkReg(False);
    Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
 
+   // Single-level loop state for SXU_LOOP_BEGIN / SXU_LOOP_END.
+   // loopCounter holds the remaining iteration count; loopReturnPc is
+   // the pc of the instruction after LOOP_BEGIN. A counter of 0 means
+   // "no active loop" — LOOP_END falls through.
+   Reg#(UInt#(8))                loopCounter  <- mkReg(0);
+   Reg#(UInt#(TLog#(progDepth))) loopReturnPc <- mkReg(0);
+
    // Free-running cycle counter. Always present so the SXU_READ_CYCLE
    // opcode has a deterministic source; reused by TRACE when enabled.
    Reg#(UInt#(32))               cycle    <- mkReg(0);
@@ -229,6 +243,8 @@ module mkScalarUnit#(
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
          SXU_LOAD_MXU_MATRIX_ROW: pc_state <= SXU_EXEC_LOAD_MXU_MATRIX_ROW;
          SXU_READ_CYCLE: pc_state <= SXU_EXEC_READ_CYCLE;
+         SXU_LOOP_BEGIN: pc_state <= SXU_EXEC_LOOP_BEGIN;
+         SXU_LOOP_END:   pc_state <= SXU_EXEC_LOOP_END;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -570,6 +586,38 @@ module mkScalarUnit#(
       v[0] = ctrl.results;
       vrf.write(truncate(curInstr.vregDst), v);
       pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // LOOP_BEGIN: capture the loop head and iteration count. The count
+   // comes from mxuTLen (UInt#(8)) — up to 255 iterations. The return
+   // pc is the instruction immediately after LOOP_BEGIN.
+   rule do_loop_begin (pc_state == SXU_EXEC_LOOP_BEGIN);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=LOOP_BEGIN pc=%0d count=%0d",
+               cycle, pc, curInstr.mxuTLen);
+`endif
+      loopCounter  <= curInstr.mxuTLen;
+      loopReturnPc <= pc + 1;
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // LOOP_END: if more iterations remain, jump back to loopReturnPc;
+   // else clear the counter and advance. loopCounter == 0 means no
+   // active loop (LOOP_END falls through like a no-op).
+   rule do_loop_end (pc_state == SXU_EXEC_LOOP_END);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=LOOP_END pc=%0d remaining=%0d",
+               cycle, pc, loopCounter);
+`endif
+      if (loopCounter > 1) begin
+         loopCounter <= loopCounter - 1;
+         pc <= loopReturnPc;
+      end else begin
+         loopCounter <= 0;
+         pc <= pc + 1;
+      end
       pc_state <= SXU_FETCH;
    endrule
 

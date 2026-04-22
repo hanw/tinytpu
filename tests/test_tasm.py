@@ -269,6 +269,21 @@ def test_read_cycle_roundtrip():
     assert "READ_CYCLE v7" in text
 
 
+def test_loop_begin_end():
+    wire = wire_lines(assemble("LOOP_BEGIN count=3\nLOOP_END\nHALT\nEND\n"))
+    # LOOP_BEGIN opc=28, mxuTLen=3.
+    assert wire[0] == "2 28 0 0 0 0 0 0 0 3"
+    # LOOP_END opc=29.
+    assert wire[1] == "2 29 0 0 0 0 0 0 0 0"
+
+
+def test_loop_roundtrip():
+    src = "LOOP_BEGIN count=5\nLOOP_END\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "LOOP_BEGIN count=5" in text
+    assert "LOOP_END" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"

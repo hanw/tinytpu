@@ -57,6 +57,8 @@ _SXU = {
     "DISPATCH_MXU_OS":         25,
     "LOAD_MXU_MATRIX_ROW":     26,
     "READ_CYCLE":              27,
+    "LOOP_BEGIN":              28,
+    "LOOP_END":                29,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -444,6 +446,21 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["LOAD_MXU_RESULT"], vregDst=dst))
 
+            elif kw == "LOOP_BEGIN":
+                # LOOP_BEGIN count=N — sets loopCounter=N, jumps back
+                # here from matching LOOP_END while counter > 1.
+                rest = line[len("LOOP_BEGIN"):].strip()
+                cm = re.fullmatch(r"count=(\d+)", rest, re.IGNORECASE)
+                if not cm:
+                    raise SyntaxError(f"LOOP_BEGIN expects count=N, got {rest!r}")
+                cnt = int(cm.group(1))
+                if cnt < 1 or cnt > 255:
+                    raise SyntaxError(f"LOOP_BEGIN count must be 1..255, got {cnt}")
+                out.append(_instr(_SXU["LOOP_BEGIN"], mxuTLen=cnt))
+
+            elif kw == "LOOP_END":
+                out.append(_instr(_SXU["LOOP_END"]))
+
             elif kw == "READ_CYCLE":
                 # READ_CYCLE v{dst} — write the SXU cycle counter as
                 # Int#(32) into row 0 lane 0 of vdst.
@@ -633,6 +650,12 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["READ_CYCLE"]:
                     out.append(f"READ_CYCLE v{vregDst}")
+
+                elif opc == _SXU["LOOP_BEGIN"]:
+                    out.append(f"LOOP_BEGIN count={mxuTLen}")
+
+                elif opc == _SXU["LOOP_END"]:
+                    out.append("LOOP_END")
 
                 elif opc == _SXU["LOAD_VPU_RESULT"]:
                     out.append(f"LOAD_VPU_RESULT v{vregDst}")

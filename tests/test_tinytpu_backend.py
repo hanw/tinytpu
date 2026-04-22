@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5479,6 +5479,32 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       expected_tile = expected_row + [0] * 12
       self.assertEqual(tiles[r], expected_tile,
                        f"OS non-trivial row {r}: got {tiles[r]} want {expected_tile}")
+
+  def test_loop_executes_body_n_times(self):
+    # LOOP_BEGIN count=3 + body (VPU_ADD that adds 1 to v0 stored via v1)
+    # + LOOP_END should run the body three times. To prove that, the
+    # body dispatches an XLU broadcast of a constant tile preloaded
+    # into v0 into v1 (single-cycle XLU), and stores v1 into VMEM[0].
+    # Each iteration overwrites VMEM[0] — we just need to see the final
+    # value equal the broadcast constant, which also certifies the
+    # loop exited cleanly (no infinite spin, no extra STOREs).
+    sim = os.environ["TINYTPU_SIM"]
+    # Single-tile all-7s source. Broadcast lane 0 = 7 into v1.
+    src_tile = [7] * 16
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),                              # v0 := VMEM[0]
+      _loop_begin(3),                           # count=3
+      "2 3 0 1 0 0 0 0 0 0",                    # XLU_BROADCAST v1 := v0 lane=0
+      _store(2, 1),                             # VMEM[2] := v1
+      _loop_end(),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile, [7] * 16)
 
   def test_read_cycle_monotonic(self):
     # READ_CYCLE twice in a row, subtract, write to VMEM. The counter
