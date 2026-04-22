@@ -111,7 +111,10 @@ typedef enum {
    // through Controller.startOsAccumulate, so the per-PE accumulator
    // is preserved across dispatches. Useful for multi-K-tile OS with
    // K > rows (stream K/rows tiles back to back then drain once).
-   SXU_DISPATCH_MXU_OS_ACCUMULATE
+   SXU_DISPATCH_MXU_OS_ACCUMULATE,
+   // VNEG: vregDst := -vregSrc, single-cycle, lane-wise two's-complement.
+   // Saves a VPU dispatch when a program just needs sign flip.
+   SXU_VNEG
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -163,7 +166,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV, SXU_EXEC_MXU_OS_ACCUMULATE,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV, SXU_EXEC_MXU_OS_ACCUMULATE, SXU_EXEC_VNEG,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -264,6 +267,7 @@ module mkScalarUnit#(
          SXU_VFILL:      pc_state <= SXU_EXEC_VFILL;
          SXU_VMOV:       pc_state <= SXU_EXEC_VMOV;
          SXU_DISPATCH_MXU_OS_ACCUMULATE: pc_state <= SXU_EXEC_MXU_OS_ACCUMULATE;
+         SXU_VNEG:       pc_state <= SXU_EXEC_VNEG;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -618,6 +622,20 @@ module mkScalarUnit#(
                cycle, pc, curInstr.vregDst, val);
 `endif
       vrf.write(truncate(curInstr.vregDst), replicate(replicate(val)));
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // VNEG: vregDst := -vregSrc lane-wise (signed two's complement).
+   rule do_vneg (pc_state == SXU_EXEC_VNEG);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=VNEG pc=%0d dst=v%0d src=v%0d",
+               cycle, pc, curInstr.vregDst, curInstr.vregSrc);
+`endif
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      Vector#(sublanes, Vector#(lanes, Int#(32))) neg
+         = map(map(negate), src);
+      vrf.write(truncate(curInstr.vregDst), neg);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

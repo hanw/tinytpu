@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5613,6 +5613,20 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       _store(1, 0),
       _halt(),
       _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile, [-7] * 16)
+
+  def test_vneg_negates_tile(self):
+    sim = os.environ["TINYTPU_SIM"]
+    bundle = _bundle(
+      _vfill(0, 7),        # v0 := tile of 7
+      _vneg(1, 0),         # v1 := -v0
+      _store(0, 1),
+      _halt(),
+      _output_vmem(0),
       _end(),
     )
     out = _run_bundle(sim, bundle)
