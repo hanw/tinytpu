@@ -83,7 +83,13 @@ typedef enum {
    // SXU_LOAD_MXU_RESULT semantics. WS dispatches leave the matrix
    // holding per-PE pre-column-sum state — reading rows there is
    // usually not what you want; use SXU_LOAD_MXU_RESULT for WS.
-   SXU_LOAD_MXU_MATRIX_ROW
+   SXU_LOAD_MXU_MATRIX_ROW,
+   // Read the free-running SXU cycle counter into row 0, lane 0 of
+   // vregDst (other lanes zeroed). Intended for in-simulator
+   // profiling: `READ_CYCLE v0; ...; READ_CYCLE v1; SUB v2, v1, v0`
+   // measures the span of a program region without needing host-side
+   // timestamp plumbing.
+   SXU_READ_CYCLE
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -135,7 +141,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -189,13 +195,14 @@ module mkScalarUnit#(
    // follow-up iter.
    Reg#(Bool)                    xlu_busy <- mkReg(False);
    Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
-`ifdef TRACE
+
+   // Free-running cycle counter. Always present so the SXU_READ_CYCLE
+   // opcode has a deterministic source; reused by TRACE when enabled.
    Reg#(UInt#(32))               cycle    <- mkReg(0);
 
-   rule count_trace_cycles;
+   rule count_cycles;
       cycle <= cycle + 1;
    endrule
-`endif
 
    // FETCH: read instruction at current pc, decode
    rule do_fetch (pc_state == SXU_FETCH);
@@ -221,6 +228,7 @@ module mkScalarUnit#(
          SXU_WAIT_MXU:     pc_state <= SXU_WAIT_MXU_STATE;
          SXU_LOAD_MXU_RESULT: pc_state <= SXU_EXEC_LOAD_MXU_RESULT;
          SXU_LOAD_MXU_MATRIX_ROW: pc_state <= SXU_EXEC_LOAD_MXU_MATRIX_ROW;
+         SXU_READ_CYCLE: pc_state <= SXU_EXEC_READ_CYCLE;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -560,6 +568,21 @@ module mkScalarUnit#(
 `endif
       Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
       v[0] = ctrl.results;
+      vrf.write(truncate(curInstr.vregDst), v);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // READ_CYCLE: write the free-running cycle counter into row 0, lane 0
+   // of vregDst. Other lanes are zeroed; callers are expected to pull the
+   // single-lane scalar back via STORE + host parse.
+   rule do_read_cycle (pc_state == SXU_EXEC_READ_CYCLE);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=READ_CYCLE pc=%0d dst=v%0d",
+               cycle, pc, curInstr.vregDst);
+`endif
+      Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
+      v[0][0] = unpack(pack(cycle));
       vrf.write(truncate(curInstr.vregDst), v);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;

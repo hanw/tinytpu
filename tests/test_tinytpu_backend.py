@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5479,6 +5479,32 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       expected_tile = expected_row + [0] * 12
       self.assertEqual(tiles[r], expected_tile,
                        f"OS non-trivial row {r}: got {tiles[r]} want {expected_tile}")
+
+  def test_read_cycle_monotonic(self):
+    # READ_CYCLE twice in a row, subtract, write to VMEM. The counter
+    # ticks every cycle regardless of state, so the subtraction should
+    # be small but positive — specifically 1 (one READ_CYCLE fetch
+    # between the two readings).
+    sim = os.environ["TINYTPU_SIM"]
+    bundle = _bundle(
+      _read_cycle(0),                        # v0[0][0] := cycle_a
+      _read_cycle(1),                        # v1[0][0] := cycle_b
+      _store(0, 0),                          # VMEM[0] := v0
+      _store(1, 1),                          # VMEM[1] := v1
+      _halt(),
+      _output_vmem(0),
+      _output_vmem(1),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 2)
+    cycle_a, cycle_b = tiles[0][0], tiles[1][0]
+    # Counter is monotone increasing; b happens after a.
+    self.assertGreater(cycle_b, cycle_a)
+    # Upper-bound sanity: one opcode of separation is ~a handful of cycles.
+    self.assertLess(cycle_b - cycle_a, 10)
 
   def test_mxu_clear_resets_accumulator(self):
     # MXU_ACCUMULATE, MXU_CLEAR, MXU_ACCUMULATE -> fresh [1,2,3,4].

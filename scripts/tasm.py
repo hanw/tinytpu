@@ -56,6 +56,7 @@ _SXU = {
     "MXU_CLEAR":               24,
     "DISPATCH_MXU_OS":         25,
     "LOAD_MXU_MATRIX_ROW":     26,
+    "READ_CYCLE":              27,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -443,6 +444,12 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["LOAD_MXU_RESULT"], vregDst=dst))
 
+            elif kw == "READ_CYCLE":
+                # READ_CYCLE v{dst} — write the SXU cycle counter as
+                # Int#(32) into row 0 lane 0 of vdst.
+                dst = _parse_vreg(tokens[1])
+                out.append(_instr(_SXU["READ_CYCLE"], vregDst=dst))
+
             elif kw == "LOAD_MXU_MATRIX_ROW":
                 # LOAD_MXU_MATRIX_ROW v{dst}, row={N}
                 # Copies ctrl.resultsMatrix[N] into row 0 of vdst.
@@ -623,6 +630,9 @@ def disassemble(wire: str) -> str:
                 elif opc == _SXU["LOAD_MXU_MATRIX_ROW"]:
                     out.append(
                         f"LOAD_MXU_MATRIX_ROW v{vregDst}, row={vregSrc}")
+
+                elif opc == _SXU["READ_CYCLE"]:
+                    out.append(f"READ_CYCLE v{vregDst}")
 
                 elif opc == _SXU["LOAD_VPU_RESULT"]:
                     out.append(f"LOAD_VPU_RESULT v{vregDst}")

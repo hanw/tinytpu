@@ -257,6 +257,18 @@ def test_load_mxu_matrix_row_roundtrip():
     assert "LOAD_MXU_MATRIX_ROW v5, row=2" in text
 
 
+def test_read_cycle():
+    wire = wire_lines(assemble("READ_CYCLE v7\nHALT\nEND\n"))
+    # READ_CYCLE opc=27, vregDst=7.
+    assert wire[0] == "2 27 0 7 0 0 0 0 0 0"
+
+
+def test_read_cycle_roundtrip():
+    src = "READ_CYCLE v7\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "READ_CYCLE v7" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"
