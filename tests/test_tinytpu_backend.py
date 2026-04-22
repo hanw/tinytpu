@@ -5638,6 +5638,52 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tile, expected,
                      f"PACKED_I8_ADD: got {tile}, expected {expected}")
 
+  def test_vpu_packed_i8_sub_lane_wise_saturating(self):
+    # Push 4 iter 3: VPU_PACKED_I8_SUB mirrors PACKED_I8_ADD but does
+    # byte-wise saturating subtraction (a - b, clamped to [-128, 127]).
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+
+    bytes_a = [
+      (30, 20, -5, 10),               # simple
+      (-100, 0, 0, 0),                # byte 0 will saturate low
+      ( 100, 0, 0, 0),                # byte 0 will saturate high
+      (50, -50, 100, -100),           # mixed
+    ] + [(0, 0, 0, 0)] * 12
+    bytes_b = [
+      (10, 5, -2, 3),
+      (50, 0, 0, 0),                  # -100 - 50 = -150 → -128
+      (-50, 0, 0, 0),                 # 100 - (-50) = 150 → 127
+      (60, -60, -50, 50),
+    ] + [(0, 0, 0, 0)] * 12
+    src1_tile = [pack_i8x4(*bs) for bs in bytes_a]
+    src2_tile = [pack_i8x4(*bs) for bs in bytes_b]
+
+    pi8_sub = _VPU_OPS["PACKED_I8_SUB"]
+    bundle = _bundle(
+      _vmem(0, src1_tile),
+      _vmem(1, src2_tile),
+      _load(0, 0),
+      _load(1, 1),
+      _vpu(2, 0, pi8_sub, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+
+    def sat(x): return max(-128, min(127, x))
+    expected_bytes = [[sat(a - b) for a, b in zip(ba, bb)]
+                      for ba, bb in zip(bytes_a, bytes_b)]
+    expected = [pack_i8x4(*tuple(e)) for e in expected_bytes]
+    self.assertEqual(tile, expected,
+                     f"PACKED_I8_SUB: got {tile}, expected {expected}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0
