@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5799,6 +5799,34 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
                    for ba, bb in zip(bytes_a, bytes_b)]
     self.assertEqual(tiles[0], expected_lt, "PACKED_I8_CMPLT mismatch")
     self.assertEqual(tiles[1], expected_eq, "PACKED_I8_CMPEQ mismatch")
+
+  def test_load_loop_depth_reports_nesting(self):
+    # Push 4 iter 7: SXU_LOAD_LOOP_DEPTH reads the loop-stack top into
+    # row 0 lane 0 of vregDst. Capture depth at three nest levels (outer
+    # of 0, after 1 BEGIN, after 2 BEGINs, back to 0 after both ENDs).
+    sim = os.environ["TINYTPU_SIM"]
+    bundle = _bundle(
+      _load_loop_depth(0), _store(0, 0),            # pre: depth=0
+      _loop_begin(1),
+      _load_loop_depth(1), _store(1, 1),            # inside 1: depth=1
+      _loop_begin(1),
+      _load_loop_depth(2), _store(2, 2),            # inside 2: depth=2
+      _loop_end(),
+      _loop_end(),
+      _load_loop_depth(3), _store(3, 3),            # post: depth=0
+      _halt(),
+      _output_vmem(0), _output_vmem(1), _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 4)
+    # Each tile: row 0 lane 0 holds depth; other lanes zeroed.
+    self.assertEqual(tiles[0][0], 0, "pre loop depth not 0")
+    self.assertEqual(tiles[1][0], 1, "1-deep loop depth not 1")
+    self.assertEqual(tiles[2][0], 2, "2-deep loop depth not 2")
+    self.assertEqual(tiles[3][0], 0, "post loop depth not 0")
 
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop

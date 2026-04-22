@@ -269,6 +269,18 @@ def test_read_cycle_roundtrip():
     assert "READ_CYCLE v7" in text
 
 
+def test_load_loop_depth():
+    wire = wire_lines(assemble("LOAD_LOOP_DEPTH v3\nHALT\nEND\n"))
+    # LOAD_LOOP_DEPTH opc=36, vregDst=3.
+    assert wire[0] == "2 36 0 3 0 0 0 0 0 0"
+
+
+def test_load_loop_depth_roundtrip():
+    src = "LOAD_LOOP_DEPTH v5\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "LOAD_LOOP_DEPTH v5" in text
+
+
 def test_loop_begin_end():
     wire = wire_lines(assemble("LOOP_BEGIN count=3\nLOOP_END\nHALT\nEND\n"))
     # LOOP_BEGIN opc=28, mxuTLen=3.

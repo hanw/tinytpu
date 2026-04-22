@@ -65,6 +65,7 @@ _SXU = {
     "DISPATCH_MXU_OS_ACCUMULATE": 33,
     "VNEG":                    34,
     "VABS":                    35,
+    "LOAD_LOOP_DEPTH":         36,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -552,6 +553,12 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["READ_CYCLE"], vregDst=dst))
 
+            elif kw == "LOAD_LOOP_DEPTH":
+                # LOAD_LOOP_DEPTH v{dst} — write the current LOOP stack
+                # depth (0..4) into row 0 lane 0 of vdst.
+                dst = _parse_vreg(tokens[1])
+                out.append(_instr(_SXU["LOAD_LOOP_DEPTH"], vregDst=dst))
+
             elif kw == "LOAD_MXU_MATRIX_ROW":
                 # LOAD_MXU_MATRIX_ROW v{dst}, row={N}
                 # Copies ctrl.resultsMatrix[N] into row 0 of vdst.
@@ -735,6 +742,9 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["READ_CYCLE"]:
                     out.append(f"READ_CYCLE v{vregDst}")
+
+                elif opc == _SXU["LOAD_LOOP_DEPTH"]:
+                    out.append(f"LOAD_LOOP_DEPTH v{vregDst}")
 
                 elif opc == _SXU["LOOP_BEGIN"]:
                     out.append(f"LOOP_BEGIN count={mxuTLen}")
