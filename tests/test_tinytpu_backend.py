@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5505,6 +5505,22 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     out = _run_bundle(sim, bundle)
     tile = _parse_vmem_output(out)
     self.assertEqual(tile, [7] * 16)
+
+  def test_vzero_writes_all_zero_tile(self):
+    sim = os.environ["TINYTPU_SIM"]
+    src_tile = [123] * 16  # non-zero prefill
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),                   # v0 := 123 tile
+      _vzero(0),                     # v0 := 0 tile
+      _store(1, 0),                  # VMEM[1] := v0
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile, [0] * 16)
 
   def test_loop_iterates_correct_count(self):
     # Prove LOOP runs the body N times (not once) by READ_CYCLE before

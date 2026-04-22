@@ -284,6 +284,18 @@ def test_loop_roundtrip():
     assert "LOOP_END" in text
 
 
+def test_vzero():
+    wire = wire_lines(assemble("VZERO v4\nHALT\nEND\n"))
+    # VZERO opc=30, vregDst=4.
+    assert wire[0] == "2 30 0 4 0 0 0 0 0 0"
+
+
+def test_vzero_roundtrip():
+    src = "VZERO v4\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "VZERO v4" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"

@@ -59,6 +59,7 @@ _SXU = {
     "READ_CYCLE":              27,
     "LOOP_BEGIN":              28,
     "LOOP_END":                29,
+    "VZERO":                   30,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -461,6 +462,11 @@ def assemble(text: str) -> str:
             elif kw == "LOOP_END":
                 out.append(_instr(_SXU["LOOP_END"]))
 
+            elif kw == "VZERO":
+                # VZERO v{dst} — one-cycle tile-of-zeros into vdst.
+                dst = _parse_vreg(tokens[1])
+                out.append(_instr(_SXU["VZERO"], vregDst=dst))
+
             elif kw == "READ_CYCLE":
                 # READ_CYCLE v{dst} — write the SXU cycle counter as
                 # Int#(32) into row 0 lane 0 of vdst.
@@ -656,6 +662,9 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["LOOP_END"]:
                     out.append("LOOP_END")
+
+                elif opc == _SXU["VZERO"]:
+                    out.append(f"VZERO v{vregDst}")
 
                 elif opc == _SXU["LOAD_VPU_RESULT"]:
                     out.append(f"LOAD_VPU_RESULT v{vregDst}")
