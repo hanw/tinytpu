@@ -603,12 +603,17 @@ New single-cycle opcodes added for instruction density and perf work:
 - `SXU_LOOP_BEGIN` (28) / `SXU_LOOP_END` (29) — single-level counted
   loop (counter in mxuTLen UInt#(8)). Renderers can emit a tight
   body without unrolling.
-- `SXU_VZERO` (30) — single-cycle zero vreg.
+- `SXU_VZERO` (30) — single-cycle zero vreg. Used by the softsign
+  renderer to replace a zero-tile VMEM preload.
 - `SXU_VFILL` (31) — broadcast signed 8-bit immediate to all lanes.
 - `SXU_VMOV` (32) — single-cycle vreg copy.
 - `SXU_DISPATCH_MXU_OS_ACCUMULATE` (33) — multi-K-tile OS.
 - `SXU_VNEG` (34) — single-cycle lane-wise negate.
-- `SXU_VABS` (35) — single-cycle lane-wise absolute value.
+- `SXU_VABS` (35) — single-cycle lane-wise absolute value. Int32 abs
+  renderer now emits LOAD + VABS + STORE (3 instrs, was 5).
+
+Renderer adoption of the new opcodes is an ongoing task — most
+renderers still emit the old multi-instruction patterns.
 
 ### Deferred (called out but probably not next)
 
