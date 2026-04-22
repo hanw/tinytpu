@@ -567,3 +567,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	339312e	1	vregfile	Vector-of-Reg unblocks dual-issue writeback	test-vregfile+sxu+865 backend pass; G0010 → G0036	real hw gap closed (dual-issue)	iter 50 more SXU gaps
 2026-04-21	2809dd0	1	sxu+tasm	LOAD_MXU_MATRIX_ROW (opcode 26)	test-sxu clean; tasm 86 pass (+2)	none	iter 51 OS end-to-end sim test
 2026-04-21	b90ab1d	1	test	OS E2E through runtime sim	892 backend tests pass (+1)	OS fully usable via bundle	iter 52 multi-K OS accumulate
+2026-04-21	0df63ed	1	test	OS E2E non-trivial A matmul	2 OS E2E tests pass	staircase non-identity exercise	iter 53 cycle counter
