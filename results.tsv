@@ -583,3 +583,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	59a2574	1	regression	full sweep pass after 35-opcode SXU	BSV 54/54 + Python 1006/1006	none	iter 66 TODO refresh
 2026-04-21	87f9ac6	1	todo	push 3 landing summary + deferrals	none (docs)	all Tier 1-2 items closed or deferred	iter 67 next
 2026-04-21	554b254	1	test	compose VFILL+LOOP+VNEG+VABS+VMOV	905 backend pass	none	iter 68 docs
+2026-04-21	8cd6020	1	doc	architecture.html push-3 opcode refresh	none (docs)	docs in sync	iter 69 next
