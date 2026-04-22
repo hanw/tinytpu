@@ -587,3 +587,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	b461c3f	1	verify	full verification post-doc refresh	python 1067 + lean lake build ok	none	iter 70 next
 2026-04-21	b461c3f	1	memory	checkpoint_2026_04_21 + MEMORY.md bump	none (memory)	resume pointer current	iter 71 next
 2026-04-21	6039f71	1	tinytpu	int32 abs renderer uses VABS (5→3 instrs)	905 backend pass	instruction density -40% for int abs	iter 72 next
+2026-04-21	52d3ac9	1	tinytpu	softsign: VZERO replaces zero preload	905 backend pass	one less VMEM tile per softsign	iter 73 next
