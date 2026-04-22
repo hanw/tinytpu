@@ -570,3 +570,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	0df63ed	1	test	OS E2E non-trivial A matmul	2 OS E2E tests pass	staircase non-identity exercise	iter 53 cycle counter
 2026-04-21	ed0ed19	1	sxu+perf	READ_CYCLE opcode 27 + counter reg	tasm 88 + 894 backend pass	none	iter 54 cycle-range E2E test
 2026-04-21	ab3c958	1	todo	close VRegFile writeback item	none (docs)	Tier 3 item closed	iter 55 SXU_LOOP
+2026-04-21	6ac6703	1	sxu+loop	LOOP_BEGIN/END opcodes 28/29 + body-runs test	tasm 90 + 895 backend pass	real hw support for short loops	iter 56 iter-count proof test
