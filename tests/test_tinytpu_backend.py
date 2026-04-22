@@ -5506,6 +5506,47 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     tile = _parse_vmem_output(out)
     self.assertEqual(tile, [7] * 16)
 
+  def test_loop_iterates_correct_count(self):
+    # Prove LOOP runs the body N times (not once) by READ_CYCLE before
+    # and after two identical loops with different counts, then STORE
+    # all four timestamps. The cycle delta for count=5 must exceed the
+    # delta for count=1 by ~4 loop iterations.
+    sim = os.environ["TINYTPU_SIM"]
+    src_tile = [3] * 16
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),                              # v0 := tile
+      _read_cycle(10),                          # t0 := cycle
+      _loop_begin(1),
+      "2 3 0 1 0 0 0 0 0 0",                    # body: XLU_BROADCAST v1 := v0 lane=0
+      _store(4, 1),
+      _loop_end(),
+      _read_cycle(11),                          # t1 := cycle (after count=1)
+      _loop_begin(5),
+      "2 3 0 1 0 0 0 0 0 0",                    # same body
+      _store(4, 1),
+      _loop_end(),
+      _read_cycle(12),                          # t2 := cycle (after count=5)
+      _store(5, 10), _store(6, 11), _store(7, 12),
+      _halt(),
+      _output_vmem(5), _output_vmem(6), _output_vmem(7),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 3)
+    t0, t1, t2 = tiles[0][0], tiles[1][0], tiles[2][0]
+    d1 = t1 - t0  # count=1 span
+    d5 = t2 - t1  # count=5 span
+    # count=5 must be strictly more than count=1. The body is a constant
+    # number of instructions, so the difference should be ~4× the body
+    # cost. Loose bound: d5 > d1 + 4 (at least 4 extra iterations).
+    self.assertGreater(d5, d1,
+                       f"count=5 span ({d5}) not larger than count=1 span ({d1})")
+    self.assertGreaterEqual(d5 - d1, 4,
+                            f"expected >=4 extra cycles, got d5-d1={d5-d1}")
+
   def test_read_cycle_monotonic(self):
     # READ_CYCLE twice in a row, subtract, write to VMEM. The counter
     # ticks every cycle regardless of state, so the subtraction should
