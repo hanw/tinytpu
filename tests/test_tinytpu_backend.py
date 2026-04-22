@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5406,6 +5406,39 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     )
     out = _run_bundle(sim, bundle)
     self.assertEqual(_parse_sim_output(out), [2, 4, 6, 8])
+
+  def test_mxu_os_end_to_end_identity_matmul(self):
+    # End-to-end real OS dispatch through the SXU + runtime path:
+    #  1. WMEM[0] = W (arange-1-indexed 4x4); AMEM[0..3] = columns of I.
+    #  2. MXU_OS wBase=0 aBase=0 k=4 -> per-PE accumulates I@W = W.
+    #  3. LOAD_MXU_MATRIX_ROW v{r}, row=r for r in 0..3.
+    #  4. STORE each vreg into VMEM[r]; OUTPUT_VMEM for all four.
+    # Each VMEM tile has sublane-0 == row r of W, other sublanes 0.
+    sim = os.environ["TINYTPU_SIM"]
+    W_flat = [i + 1 for i in range(16)]              # W[r][c] = 4*r + c + 1
+    bundle = _bundle(
+      _wmem(0, W_flat),
+      _amem(0, [1, 0, 0, 0]),
+      _amem(1, [0, 1, 0, 0]),
+      _amem(2, [0, 0, 1, 0]),
+      _amem(3, [0, 0, 0, 1]),
+      _mxu_os(0, 0, 4),
+      _wait_mxu(),
+      _load_mxu_matrix_row(0, 0), _store(0, 0),
+      _load_mxu_matrix_row(1, 1), _store(1, 1),
+      _load_mxu_matrix_row(2, 2), _store(2, 2),
+      _load_mxu_matrix_row(3, 3), _store(3, 3),
+      _halt(),
+      _output_vmem(0), _output_vmem(1), _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 4)
+    for r, tile in enumerate(tiles):
+      expected = [W_flat[r * 4 + c] for c in range(4)] + [0] * 12
+      self.assertEqual(tile, expected, f"OS row {r}: got {tile} want {expected}")
 
   def test_mxu_clear_resets_accumulator(self):
     # MXU_ACCUMULATE, MXU_CLEAR, MXU_ACCUMULATE -> fresh [1,2,3,4].
