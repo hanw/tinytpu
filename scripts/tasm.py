@@ -66,6 +66,7 @@ _SXU = {
     "VNEG":                    34,
     "VABS":                    35,
     "LOAD_LOOP_DEPTH":         36,
+    "DISPATCH_XLU_ROTATE":     37,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -559,6 +560,20 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["LOAD_LOOP_DEPTH"], vregDst=dst))
 
+            elif kw == "ROTATE":
+                # ROTATE v{dst}, v{src}, amount={N} — cyclic lane rotation
+                # via the XLU, amount 0..lanes-1.
+                rest = line[len("ROTATE"):].strip()
+                m = re.fullmatch(r"(v\d+)\s*,\s*(v\d+)\s*,\s*amount=(\d+)",
+                                 rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError("ROTATE syntax: ROTATE v{dst}, v{src}, amount={N}")
+                dst = _parse_vreg(m.group(1))
+                src = _parse_vreg(m.group(2))
+                amt = int(m.group(3))
+                out.append(_instr(_SXU["DISPATCH_XLU_ROTATE"],
+                                  vregDst=dst, vregSrc=src, vregSrc2=amt))
+
             elif kw == "LOAD_MXU_MATRIX_ROW":
                 # LOAD_MXU_MATRIX_ROW v{dst}, row={N}
                 # Copies ctrl.resultsMatrix[N] into row 0 of vdst.
@@ -745,6 +760,10 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["LOAD_LOOP_DEPTH"]:
                     out.append(f"LOAD_LOOP_DEPTH v{vregDst}")
+
+                elif opc == _SXU["DISPATCH_XLU_ROTATE"]:
+                    out.append(
+                        f"ROTATE v{vregDst}, v{vregSrc}, amount={vregSrc2}")
 
                 elif opc == _SXU["LOOP_BEGIN"]:
                     out.append(f"LOOP_BEGIN count={mxuTLen}")

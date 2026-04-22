@@ -122,7 +122,11 @@ typedef enum {
    // LOAD_LOOP_DEPTH: write the current LOOP stack depth (0..4) into
    // row 0 lane 0 of vregDst; other lanes are zeroed. Debug/test
    // introspection for nested SXU_LOOP_BEGIN/END.
-   SXU_LOAD_LOOP_DEPTH
+   SXU_LOAD_LOOP_DEPTH,
+   // DISPATCH_XLU_ROTATE: cyclic lane rotation via XLU. vregSrc is the
+   // source tile, vregSrc2 low bits are the rotate amount (UInt#(TLog
+   // #(lanes))). Dual-issue like the other XLU dispatches.
+   SXU_DISPATCH_XLU_ROTATE
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -160,6 +164,7 @@ function Bool sxu_is_xlu_slot(SxuOpCode op);
       SXU_BROADCAST_ROW,
       SXU_BROADCAST_COL,
       SXU_DISPATCH_XLU_TRANSPOSE,
+      SXU_DISPATCH_XLU_ROTATE,
       SXU_LOAD_XLU_RESULT:
          return True;
       default:
@@ -174,7 +179,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV, SXU_EXEC_MXU_OS_ACCUMULATE, SXU_EXEC_VNEG, SXU_EXEC_VABS, SXU_EXEC_LOAD_LOOP_DEPTH,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV, SXU_EXEC_MXU_OS_ACCUMULATE, SXU_EXEC_VNEG, SXU_EXEC_VABS, SXU_EXEC_LOAD_LOOP_DEPTH, SXU_EXEC_XLU_ROTATE,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -282,6 +287,7 @@ module mkScalarUnit#(
          SXU_VNEG:       pc_state <= SXU_EXEC_VNEG;
          SXU_VABS:       pc_state <= SXU_EXEC_VABS;
          SXU_LOAD_LOOP_DEPTH: pc_state <= SXU_EXEC_LOAD_LOOP_DEPTH;
+         SXU_DISPATCH_XLU_ROTATE: pc_state <= SXU_EXEC_XLU_ROTATE;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -427,6 +433,22 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=SXU ev=XLU_TRANSPOSE pc=%0d src=v%0d", cycle, pc, curInstr.vregSrc);
 `endif
       xlu.executeTranspose(src);
+      xlu_busy <= True;
+      xlu_dst  <= curInstr.vregDst;
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_XLU_ROTATE: cyclic lane rotation.
+   // vregSrc = source tile; vregSrc2 low bits = rotate amount.
+   rule do_xlu_rotate (pc_state == SXU_EXEC_XLU_ROTATE && !xlu_busy);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      UInt#(TLog#(lanes)) amount = truncate(curInstr.vregSrc2);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_XLU_ROTATE pc=%0d src=v%0d amount=%0d",
+               cycle, pc, curInstr.vregSrc, amount);
+`endif
+      xlu.executeRotate(src, amount);
       xlu_busy <= True;
       xlu_dst  <= curInstr.vregDst;
       pc <= pc + 1;

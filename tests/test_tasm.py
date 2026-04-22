@@ -281,6 +281,18 @@ def test_load_loop_depth_roundtrip():
     assert "LOAD_LOOP_DEPTH v5" in text
 
 
+def test_xlu_rotate():
+    wire = wire_lines(assemble("ROTATE v3, v2, amount=2\nHALT\nEND\n"))
+    # DISPATCH_XLU_ROTATE opc=37, vregDst=3, vregSrc=2, vregSrc2=2.
+    assert wire[0] == "2 37 0 3 2 0 2 0 0 0"
+
+
+def test_xlu_rotate_roundtrip():
+    src = "ROTATE v5, v7, amount=1\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "ROTATE v5, v7, amount=1" in text
+
+
 def test_loop_begin_end():
     wire = wire_lines(assemble("LOOP_BEGIN count=3\nLOOP_END\nHALT\nEND\n"))
     # LOOP_BEGIN opc=28, mxuTLen=3.
