@@ -64,6 +64,7 @@ _SXU = {
     "VMOV":                    32,
     "DISPATCH_MXU_OS_ACCUMULATE": 33,
     "VNEG":                    34,
+    "VABS":                    35,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -517,6 +518,15 @@ def assemble(text: str) -> str:
                 src = _parse_vreg(parts[1])
                 out.append(_instr(_SXU["VNEG"], vregDst=dst, vregSrc=src))
 
+            elif kw == "VABS":
+                rest = line[len("VABS"):].strip()
+                parts = [p.strip() for p in rest.split(",")]
+                if len(parts) != 2:
+                    raise SyntaxError("VABS syntax: VABS v{dst}, v{src}")
+                dst = _parse_vreg(parts[0])
+                src = _parse_vreg(parts[1])
+                out.append(_instr(_SXU["VABS"], vregDst=dst, vregSrc=src))
+
             elif kw == "VMOV":
                 # VMOV v{dst}, v{src}
                 rest = line[len("VMOV"):].strip()
@@ -741,6 +751,9 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["VNEG"]:
                     out.append(f"VNEG v{vregDst}, v{vregSrc}")
+
+                elif opc == _SXU["VABS"]:
+                    out.append(f"VABS v{vregDst}, v{vregSrc}")
 
                 elif opc == _SXU["LOAD_VPU_RESULT"]:
                     out.append(f"LOAD_VPU_RESULT v{vregDst}")

@@ -336,6 +336,17 @@ def test_vneg_roundtrip():
     assert "VNEG v3, v5" in text
 
 
+def test_vabs():
+    wire = wire_lines(assemble("VABS v3, v5\nHALT\nEND\n"))
+    assert wire[0] == "2 35 0 3 5 0 0 0 0 0"
+
+
+def test_vabs_roundtrip():
+    src = "VABS v3, v5\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "VABS v3, v5" in text
+
+
 def test_mxu_os_accumulate_roundtrip():
     src = "MXU_OS_ACCUMULATE WMEM[1], AMEM[2], k=3\nHALT\nEND\n"
     text = disassemble(assemble(src))
