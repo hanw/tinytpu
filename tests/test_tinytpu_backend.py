@@ -5506,6 +5506,29 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     tile = _parse_vmem_output(out)
     self.assertEqual(tile, [7] * 16)
 
+  def test_loop_accumulator_integration(self):
+    # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
+    # body sees the prior iteration's writeback. Start with v0 = 0
+    # tile, v1 = 1 tile; loop 5 times { v2 := ADD(v0, v1); v0 := v2 }.
+    # Final v0 must be a tile of 5.
+    sim = os.environ["TINYTPU_SIM"]
+    add_op = _VPU_OPS["ADD"]
+    bundle = _bundle(
+      _vfill(0, 0),
+      _vfill(1, 1),
+      _loop_begin(5),
+      _vpu(2, 0, add_op, 1),
+      _vmov(0, 2),
+      _loop_end(),
+      _store(3, 0),
+      _halt(),
+      _output_vmem(3),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile, [5] * 16)
+
   def test_vfill_broadcasts_scalar_to_tile(self):
     sim = os.environ["TINYTPU_SIM"]
     bundle = _bundle(
