@@ -562,3 +562,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	b92cd7d	1	os cleanup	unified naming: accumulate (23) + OS (25)	ctrl-os+ctrl-accumulate+sxu+tasm pass	none	iter 45 IS dataflow
 2026-04-21	13b93cf	1	sramdb	writeActive front-door method	test-wsram-db+asram-db pass	none	iter 46 TensorCore DB wire-in
 2026-04-21	b6190c6	1	tc	DB SRAMs as TensorCore default	test-tc+4x4+accel+chip+865 backend tests pass	Item #5 finish	iter 47 preload+swap API E2E test
+2026-04-21	7327dfe	1	tc+sxu+test	DB ping-pong dispatch + SXU restart from HALTED	test-tc-db pass + sxu/sxu-psum/tc/4x4/accel clean	none	iter 48 TensorCore DB wiring doc
