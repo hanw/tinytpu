@@ -590,3 +590,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	52d3ac9	1	tinytpu	softsign: VZERO replaces zero preload	905 backend pass	one less VMEM tile per softsign	iter 73 next
 2026-04-21	68cccfd	1	verify	final end-to-end regression	python 1067 + lean build ok	none	iter 74 status memory
 2026-04-21	0b57783	1	memory	project_tinytpu_status refresh for push 3	none (memory)	resume pointer current	iter 75 next
+2026-04-21	6ce6a0c	1	verify	submodule sync + clean state check	submodule e2439f52 (tinytpu-iterations)	none	iter 76 final TODO
