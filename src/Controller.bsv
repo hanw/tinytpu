@@ -73,6 +73,14 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Action startOS(UInt#(TLog#(depth)) weightBase,
                          UInt#(TLog#(depth)) actBase,
                          UInt#(TLog#(depth)) kLen);
+   // Real-OS dispatch that preserves the per-PE accumulator state,
+   // so consecutive startOsAccumulate calls add another K-tile worth
+   // of psums into the same matrix. Lets OS scale past K == rows.
+   // Caller is expected to call clearArray() before the first tile
+   // of a fresh epoch.
+   method Action startOsAccumulate(UInt#(TLog#(depth)) weightBase,
+                                   UInt#(TLog#(depth)) actBase,
+                                   UInt#(TLog#(depth)) kLen);
    // Explicitly reset the systolic-array PE accumulators. Needed between
    // OS-mode epochs: OS dispatches intentionally preserve accumulator
    // state across consecutive starts so the caller can accumulate over
@@ -402,6 +410,25 @@ module mkController#(
       // OS consumers start from a cleared array so each dispatch's
       // psum matrix reflects only its own inputs.
       array.clearAll;
+      cstate <= LoadWeights;
+   endmethod
+
+   method Action startOsAccumulate(UInt#(TLog#(depth)) weightBase,
+                                   UInt#(TLog#(depth)) actBase,
+                                   UInt#(TLog#(depth)) kLen)
+         if (cstate == Idle || cstate == Done);
+      wBase  <= weightBase;
+      aBase  <= actBase;
+      osKLen <= kLen;
+      tLen   <= 0;
+      actIdx <= 0;
+      streamCycle <= 0;
+      firstActRead <= False;
+      osFeedCycle  <= 0;
+      psumModeReg <= PSUM_OFF;
+      dfModeReg   <= DF_OUTPUT_STATIONARY;
+      // Skip the clearAll — psums carry over from the previous OS
+      // dispatch, letting multi-K-tile OS scale past K == rows.
       cstate <= LoadWeights;
    endmethod
 

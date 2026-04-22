@@ -62,6 +62,7 @@ _SXU = {
     "VZERO":                   30,
     "VFILL":                   31,
     "VMOV":                    32,
+    "DISPATCH_MXU_OS_ACCUMULATE": 33,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -422,6 +423,25 @@ def assemble(text: str) -> str:
                 # Used between OS-mode accumulation epochs.
                 out.append(_instr(_SXU["MXU_CLEAR"]))
 
+            elif kw == "MXU_OS_ACCUMULATE":
+                # MXU_OS_ACCUMULATE WMEM[W], AMEM[A], k=N
+                # Real OS dispatch that preserves the per-PE accumulator
+                # across dispatches (multi-K-tile OS).
+                rest = line[len("MXU_OS_ACCUMULATE"):].strip()
+                parts = [p.strip() for p in rest.split(",")]
+                if len(parts) != 3:
+                    raise SyntaxError(
+                        "MXU_OS_ACCUMULATE syntax: MXU_OS_ACCUMULATE WMEM[W], AMEM[A], k=N")
+                wbase = _parse_mem("WMEM", parts[0])
+                abase = _parse_mem("AMEM", parts[1])
+                km = re.fullmatch(r"k=(\d+)", parts[2], re.IGNORECASE)
+                if not km:
+                    raise SyntaxError(f"expected k=N, got {parts[2]!r}")
+                klen = int(km.group(1))
+                out.append(_instr(_SXU["DISPATCH_MXU_OS_ACCUMULATE"],
+                                  mxuWBase=wbase, mxuABase=abase,
+                                  mxuTLen=klen))
+
             elif kw == "MXU_OS":
                 # MXU_OS WMEM[W], AMEM[A], k=N
                 # Real output-stationary dispatch. W loaded as a kLen x cols
@@ -702,6 +722,11 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["VMOV"]:
                     out.append(f"VMOV v{vregDst}, v{vregSrc}")
+
+                elif opc == _SXU["DISPATCH_MXU_OS_ACCUMULATE"]:
+                    out.append(
+                        f"MXU_OS_ACCUMULATE WMEM[{mxuWBase}], AMEM[{mxuABase}], "
+                        f"k={mxuTLen}")
 
                 elif opc == _SXU["LOAD_VPU_RESULT"]:
                     out.append(f"LOAD_VPU_RESULT v{vregDst}")

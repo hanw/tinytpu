@@ -106,7 +106,12 @@ typedef enum {
    // (UInt#(8) cast to Int#(8) then sign-extended to Int#(32)).
    SXU_VFILL,
    // VMOV: copy vregSrc -> vregDst in one cycle.
-   SXU_VMOV
+   SXU_VMOV,
+   // OS-accumulate dispatch: same operand layout as MXU_OS but routes
+   // through Controller.startOsAccumulate, so the per-PE accumulator
+   // is preserved across dispatches. Useful for multi-K-tile OS with
+   // K > rows (stream K/rows tiles back to back then drain once).
+   SXU_DISPATCH_MXU_OS_ACCUMULATE
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -158,7 +163,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV, SXU_EXEC_MXU_OS_ACCUMULATE,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -258,6 +263,7 @@ module mkScalarUnit#(
          SXU_VZERO:      pc_state <= SXU_EXEC_VZERO;
          SXU_VFILL:      pc_state <= SXU_EXEC_VFILL;
          SXU_VMOV:       pc_state <= SXU_EXEC_VMOV;
+         SXU_DISPATCH_MXU_OS_ACCUMULATE: pc_state <= SXU_EXEC_MXU_OS_ACCUMULATE;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -739,6 +745,20 @@ module mkScalarUnit#(
       ctrl.startAccumulate(truncate(curInstr.mxuWBase),
                            truncate(curInstr.mxuABase),
                            truncate(curInstr.mxuTLen));
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_MXU_OS_ACCUMULATE: OS dispatch that skips the drain-time
+   // array.clearAll, so back-to-back dispatches accumulate into the
+   // same per-PE psum matrix. Lets multi-K-tile OS scale past K==rows.
+   rule do_mxu_os_accumulate (pc_state == SXU_EXEC_MXU_OS_ACCUMULATE);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_OS_ACCUMULATE pc=%0d", cycle, pc);
+`endif
+      ctrl.startOsAccumulate(truncate(curInstr.mxuWBase),
+                             truncate(curInstr.mxuABase),
+                             truncate(curInstr.mxuTLen));
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

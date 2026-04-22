@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5505,6 +5505,37 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     out = _run_bundle(sim, bundle)
     tile = _parse_vmem_output(out)
     self.assertEqual(tile, [7] * 16)
+
+  def test_mxu_os_accumulate_multi_tile(self):
+    # Multi-K-tile OS: dispatch MXU_OS once (clean), then
+    # MXU_OS_ACCUMULATE with the same I @ W — per-PE psum doubles.
+    sim = os.environ["TINYTPU_SIM"]
+    W_flat = [i + 1 for i in range(16)]
+    bundle = _bundle(
+      _wmem(0, W_flat),
+      _amem(0, [1, 0, 0, 0]),
+      _amem(1, [0, 1, 0, 0]),
+      _amem(2, [0, 0, 1, 0]),
+      _amem(3, [0, 0, 0, 1]),
+      _mxu_os(0, 0, 4),                         # dispatch #1 (clears first)
+      _wait_mxu(),
+      _mxu_os_accumulate(0, 0, 4),              # dispatch #2 (no clear)
+      _wait_mxu(),
+      _load_mxu_matrix_row(0, 0), _store(0, 0),
+      _load_mxu_matrix_row(1, 1), _store(1, 1),
+      _load_mxu_matrix_row(2, 2), _store(2, 2),
+      _load_mxu_matrix_row(3, 3), _store(3, 3),
+      _halt(),
+      _output_vmem(0), _output_vmem(1), _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 4)
+    for r in range(4):
+      expected = [2 * (r * 4 + c + 1) for c in range(4)] + [0] * 12
+      self.assertEqual(tiles[r], expected, f"row {r}: got {tiles[r]} want {expected}")
 
   def test_dual_issue_xlu_overlaps_with_vpu(self):
     # Prove iter 49's VRegFile Vector-of-Reg refactor actually lets

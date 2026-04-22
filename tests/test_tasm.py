@@ -319,6 +319,18 @@ def test_vmov_roundtrip():
     assert "VMOV v2, v7" in text
 
 
+def test_mxu_os_accumulate():
+    wire = wire_lines(assemble("MXU_OS_ACCUMULATE WMEM[1], AMEM[2], k=3\nHALT\nEND\n"))
+    # MXU_OS_ACCUMULATE opc=33, mxuWBase=1, mxuABase=2, mxuTLen=3.
+    assert wire[0] == "2 33 0 0 0 0 0 1 2 3"
+
+
+def test_mxu_os_accumulate_roundtrip():
+    src = "MXU_OS_ACCUMULATE WMEM[1], AMEM[2], k=3\nHALT\nEND\n"
+    text = disassemble(assemble(src))
+    assert "MXU_OS_ACCUMULATE WMEM[1], AMEM[2], k=3" in text
+
+
 def test_halt():
     wire = wire_lines(assemble("HALT\nEND\n"))
     assert wire[0] == "2 7 0 0 0 0 0 0 0 0"
