@@ -637,7 +637,8 @@ module mkScalarUnit#(
       prog.upd(addr, instr);
    endmethod
 
-   method Action start(UInt#(TLog#(progDepth)) len) if (pc_state == SXU_IDLE);
+   method Action start(UInt#(TLog#(progDepth)) len)
+         if (pc_state == SXU_IDLE || pc_state == SXU_HALTED);
       pc       <= 0;
       pc_state <= SXU_FETCH;
    endmethod
