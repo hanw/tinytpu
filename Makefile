@@ -1,4 +1,4 @@
-BSC      = bsc +RTS -K256M -RTS -no-show-timestamps -no-show-version
+BSC      = bsc +RTS -K256M -RTS -no-show-timestamps -no-show-version -steps-max-intervals 20
 BUILDDIR = build
 TRACEBUILDDIR = $(BUILDDIR)/trace
 BSCFLAGS = -sim -p src:test:+ -bdir $(BUILDDIR) -simdir $(BUILDDIR)
