@@ -482,16 +482,16 @@ ratio — the top ones would most change what TinyTPU can run.
 
 ### Tier 2 — memory hierarchy and programmability
 
-- [~] **Double-buffered Weight/ActivSRAM + small DMA engine.** Scaffolding
-      landed: `src/WeightSRAMDB.bsv` and `src/ActivationSRAMDB.bsv` each
-      hold two banks with an `active` pointer. Writes target the
-      inactive bank (background preload), reads serve from the active
-      bank, and `swap` flips the pointer. Standalone testbenches
-      (`make test-wsram-db`, `make test-asram-db`) cover read-after-
-      swap, inactive-bank-write isolation, and second-swap. Remaining:
-      wire the DB variants into the Controller behind a "preload
-      parallel to dispatch" mode, and a small DMA engine that issues
-      the background writes from HBM.
+- [x] **Double-buffered Weight/ActivSRAM + small DMA engine.**
+      `src/WeightSRAMDB.bsv` and `src/ActivationSRAMDB.bsv` are now the
+      default SRAMs inside TensorCore. The Controller consumes the
+      `.plain` sub-interface (writes → INACTIVE, reads → ACTIVE);
+      TensorCore exposes `loadWeightTile` / `loadActivationTile`
+      (writeActive) for "preload then dispatch immediately" flows and
+      `preloadWeightTile` / `preloadActivationTile` +
+      `swapWeightBanks` / `swapActivationBanks` for DMA-overlap flows.
+      Covered by `make test-tc-db` (ping-pong dispatch) plus the
+      existing WeightDMA / ActivationDMA standalone benches.
 - [ ] **Transcendental / programmable SIMD unit.** `sqrt` / `log2` /
       `exp2` / `sin` are rejected today; NeuronCore covers these with
       its GPSIMD engine. Three options in increasing generality:
@@ -508,20 +508,23 @@ ratio — the top ones would most change what TinyTPU can run.
       runtime sim tests cover both skip-taken and skip-not-taken
       paths. No tinygrad renderer is emitting these yet — they're
       infrastructure for future BARRIER / IF / ENDIF work.
-- [~] **Output-stationary dataflow mode on MXU.** Scaffolding landed:
-      Controller exposes a `DataflowMode` enum (`DF_WEIGHT_STATIONARY`,
-      `DF_OUTPUT_STATIONARY`), `startOS()` method, SXU opcode
-      `SXU_DISPATCH_MXU_OS`, `SXU_MXU_CLEAR`, and drain-time clear gated
-      on mode so consecutive `startOS` calls preserve the PE accumulator.
-      **What today's "OS mode" actually is:** weight-stationary dataflow
-      with cross-dispatch accumulator-hold. PEs still hold a single
-      loaded weight; activations still stream in the same direction;
-      drain still returns col-sums. *It is not a distinct dataflow.*
-      Remaining for real OS: per-cycle weight streaming alongside
-      activations, `PE.feedPair(w, a)` that accumulates with both
-      inputs arriving from neighbors, full-tile drain shape (return
-      the 4×4 element-wise accumulator instead of col-sums), and a
-      Controller FSM variant that feeds both operands each cycle.
+- [x] **Output-stationary dataflow mode on MXU.** Real OS dataflow is
+      now the primary path:
+      - `PE.feedPair(w, a)` MACs with both operands arriving from
+        neighbors; `passWeight` mirrors `passActivation`.
+      - `SystolicArray.feedPair(w_top, a_left)` drives one systolic
+        wavefront per cycle; `getMatrix()` returns the full per-PE
+        psum (rows x cols). Covered by `make test-array` (2x2 OS matmul).
+      - `Controller.startOS(wBase, aBase, kLen)` runs the full
+        staircase: `LoadWeights → LoadWeightsRespOS → LoadActsOS (K cycles)
+        → StreamOS (K + (rows-1) + (cols-1) cycles) → Drain`. Both
+        operand staircase skews are applied inside the Controller.
+        `resultsMatrix()` getter exposes the full output. `make
+        test-ctrl-os` covers 4x4 identity @ arange = arange.
+      - SXU opcode `SXU_DISPATCH_MXU_OS` (25) routes through it;
+        TASM `MXU_OS WMEM[w], AMEM[a], k=N` and Python `_mxu_os(w,a,k)`
+        emit the wire form. The old misnomer `MXU_OS` opcode (23)
+        was renamed `MXU_ACCUMULATE` — see the dataflow roadmap below.
 
 ### MXU dataflow roadmap
 
@@ -529,38 +532,35 @@ The four canonical systolic dataflows, ranked by TinyTPU fit:
 
 - [x] **Weight-stationary (WS).** Fully implemented. Weights loaded
       once, activations + partial sums flow. Good for weight-heavy
-      layers; matches TPU / NVDLA. Plus the current "OS mode" is a WS
-      variant with accumulator-hold across dispatches — useful for
-      multi-K-tile GEMM and already covered by PSUMBank at a different
-      granularity.
-- [ ] **Output-stationary (OS) — real.** Psum stays in PE, both
-      weights and activations stream. Maximizes psum reuse: each
-      output element is a short in-place reduction. High value for
-      depthwise conv and attention kernels. Needs new PE semantics
-      (`feedPair(w, a)`), new SystolicArray feed direction, full-tile
-      drain, new Controller FSM. Highest-impact dataflow extension.
-- [ ] **Input-stationary / activation-stationary (IS).** Mirror of
-      WS with operands swapped: activations stay in PE, weights +
-      psums flow. Cheapest to add since the PE structure is identical
-      — just reverse which operand gets preloaded. Wins on batch=1
-      inference where activations are large and weights can stream
-      cheaply from HBM.
-- [ ] **Row-stationary (RS) — Eyeriss-style.** Each PE holds a row
-      of the filter kernel, slides over a row of activations,
-      accumulates a row of the output. Optimized for convolution's
-      triple-reuse pattern. Overkill for a 4×4 pure-matmul engine;
-      skip unless the array grows + conv kernels become the bottleneck.
+      layers; matches TPU / NVDLA.
+- [x] **Output-stationary (OS).** Fully implemented as of iter 42.
+      `PE.feedPair` + `SystolicArray.feedPair` + `Controller.startOS`
+      run the staircase; drain returns the full (rows x cols) psum.
+      Dispatched via SXU opcode 25 (`MXU_OS`). High-value for
+      depthwise conv and attention kernels.
+- [x] **WS-accumulate (K-batching on WS).** Controller.startAccumulate
+      preserves the WS accumulator across dispatches; dispatched via
+      SXU opcode 23 (`MXU_ACCUMULATE`). Not a distinct dataflow — a
+      scheduling overlay on WS that skips the drain-time clear. Also
+      covered at a different granularity by the PSUMBank.
+- [ ] **Input-stationary / activation-stationary (IS).** Deferred.
+      ActivationSRAM stores (rows,)-shaped vectors per address, not
+      (rows, cols) tiles, so IS would need either a pre-load buffer
+      built from K separate reads or a new ActivationTileSRAM shape.
+      The compute win is narrow (batch=1 inference where activations
+      are large and weights stream cheaply from HBM), and the OS
+      path now covers most of the same workload class. Revisit if a
+      real workload needs it.
+- [ ] **Row-stationary (RS) — Eyeriss-style.** Overkill for a 4x4
+      pure-matmul engine; skip unless the array grows + conv kernels
+      become the bottleneck.
 
 Hybrids worth noting:
 
-- [ ] **K-batching / multi-tile accumulation** (already done via
-      PSUMBank): scheduling overlay on top of any stationary mode.
-- [ ] **No-local-reuse (NLR):** nothing stationary, everything
-      streams. Simplest PE, worst reuse. Intentionally skipped — no
-      reason to implement as a first-class mode.
-
-Practical priority order: finish real OS → add IS (cheap symmetric
-variant) → skip RS + NLR.
+- [x] **K-batching / multi-tile accumulation** via
+      `Controller.startAccumulate` and/or PSUMBank accumulate buckets.
+- [ ] **No-local-reuse (NLR):** intentionally skipped — no reason to
+      implement as a first-class mode.
 
 ### Tier 3 — chip-level scale-out
 
