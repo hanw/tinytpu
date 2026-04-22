@@ -236,7 +236,7 @@ $(BUILDDIR)/TbWeightDMA.bo: $(BUILDDIR)/WeightDMA.bo $(BUILDDIR)/WeightSRAMDB.bo
 $(BUILDDIR)/ActivationDMA.bo: $(BUILDDIR)/ActivationSRAMDB.bo
 $(BUILDDIR)/TbActivationDMA.bo: $(BUILDDIR)/ActivationDMA.bo $(BUILDDIR)/ActivationSRAMDB.bo
 $(BUILDDIR)/TbCtrlDBDMA.bo: $(BUILDDIR)/Controller.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/WeightSRAMDB.bo $(BUILDDIR)/WeightDMA.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
-$(BUILDDIR)/TensorCore.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/PSUMBank.bo
+$(BUILDDIR)/TensorCore.bo: $(BUILDDIR)/ScalarUnit.bo $(BUILDDIR)/SystolicArray.bo $(BUILDDIR)/VMEM.bo $(BUILDDIR)/VRegFile.bo $(BUILDDIR)/VPU.bo $(BUILDDIR)/XLU.bo $(BUILDDIR)/Controller.bo $(BUILDDIR)/WeightSRAM.bo $(BUILDDIR)/WeightSRAMDB.bo $(BUILDDIR)/ActivationSRAM.bo $(BUILDDIR)/ActivationSRAMDB.bo $(BUILDDIR)/PSUMBank.bo
 $(BUILDDIR)/TbTensorCore.bo: $(BUILDDIR)/TensorCore.bo
 $(BUILDDIR)/TbSparseCore.bo: $(BUILDDIR)/SparseCore.bo
 $(BUILDDIR)/TbHBMModel.bo: $(BUILDDIR)/HBMModel.bo

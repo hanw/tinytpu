@@ -8,7 +8,9 @@ import XLU :: *;
 import ScalarUnit :: *;
 import SystolicArray :: *;
 import WeightSRAM :: *;
+import WeightSRAMDB :: *;
 import ActivationSRAM :: *;
+import ActivationSRAMDB :: *;
 import Controller :: *;
 import PSUMBank :: *;
 
@@ -16,12 +18,23 @@ import PSUMBank :: *;
 typedef SxuInstr TCInstr;
 
 interface TensorCore_IFC#(numeric type rows, numeric type cols, numeric type depth);
-   // Pre-load weight tile into WeightSRAM at addr
+   // Pre-load weight tile into the ACTIVE bank of WeightSRAM — the
+   // "preload then dispatch immediately" path.
    method Action loadWeightTile(UInt#(TLog#(depth)) addr,
                                 Vector#(rows, Vector#(cols, Int#(8))) data);
-   // Pre-load activation vector into ActivationSRAM at addr
+   // Pre-load activation vector into the ACTIVE bank of ActivationSRAM.
    method Action loadActivationTile(UInt#(TLog#(depth)) addr,
                                     Vector#(rows, Int#(8)) data);
+   // Preload into the INACTIVE bank for DMA-overlap flows. The data is
+   // only visible to the array after a swapWeightBanks() / swapActivationBanks()
+   // call — use this when you want to preload tile N+1 while tile N is
+   // draining through the array.
+   method Action preloadWeightTile(UInt#(TLog#(depth)) addr,
+                                   Vector#(rows, Vector#(cols, Int#(8))) data);
+   method Action preloadActivationTile(UInt#(TLog#(depth)) addr,
+                                       Vector#(rows, Int#(8)) data);
+   method Action swapWeightBanks;
+   method Action swapActivationBanks;
    // Load one SXU microprogram instruction
    method Action loadProgram(UInt#(8) pc, TCInstr instr);
    // Pre-load/read unified VMEM tiles for VPU/XLU programs.
@@ -51,6 +64,8 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
       Bits#(SxuInstr, isz),
       Add#(a__, TLog#(depth), 8),        // mxu*:UInt#(8) truncates to TLog#(depth)
       Add#(b__, TLog#(rows), 4),         // XLU broadcast lane selector truncates from UInt#(4)
+      Add#(c__, TLog#(rows), 32),        // OS feed cycle counter (Controller)
+      Add#(d__, TLog#(rows), TLog#(depth)), // OS act-load idx fits a tile offset
       Add#(1, sl_, TMul#(rows, rows))    // FpReducer inside VPU reduces rows*rows elems
    );
 
@@ -60,11 +75,14 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
    // before Controller so it can be passed as a module argument.
    PSUMBank_IFC#(8, rows, rows)    psum <- mkPSUMBank;
 
-   // MXU sub-system
-   SystolicArray_IFC#(rows, cols)     array <- mkSystolicArray;
-   WeightSRAM_IFC#(depth, rows, cols) wsram <- mkWeightSRAM;
-   ActivationSRAM_IFC#(depth, rows)   asram <- mkActivationSRAM;
-   Controller_IFC#(rows, cols, depth) ctrl  <- mkController(array, wsram, asram, psum);
+   // MXU sub-system. Weight and Activation SRAMs are double-buffered so
+   // a DMA engine (or test host) can preload tile N+1 into the inactive
+   // bank while tile N drains through the array. Controller sees the
+   // ACTIVE bank via the DB module's `plain` sub-interface.
+   SystolicArray_IFC#(rows, cols)          array    <- mkSystolicArray;
+   WeightSRAMDB_IFC#(depth, rows, cols)    wsramDB  <- mkWeightSRAMDB;
+   ActivationSRAMDB_IFC#(depth, rows)      asramDB  <- mkActivationSRAMDB;
+   Controller_IFC#(rows, cols, depth)      ctrl     <- mkController(array, wsramDB.plain, asramDB.plain, psum);
 
    // VPU/XLU sub-system — rows is both sublanes and lanes (square)
    VMEM_IFC#(depth, rows, rows)    vmem <- mkVMEM;
@@ -78,12 +96,30 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
 
    method Action loadWeightTile(UInt#(TLog#(depth)) addr,
                                 Vector#(rows, Vector#(cols, Int#(8))) data);
-      wsram.write(addr, data);
+      wsramDB.writeActive(addr, data);
    endmethod
 
    method Action loadActivationTile(UInt#(TLog#(depth)) addr,
                                     Vector#(rows, Int#(8)) data);
-      asram.write(addr, data);
+      asramDB.writeActive(addr, data);
+   endmethod
+
+   method Action preloadWeightTile(UInt#(TLog#(depth)) addr,
+                                   Vector#(rows, Vector#(cols, Int#(8))) data);
+      wsramDB.plain.write(addr, data);
+   endmethod
+
+   method Action preloadActivationTile(UInt#(TLog#(depth)) addr,
+                                       Vector#(rows, Int#(8)) data);
+      asramDB.plain.write(addr, data);
+   endmethod
+
+   method Action swapWeightBanks;
+      wsramDB.swap;
+   endmethod
+
+   method Action swapActivationBanks;
+      asramDB.swap;
    endmethod
 
    method Action loadProgram(UInt#(8) pc, TCInstr instr);

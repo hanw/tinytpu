@@ -51,11 +51,11 @@ module mkTinyTPUChip(TinyTPUChip_IFC);
    endmethod
 
    method Action loadTC0Program(UInt#(4) pc, TCInstr instr);
-      tc0.loadProgram(pc, instr);
+      tc0.loadProgram(extend(pc), instr);
    endmethod
 
    method Action startTC0(UInt#(4) len);
-      tc0.start(len);
+      tc0.start(extend(len));
    endmethod
 
    method Bool tc0Done = tc0.isDone;

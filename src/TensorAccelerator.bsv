@@ -28,6 +28,8 @@ module mkTensorAccelerator(TensorAccelerator_IFC#(rows, cols, depth))
             Add#(1, d_, depth),
             Log#(depth, logd),
             Add#(logd_, TLog#(depth), 32),
+            Add#(osr_, TLog#(rows), 32),
+            Add#(osrd_, TLog#(rows), TLog#(depth)),
             Bits#(Vector#(rows, Vector#(cols, Int#(8))), wsz),
             Bits#(Vector#(rows, Int#(8)), asz));
 
