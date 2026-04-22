@@ -600,3 +600,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	db2f203	1	vpu	VPU_PACKED_I8_NEG + RELU	tasm 108 + backend 911 pass	Item: int8 packed NEG/RELU	iter 6 transcunit tanh
 2026-04-22	a1ac76e	1	vpu	VPU_PACKED_I8_CMPLT/CMPEQ	tasm 110 + backend 912 pass	Item: int8 CMPLT/CMPEQ	iter 7 PACKED_I8_ABS + MUL_LOW
 2026-04-22	9b01dab	1	sxu	LOAD_LOOP_DEPTH opcode	tasm 114 + backend 913 pass	sxu opcodes 37 total	iter 8 XLU rotate
+2026-04-22	ff3dc81	1	sxu+xlu	DISPATCH_XLU_ROTATE opcode	tasm 116 + backend 914 pass	sxu opcodes 38 total	iter 9 xlu permute
