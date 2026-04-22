@@ -525,6 +525,14 @@ ratio — the top ones would most change what TinyTPU can run.
         TASM `MXU_OS WMEM[w], AMEM[a], k=N` and Python `_mxu_os(w,a,k)`
         emit the wire form. The old misnomer `MXU_OS` opcode (23)
         was renamed `MXU_ACCUMULATE` — see the dataflow roadmap below.
+      - `SXU_LOAD_MXU_MATRIX_ROW` (26) copies one row of the psum
+        matrix into a vreg so consumers can walk the drain row by row.
+      - `SXU_DISPATCH_MXU_OS_ACCUMULATE` (33) dispatches without the
+        drain-time clear, letting multi-K-tile OS scale past K == rows.
+      - Covered end-to-end: `test_mxu_os_end_to_end_identity_matmul`,
+        `test_mxu_os_end_to_end_nontrivial_matmul`,
+        `test_mxu_os_accumulate_multi_tile`. Lean theorem
+        `accumulate_compose` formalizes the multi-tile composition.
 
 ### MXU dataflow roadmap
 
@@ -585,6 +593,23 @@ Hybrids worth noting:
       target the same index, which valid programs never do). 865
       sim-backed backend tests clean.
 
+### Recent SXU extensions (push 3)
+
+New single-cycle opcodes added for instruction density and perf work:
+
+- `SXU_LOAD_MXU_MATRIX_ROW` (26) — drain one row of OS psum matrix.
+- `SXU_READ_CYCLE` (27) — free-running cycle counter into lane 0.
+  Backed by a new unconditional `cycle` Reg (was TRACE-only).
+- `SXU_LOOP_BEGIN` (28) / `SXU_LOOP_END` (29) — single-level counted
+  loop (counter in mxuTLen UInt#(8)). Renderers can emit a tight
+  body without unrolling.
+- `SXU_VZERO` (30) — single-cycle zero vreg.
+- `SXU_VFILL` (31) — broadcast signed 8-bit immediate to all lanes.
+- `SXU_VMOV` (32) — single-cycle vreg copy.
+- `SXU_DISPATCH_MXU_OS_ACCUMULATE` (33) — multi-K-tile OS.
+- `SXU_VNEG` (34) — single-cycle lane-wise negate.
+- `SXU_VABS` (35) — single-cycle lane-wise absolute value.
+
 ### Deferred (called out but probably not next)
 
 - Mixed-precision MXU (bf16/fp16 MACs) — big surgery, unclear ROI
@@ -593,6 +618,15 @@ Hybrids worth noting:
   plumbing first; hardware once we have multi-core workloads.
 - `ATOMICADD` on VMEM banks — only matters for scatter-add kernels
   which aren't on our critical path.
+- **TranscUnit TANH / SIGMOID direct opcodes.** Considered but deferred:
+  Padé forms need a divider (not in TranscUnit); degree-5 odd Remez +
+  saturation is feasible but requires careful coefficient fitting. Lower
+  ROI now that exp2/log2 compositions cover the usage.
+- **Int8 packed VPU arithmetic.** 4 i8 lanes per VPU lane with
+  saturation. Sits behind a bigger "quantized inference" workload pull
+  — keep deferred until that lands.
+- **Nested loops in SXU.** Current LOOP has one counter Reg; nesting
+  needs a small stack. Add when a renderer actually needs it.
 
 ## Milestones
 
