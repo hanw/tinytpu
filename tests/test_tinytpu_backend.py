@@ -5506,6 +5506,52 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     tile = _parse_vmem_output(out)
     self.assertEqual(tile, [7] * 16)
 
+  def test_dual_issue_xlu_overlaps_with_vpu(self):
+    # Prove iter 49's VRegFile Vector-of-Reg refactor actually lets
+    # the dual-issue background XLU collect rule fire the same cycle
+    # as the main-FSM VPU collect rule. Two identical VPU+XLU kernels
+    # bracketed by READ_CYCLE; the total cycle count must not grow
+    # linearly with the number of parallel XLU dispatches.
+    sim = os.environ["TINYTPU_SIM"]
+    src_tile = [5] * 16
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _read_cycle(10),                                    # t0
+      # Interleaved XLU broadcast + VPU ADD x 4. Each XLU dispatch
+      # advances pc immediately in the dual-issue path; the VPU
+      # dispatches in between should not stall waiting for XLU.
+      "2 3 0 1 0 0 0 0 0 0",                              # XLU_BROADCAST v1 := v0[0]
+      _vpu(2, 0, _VPU_OPS["ADD"], 1),
+      "2 3 0 3 0 0 0 0 0 0",                              # XLU_BROADCAST v3 := v0[0]
+      _vpu(4, 0, _VPU_OPS["ADD"], 3),
+      "2 3 0 5 0 0 0 0 0 0",
+      _vpu(6, 0, _VPU_OPS["ADD"], 5),
+      "2 3 0 7 0 0 0 0 0 0",
+      _vpu(8, 0, _VPU_OPS["ADD"], 7),
+      _read_cycle(11),                                    # t1
+      _store(0, 2),                                       # VMEM[0] := v2 (sanity)
+      _store(1, 10),                                      # t0
+      _store(2, 11),                                      # t1
+      _halt(),
+      _output_vmem(0), _output_vmem(1), _output_vmem(2),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 3)
+    # Sanity: v2 = v0 + v1 (broadcast of v0[0][0]=5) = 5 + 5 = 10.
+    self.assertEqual(tiles[0][:4], [10, 10, 10, 10])
+    t0, t1 = tiles[1][0], tiles[2][0]
+    span = t1 - t0
+    # Upper bound: if each XLU dispatch fully serialized with the next
+    # VPU (pre-iter49 behavior), the span would be >=4*(vpu_latency +
+    # xlu_latency). With dual-issue XLU, many cycles overlap. Loose but
+    # meaningful bound: span under ~60 cycles for 8 dispatches.
+    self.assertLess(span, 60,
+                    f"dual-issue span {span} cycles — VRegFile serialization regressed")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0
