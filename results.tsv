@@ -585,3 +585,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	554b254	1	test	compose VFILL+LOOP+VNEG+VABS+VMOV	905 backend pass	none	iter 68 docs
 2026-04-21	8cd6020	1	doc	architecture.html push-3 opcode refresh	none (docs)	docs in sync	iter 69 next
 2026-04-21	b461c3f	1	verify	full verification post-doc refresh	python 1067 + lean lake build ok	none	iter 70 next
+2026-04-21	b461c3f	1	memory	checkpoint_2026_04_21 + MEMORY.md bump	none (memory)	resume pointer current	iter 71 next
