@@ -126,7 +126,12 @@ typedef enum {
    // DISPATCH_XLU_ROTATE: cyclic lane rotation via XLU. vregSrc is the
    // source tile, vregSrc2 low bits are the rotate amount (UInt#(TLog
    // #(lanes))). Dual-issue like the other XLU dispatches.
-   SXU_DISPATCH_XLU_ROTATE
+   SXU_DISPATCH_XLU_ROTATE,
+   // PSUM_CLEAR_ALL: zero every bucket in the PSUM bank. Multi-cycle
+   // FSM inside SXU (psumDepth cycles); one instruction replaces the
+   // 8-instruction PSUM_CLEAR sweep a multi-K-tile GEMM epilogue
+   // otherwise needs at the start of each K-chain. No operand fields.
+   SXU_PSUM_CLEAR_ALL
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -179,7 +184,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_XLU_BROADCAST_COL,
                SXU_EXEC_XLU_TRANSPOSE,
                SXU_EXEC_SELECT_COPY, SXU_EXEC_SELECT,
-               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV, SXU_EXEC_MXU_OS_ACCUMULATE, SXU_EXEC_VNEG, SXU_EXEC_VABS, SXU_EXEC_LOAD_LOOP_DEPTH, SXU_EXEC_XLU_ROTATE,
+               SXU_EXEC_MXU, SXU_EXEC_MXU_ACCUMULATE, SXU_EXEC_MXU_OS, SXU_EXEC_MXU_CLEAR, SXU_WAIT_MXU_STATE, SXU_EXEC_LOAD_MXU_RESULT, SXU_EXEC_LOAD_MXU_MATRIX_ROW, SXU_EXEC_READ_CYCLE, SXU_EXEC_LOOP_BEGIN, SXU_EXEC_LOOP_END, SXU_EXEC_VZERO, SXU_EXEC_VFILL, SXU_EXEC_VMOV, SXU_EXEC_MXU_OS_ACCUMULATE, SXU_EXEC_VNEG, SXU_EXEC_VABS, SXU_EXEC_LOAD_LOOP_DEPTH, SXU_EXEC_XLU_ROTATE, SXU_EXEC_PSUM_CLEAR_ALL,
                SXU_EXEC_LOAD_VPU_RESULT, SXU_EXEC_LOAD_XLU_RESULT,
                SXU_EXEC_PSUM_WRITE, SXU_EXEC_PSUM_ACCUMULATE,
                SXU_EXEC_PSUM_READ_REQ, SXU_EXEC_PSUM_READ_RESP,
@@ -245,6 +250,12 @@ module mkScalarUnit#(
       <- replicateM(mkReg(0));
    Reg#(UInt#(3))                                 loopTop <- mkReg(0);
 
+   // PSUM_CLEAR_ALL walker: indexes the bucket to clear this cycle.
+   // Reset to 0 on entry, ticks up once per cycle, exits when it
+   // reaches psumDepth.
+   Reg#(UInt#(TLog#(psumDepth)))                  psumClearAllIdx
+      <- mkReg(0);
+
    // Free-running cycle counter. Always present so the SXU_READ_CYCLE
    // opcode has a deterministic source; reused by TRACE when enabled.
    Reg#(UInt#(32))               cycle    <- mkReg(0);
@@ -288,6 +299,7 @@ module mkScalarUnit#(
          SXU_VABS:       pc_state <= SXU_EXEC_VABS;
          SXU_LOAD_LOOP_DEPTH: pc_state <= SXU_EXEC_LOAD_LOOP_DEPTH;
          SXU_DISPATCH_XLU_ROTATE: pc_state <= SXU_EXEC_XLU_ROTATE;
+         SXU_PSUM_CLEAR_ALL: pc_state <= SXU_EXEC_PSUM_CLEAR_ALL;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -616,6 +628,25 @@ module mkScalarUnit#(
       psum.clear(truncate(curInstr.vmemAddr));
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
+   endrule
+
+   // PSUM_CLEAR_ALL: walk through every bucket, clearing one per
+   // cycle. Takes psumDepth cycles total. On the last bucket, advance
+   // pc and return to FETCH; also reset psumClearAllIdx to 0 for the
+   // next invocation.
+   rule do_psum_clear_all (pc_state == SXU_EXEC_PSUM_CLEAR_ALL);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=PSUM_CLEAR_ALL pc=%0d idx=%0d",
+               cycle, pc, psumClearAllIdx);
+`endif
+      psum.clear(psumClearAllIdx);
+      if (psumClearAllIdx == fromInteger(valueOf(psumDepth) - 1)) begin
+         psumClearAllIdx <= 0;
+         pc <= pc + 1;
+         pc_state <= SXU_FETCH;
+      end else begin
+         psumClearAllIdx <= psumClearAllIdx + 1;
+      end
    endrule
 
    // PSUM_READ_ROW: combinational peek of psum[addr][row], deposited

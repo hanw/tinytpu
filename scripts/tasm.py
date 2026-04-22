@@ -67,6 +67,7 @@ _SXU = {
     "VABS":                    35,
     "LOAD_LOOP_DEPTH":         36,
     "DISPATCH_XLU_ROTATE":     37,
+    "PSUM_CLEAR_ALL":          38,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 

@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5847,6 +5847,36 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     expected = [20, 30, 40, 10] * 4
     self.assertEqual(tile, expected,
                      f"XLU rotate: got {tile[:4]}, expected {expected[:4]}")
+
+  def test_psum_clear_all_zeroes_every_bucket(self):
+    # Push 4 iter 9: one SXU_PSUM_CLEAR_ALL instruction must zero every
+    # bucket in the PSUM bank. Prime bucket 0 and bucket 7 with known
+    # non-zero tiles via PSUM_WRITE, issue CLEAR_ALL, then STORE each
+    # bucket (via PSUM_READ → STORE) and check both are zero.
+    sim = os.environ["TINYTPU_SIM"]
+    seed = list(range(1, 17))                      # tile of 1..16
+    bundle = _bundle(
+      _vmem(0, seed),
+      _load(0, 0),                                 # v0 := seed tile
+      # PSUM_WRITE bucket 0 and 7 with v0
+      "2 15 0 0 0 0 0 0 0 0",                      # PSUM_WRITE addr=0, src=v0
+      "2 15 7 0 0 0 0 0 0 0",                      # PSUM_WRITE addr=7, src=v0
+      _psum_clear_all(),
+      # PSUM_READ bucket 0 → v1, bucket 7 → v2; store both
+      "2 17 0 1 0 0 0 0 0 0",
+      "2 17 7 2 0 0 0 0 0 0",
+      _store(1, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(1), _output_vmem(2),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 2)
+    self.assertEqual(tiles[0], [0] * 16, "bucket 0 not cleared")
+    self.assertEqual(tiles[1], [0] * 16, "bucket 7 not cleared")
 
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
