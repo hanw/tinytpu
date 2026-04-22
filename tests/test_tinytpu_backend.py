@@ -5699,6 +5699,57 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     tile = _parse_vmem_output(out)
     self.assertEqual(tile, [0] * 16)
 
+  def test_nested_loop_runs_outer_times_inner(self):
+    # Nested SXU_LOOP (depth 2): outer count=2, inner count=3 → body
+    # runs 2*3 = 6 iterations. Start with v0 = 0 tile; inner body does
+    # v0 := v0 + 1-tile. Final tile must be 6.
+    sim = os.environ["TINYTPU_SIM"]
+    add_op = _VPU_OPS["ADD"]
+    bundle = _bundle(
+      _vfill(0, 0),                      # v0 := 0
+      _vfill(1, 1),                      # v1 := 1 (constant addend)
+      _loop_begin(2),                    # outer (depth 1)
+      _loop_begin(3),                    # inner (depth 2)
+      _vpu(2, 0, add_op, 1),             # v2 := v0 + v1
+      _vmov(0, 2),                       # v0 := v2
+      _loop_end(),                       # pop inner
+      _loop_end(),                       # pop outer
+      _store(0, 0),                      # VMEM[0] := v0
+      _halt(),
+      _output_vmem(0),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile, [6] * 16,
+                     f"nested loop total: got {tile[0]}, expected 6")
+
+  def test_nested_loop_depth_3_runs_product_iters(self):
+    # Depth-3 nesting: 2 × 2 × 2 = 8 inner-body iterations. Counts
+    # both interleavings. Final v0 must be 8.
+    sim = os.environ["TINYTPU_SIM"]
+    add_op = _VPU_OPS["ADD"]
+    bundle = _bundle(
+      _vfill(0, 0),
+      _vfill(1, 1),
+      _loop_begin(2),
+      _loop_begin(2),
+      _loop_begin(2),
+      _vpu(2, 0, add_op, 1),
+      _vmov(0, 2),
+      _loop_end(),
+      _loop_end(),
+      _loop_end(),
+      _store(0, 0),
+      _halt(),
+      _output_vmem(0),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    self.assertEqual(tile, [8] * 16,
+                     f"depth-3 nested loop total: got {tile[0]}, expected 8")
+
   def test_loop_iterates_correct_count(self):
     # Prove LOOP runs the body N times (not once) by READ_CYCLE before
     # and after two identical loops with different counts, then STORE

@@ -225,12 +225,16 @@ module mkScalarUnit#(
    Reg#(Bool)                    xlu_busy <- mkReg(False);
    Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
 
-   // Single-level loop state for SXU_LOOP_BEGIN / SXU_LOOP_END.
-   // loopCounter holds the remaining iteration count; loopReturnPc is
-   // the pc of the instruction after LOOP_BEGIN. A counter of 0 means
-   // "no active loop" — LOOP_END falls through.
-   Reg#(UInt#(8))                loopCounter  <- mkReg(0);
-   Reg#(UInt#(TLog#(progDepth))) loopReturnPc <- mkReg(0);
+   // Nested-loop state for SXU_LOOP_BEGIN / SXU_LOOP_END. Depth-4
+   // stack: each LOOP_BEGIN pushes (count, return-pc) and each
+   // LOOP_END either decrements the top counter + branches back or
+   // pops the frame. loopTop points at the next free slot (0 = empty).
+   // LOOP_END with an empty stack falls through as a no-op.
+   Vector#(4, Reg#(UInt#(8)))                     loopCounterStack
+      <- replicateM(mkReg(0));
+   Vector#(4, Reg#(UInt#(TLog#(progDepth))))      loopReturnPcStack
+      <- replicateM(mkReg(0));
+   Reg#(UInt#(3))                                 loopTop <- mkReg(0);
 
    // Free-running cycle counter. Always present so the SXU_READ_CYCLE
    // opcode has a deterministic source; reused by TRACE when enabled.
@@ -684,33 +688,42 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // LOOP_BEGIN: capture the loop head and iteration count. The count
-   // comes from mxuTLen (UInt#(8)) — up to 255 iterations. The return
-   // pc is the instruction immediately after LOOP_BEGIN.
+   // LOOP_BEGIN: push (count, return-pc) onto the loop stack. The count
+   // comes from mxuTLen (UInt#(8)) — up to 255 iterations per level.
+   // Return pc is the instruction immediately after LOOP_BEGIN. If the
+   // stack is already full (loopTop == 4) the push is dropped and the
+   // op falls through — programs must not exceed nesting depth 4.
    rule do_loop_begin (pc_state == SXU_EXEC_LOOP_BEGIN);
 `ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=LOOP_BEGIN pc=%0d count=%0d",
-               cycle, pc, curInstr.mxuTLen);
+      $display("TRACE cycle=%0d unit=SXU ev=LOOP_BEGIN pc=%0d count=%0d depth=%0d",
+               cycle, pc, curInstr.mxuTLen, loopTop);
 `endif
-      loopCounter  <= curInstr.mxuTLen;
-      loopReturnPc <= pc + 1;
+      if (loopTop < 4) begin
+         loopCounterStack[loopTop]  <= curInstr.mxuTLen;
+         loopReturnPcStack[loopTop] <= pc + 1;
+         loopTop <= loopTop + 1;
+      end
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule
 
-   // LOOP_END: if more iterations remain, jump back to loopReturnPc;
-   // else clear the counter and advance. loopCounter == 0 means no
-   // active loop (LOOP_END falls through like a no-op).
+   // LOOP_END: peek the top frame. If the remaining count > 1,
+   // decrement and branch back to the frame's return pc. Otherwise
+   // pop the frame and fall through. Empty stack: no-op.
    rule do_loop_end (pc_state == SXU_EXEC_LOOP_END);
+      let topIdx = loopTop - 1;
 `ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=LOOP_END pc=%0d remaining=%0d",
-               cycle, pc, loopCounter);
+      $display("TRACE cycle=%0d unit=SXU ev=LOOP_END pc=%0d depth=%0d",
+               cycle, pc, loopTop);
 `endif
-      if (loopCounter > 1) begin
-         loopCounter <= loopCounter - 1;
-         pc <= loopReturnPc;
+      if (loopTop == 0) begin
+         pc <= pc + 1;
+      end else if (loopCounterStack[topIdx] > 1) begin
+         loopCounterStack[topIdx] <= loopCounterStack[topIdx] - 1;
+         pc <= loopReturnPcStack[topIdx];
       end else begin
-         loopCounter <= 0;
+         loopCounterStack[topIdx] <= 0;
+         loopTop <= loopTop - 1;
          pc <= pc + 1;
       end
       pc_state <= SXU_FETCH;
