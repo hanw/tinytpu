@@ -67,3 +67,18 @@ theorem pipe_refines_abs_multi (s : PipePE) (acts : List Int) :
       pipe_refines_abs s a
     simpa [List.foldl_cons, hstep] using ih (PipePE.fullStep s a)
 
+/-! ## OS accumulate composition theorem -/
+
+/--
+OS-mode accumulator-hold across two dispatches.
+
+Running K₁ activations, then K₂ more, produces the same accumulator
+as running the concatenated K₁ ++ K₂ list in one pass. This is the
+core correctness property of Controller.startOsAccumulate — the
+drain-time `clearAll` skip must not lose psum state between tiles.
+-/
+theorem accumulate_compose (s : AbsPE) (xs ys : List Int) :
+    (ys.foldl AbsPE.step (xs.foldl AbsPE.step s)) =
+    (xs ++ ys).foldl AbsPE.step s := by
+  rw [List.foldl_append]
+
