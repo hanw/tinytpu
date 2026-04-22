@@ -5583,6 +5583,61 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertLess(span, 60,
                     f"dual-issue span {span} cycles — VRegFile serialization regressed")
 
+  def test_vpu_packed_i8_add_lane_wise_saturating(self):
+    # Push 4 iter 2: new VPU_PACKED_I8_ADD treats each 32-bit lane as 4
+    # packed signed int8 bytes (little-endian) and adds them with per-
+    # byte saturation to [-128, 127]. Verify: (a) simple non-saturating
+    # add, (b) positive saturation, (c) negative saturation, (d) mixed
+    # bytes within one lane saturating independently.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+
+    # Sixteen lanes, 4 bytes each. Construct src1 and src2 bytewise.
+    bytes_a = [
+      # (a) simple: byte sums stay in-range
+      (10, 20, -5, 30),
+      # (b) saturate +: 100 + 50 = 150 → 127, other bytes safe
+      (100, 1, 2, 3),
+      # (c) saturate -: -100 + -50 = -150 → -128
+      (-100, -1, -2, -3),
+      # (d) mixed: byte 0 saturates high, byte 1 saturates low, bytes
+      # 2 and 3 stay in-range — proves per-byte independence.
+      (100, -100, 10, 20),
+    ] + [(0, 0, 0, 0)] * 12   # pad remaining lanes
+    bytes_b = [
+      (1, 2, 3, 4),
+      (50, 1, 2, 3),
+      (-50, -1, -2, -3),
+      (50, -50, 5, 5),
+    ] + [(0, 0, 0, 0)] * 12
+    src1_tile = [pack_i8x4(*bs) for bs in bytes_a]
+    src2_tile = [pack_i8x4(*bs) for bs in bytes_b]
+
+    pi8_add = _VPU_OPS["PACKED_I8_ADD"]
+    bundle = _bundle(
+      _vmem(0, src1_tile),
+      _vmem(1, src2_tile),
+      _load(0, 0),
+      _load(1, 1),
+      _vpu(2, 0, pi8_add, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Expected per-lane packed byte sums with saturation.
+    def sat(x): return max(-128, min(127, x))
+    expected_bytes = [(sat(a + b) for a, b in zip(ba, bb))
+                      for ba, bb in zip(bytes_a, bytes_b)]
+    expected = [pack_i8x4(*tuple(e)) for e in expected_bytes]
+    self.assertEqual(tile, expected,
+                     f"PACKED_I8_ADD: got {tile}, expected {expected}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

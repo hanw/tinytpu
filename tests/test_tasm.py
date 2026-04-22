@@ -702,10 +702,22 @@ def test_disassemble_vmem_negative():
 
 def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
-    # Full VPU opcode range including EXP2/LOG2/SIN/COS transcendentals.
-    assert len(_VPU) == 55
+    # Full VPU opcode range including EXP2/LOG2/SIN/COS transcendentals
+    # and the packed-int8 quantized ops at the tail.
+    assert len(_VPU) == 56
     codes = sorted(_VPU.values())
-    assert codes == list(range(55))
+    assert codes == list(range(56))
+
+
+def test_vpu_packed_i8_add_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nLOAD  v1, VMEM[1]\nVPU   v2 = PACKED_I8_ADD(v0, v1)\nSTORE VMEM[2], v2\nHALT\nEND\n"
+    wire = assemble(prog)
+    lines = wire.strip().splitlines()
+    vpu_line = next(ln for ln in lines if ln.startswith("2 2 "))
+    fields = vpu_line.split()
+    assert fields[5] == "55", f"expected PACKED_I8_ADD opcode 55, got {fields[5]}"
+    back = disassemble(wire)
+    assert "PACKED_I8_ADD(v0, v1)" in back
 
 
 def test_vpu_exp2_roundtrip():

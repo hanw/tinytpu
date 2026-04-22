@@ -16,8 +16,48 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_FSUM_REDUCE, VPU_FMAX_REDUCE, VPU_FMIN_REDUCE,
                VPU_FSUM_REDUCE_COL, VPU_FMAX_REDUCE_COL, VPU_FMIN_REDUCE_COL,
                VPU_FPROD_REDUCE_TILE, VPU_FPROD_REDUCE, VPU_FPROD_REDUCE_COL,
-               VPU_EXP2, VPU_LOG2, VPU_SIN, VPU_COS }
+               VPU_EXP2, VPU_LOG2, VPU_SIN, VPU_COS,
+               // Packed-int8 arithmetic: each Int#(32) lane holds 4 Int#(8)
+               // values in two's-complement (byte 0 = bits[7:0], byte 3 =
+               // bits[31:24]). Saturating add is the first quantized-
+               // inference primitive — four 8-bit adders per lane, each
+               // clamped to [-128, 127] independently.
+               VPU_PACKED_I8_ADD }
    VpuOp deriving (Bits, Eq, FShow);
+
+// Add two signed 8-bit values with saturation to [-128, 127].
+function Int#(8) sat_add_i8(Int#(8) a, Int#(8) b);
+   Int#(9) wide = extend(a) + extend(b);
+   Int#(8) clamped = (wide >  127) ?  127 :
+                     (wide < -128) ? -128 :
+                     truncate(wide);
+   return clamped;
+endfunction
+
+// Pack four Int#(8) back into one Int#(32) (little-endian byte order).
+function Int#(32) pack_i8x4(Int#(8) b0, Int#(8) b1, Int#(8) b2, Int#(8) b3);
+   Bit#(32) bits = {pack(b3), pack(b2), pack(b1), pack(b0)};
+   return unpack(bits);
+endfunction
+
+// Unpack one Int#(32) into four Int#(8) (little-endian byte order).
+function Tuple4#(Int#(8), Int#(8), Int#(8), Int#(8)) unpack_i8x4(Int#(32) x);
+   Bit#(32) bits = pack(x);
+   return tuple4(unpack(bits[ 7: 0]),
+                 unpack(bits[15: 8]),
+                 unpack(bits[23:16]),
+                 unpack(bits[31:24]));
+endfunction
+
+// Packed-int8 lane-wise saturating add. Treats each 32-bit value as 4x
+// Int#(8) in little-endian byte order; does four independent saturating
+// adds and repacks.
+function Int#(32) packed_i8_add(Int#(32) a, Int#(32) b);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
+   return pack_i8x4(sat_add_i8(a0, b0), sat_add_i8(a1, b1),
+                    sat_add_i8(a2, b2), sat_add_i8(a3, b3));
+endfunction
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
 function Float bits2fp(Int#(32) x);
@@ -304,6 +344,10 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_ADD: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = src1[s][l] + src2[s][l];
+            end
+            VPU_PACKED_I8_ADD: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_add(src1[s][l], src2[s][l]);
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
