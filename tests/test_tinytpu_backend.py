@@ -5724,6 +5724,42 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], expected_max, "PACKED_I8_MAX mismatch")
     self.assertEqual(tiles[1], expected_min, "PACKED_I8_MIN mismatch")
 
+  def test_vpu_packed_i8_neg_and_relu(self):
+    # Push 4 iter 5: unary packed-int8 ops. NEG saturates -128 to 127
+    # (standard packed-SIMD overflow rule); RELU clamps negatives to 0.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+
+    bytes_in = [(5, -5, -128, 127), (0, 1, -1, 100), (-50, 0, 50, -25)] + [(0, 0, 0, 0)] * 13
+    src_tile = [pack_i8x4(*bs) for bs in bytes_in]
+
+    pi8_neg  = _VPU_OPS["PACKED_I8_NEG"]
+    pi8_relu = _VPU_OPS["PACKED_I8_RELU"]
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _vpu(1, 0, pi8_neg, 0),
+      _vpu(2, 0, pi8_relu, 0),
+      _store(0, 1),
+      _store(1, 2),
+      _halt(),
+      _output_vmem(0), _output_vmem(1),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 2)
+
+    def neg_sat(x): return 127 if x == -128 else -x
+    expected_neg = [pack_i8x4(*tuple(neg_sat(b) for b in bs)) for bs in bytes_in]
+    expected_relu = [pack_i8x4(*tuple(max(b, 0) for b in bs)) for bs in bytes_in]
+    self.assertEqual(tiles[0], expected_neg, "PACKED_I8_NEG mismatch")
+    self.assertEqual(tiles[1], expected_relu, "PACKED_I8_RELU mismatch")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

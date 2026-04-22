@@ -23,7 +23,8 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                // inference primitive — four 8-bit adders per lane, each
                // clamped to [-128, 127] independently.
                VPU_PACKED_I8_ADD, VPU_PACKED_I8_SUB,
-               VPU_PACKED_I8_MAX, VPU_PACKED_I8_MIN }
+               VPU_PACKED_I8_MAX, VPU_PACKED_I8_MIN,
+               VPU_PACKED_I8_NEG, VPU_PACKED_I8_RELU }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -89,6 +90,25 @@ function Int#(32) packed_i8_min(Int#(32) a, Int#(32) b);
    match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
    match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
    return pack_i8x4(min(a0, b0), min(a1, b1), min(a2, b2), min(a3, b3));
+endfunction
+
+// Byte-wise signed negate with saturation: -(-128) would overflow, so
+// clamp it to 127 (standard packed-SIMD convention).
+function Int#(8) sat_neg_i8(Int#(8) a);
+   Int#(8) r = (a == -128) ? 127 : -a;
+   return r;
+endfunction
+
+function Int#(32) packed_i8_neg(Int#(32) a);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   return pack_i8x4(sat_neg_i8(a0), sat_neg_i8(a1), sat_neg_i8(a2), sat_neg_i8(a3));
+endfunction
+
+// Byte-wise RELU (max(x, 0) per byte).
+function Int#(32) packed_i8_relu(Int#(32) a);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   return pack_i8x4((a0 > 0) ? a0 : 0, (a1 > 0) ? a1 : 0,
+                    (a2 > 0) ? a2 : 0, (a3 > 0) ? a3 : 0);
 endfunction
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -392,6 +412,14 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_PACKED_I8_MIN: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = packed_i8_min(src1[s][l], src2[s][l]);
+            end
+            VPU_PACKED_I8_NEG: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_neg(src1[s][l]);
+            end
+            VPU_PACKED_I8_RELU: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_relu(src1[s][l]);
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
