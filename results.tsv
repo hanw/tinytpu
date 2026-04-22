@@ -573,3 +573,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-21	6ac6703	1	sxu+loop	LOOP_BEGIN/END opcodes 28/29 + body-runs test	tasm 90 + 895 backend pass	real hw support for short loops	iter 56 iter-count proof test
 2026-04-21	48dcba5	1	test	LOOP iter-count proof via READ_CYCLE delta	896 backend pass	none	iter 57 small cleanup
 2026-04-21	042796a	1	sxu	VZERO opcode 30 (single-cycle zero vreg)	tasm 92 + backend clean	none	iter 58 VFILL
+2026-04-21	08ba1ff	1	sxu	VFILL (31) + VMOV (32) single-cycle	tasm 96 pass; 3 E2E tests	none	iter 59 combined test
