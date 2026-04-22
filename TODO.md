@@ -575,10 +575,15 @@ Hybrids worth noting:
       tests cover both. Remaining: tinygrad renderer is not yet using
       these opcodes to elide VRegFile round-trips in chained kernels
       (e.g. XLU-then-VPU, VPU chains that store and re-read).
-- [ ] **Per-engine writeback queues on VRegFile.** Writeback bus is a
-      single return path; if VPU and XLU both finish in the same
-      cycle they compete. Multi-port VRF or small per-engine
-      writeback FIFOs.
+- [x] **Per-engine writeback resolved via VRegFile Vector-of-Reg.**
+      Before: `mkRegFileFull` had one write port, so bsc forced every
+      vrf writer mutex with `do_xlu_collect_bg` (G0010 urgency
+      conflicts — the dual-issue background rule was silently
+      serialized). After: `VRegFile` is `Vector#(numRegs, Reg#(T))`;
+      each index has its own write port. G0010 conflicts collapse
+      to G0036 (same-cycle ordering — only matters if two rules
+      target the same index, which valid programs never do). 865
+      sim-backed backend tests clean.
 
 ### Deferred (called out but probably not next)
 
