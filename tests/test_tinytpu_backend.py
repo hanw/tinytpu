@@ -5990,6 +5990,59 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tile, expected,
                      f"PACKED_I8_MUL_HIGH: got {tile}, expected {expected}")
 
+  def test_vpu_sign_int32(self):
+    # Push 4 iter 14: VPU_SIGN emits -1/0/+1 per int32 lane based on
+    # src1 sign. Single-cycle lane-wise op.
+    sim = os.environ["TINYTPU_SIM"]
+    src_tile = [-5, 0, 7, -1, 100, -100, 0, 42, -42, 1, -1, 0, 999, -999, 0, 0]
+    sign_op = _VPU_OPS["SIGN"]
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _vpu(1, 0, sign_op, 0),
+      _store(1, 1),
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    expected = [-1 if x < 0 else (1 if x > 0 else 0) for x in src_tile]
+    self.assertEqual(tile, expected,
+                     f"SIGN: got {tile}, expected {expected}")
+
+  def test_vpu_packed_i8_abs_and_sign_byte_wise(self):
+    # Push 4 iter 13 + 15: byte-wise absolute value (saturating -128→127)
+    # and byte-wise sign (-1/0/+1).
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+    bytes_in = [(-5, 0, 7, -128), (100, -100, 0, 1)] + [(0, 0, 0, 0)] * 14
+    src_tile = [pack_i8x4(*bs) for bs in bytes_in]
+    pi8_abs  = _VPU_OPS["PACKED_I8_ABS"]
+    pi8_sign = _VPU_OPS["PACKED_I8_SIGN"]
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _vpu(1, 0, pi8_abs, 0),
+      _vpu(2, 0, pi8_sign, 0),
+      _store(0, 1),
+      _store(1, 2),
+      _halt(),
+      _output_vmem(0), _output_vmem(1),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    def sat_abs(x): return 127 if x == -128 else abs(x)
+    expected_abs  = [pack_i8x4(*tuple(sat_abs(b) for b in bs)) for bs in bytes_in]
+    expected_sign = [pack_i8x4(*tuple((-1 if b < 0 else (1 if b > 0 else 0)) for b in bs))
+                     for bs in bytes_in]
+    self.assertEqual(tiles[0], expected_abs, "PACKED_I8_ABS mismatch")
+    self.assertEqual(tiles[1], expected_sign, "PACKED_I8_SIGN mismatch")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

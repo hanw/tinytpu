@@ -26,7 +26,12 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_PACKED_I8_MAX, VPU_PACKED_I8_MIN,
                VPU_PACKED_I8_NEG, VPU_PACKED_I8_RELU,
                VPU_PACKED_I8_CMPLT, VPU_PACKED_I8_CMPEQ,
-               VPU_PACKED_I8_MUL_LOW, VPU_PACKED_I8_MUL_HIGH }
+               VPU_PACKED_I8_MUL_LOW, VPU_PACKED_I8_MUL_HIGH,
+               VPU_PACKED_I8_ABS,
+               // Lane-wise sign: -1 if x<0, 0 if x==0, 1 if x>0.
+               VPU_SIGN,
+               // Byte-wise sign on packed int8 (per-byte -1/0/+1).
+               VPU_PACKED_I8_SIGN }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -159,6 +164,29 @@ function Int#(32) packed_i8_mul_high(Int#(32) a, Int#(32) b);
    match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
    return pack_i8x4(mul_high_i8(a0, b0), mul_high_i8(a1, b1),
                     mul_high_i8(a2, b2), mul_high_i8(a3, b3));
+endfunction
+
+// Byte-wise absolute value with saturation (|-128| wraps to 127).
+function Int#(8) sat_abs_i8(Int#(8) a);
+   Int#(8) r = (a == -128) ? 127 : ((a < 0) ? -a : a);
+   return r;
+endfunction
+
+function Int#(32) packed_i8_abs(Int#(32) a);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   return pack_i8x4(sat_abs_i8(a0), sat_abs_i8(a1),
+                    sat_abs_i8(a2), sat_abs_i8(a3));
+endfunction
+
+// Byte-wise sign: -1 / 0 / +1 per byte.
+function Int#(8) sign_i8(Int#(8) a);
+   Int#(8) r = (a > 0) ? 1 : ((a < 0) ? -1 : 0);
+   return r;
+endfunction
+
+function Int#(32) packed_i8_sign(Int#(32) a);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   return pack_i8x4(sign_i8(a0), sign_i8(a1), sign_i8(a2), sign_i8(a3));
 endfunction
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -486,6 +514,19 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_PACKED_I8_MUL_HIGH: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = packed_i8_mul_high(src1[s][l], src2[s][l]);
+            end
+            VPU_PACKED_I8_ABS: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_abs(src1[s][l]);
+            end
+            VPU_SIGN: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = (src1[s][l] > 0) ? 1 :
+                            ((src1[s][l] < 0) ? -1 : 0);
+            end
+            VPU_PACKED_I8_SIGN: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_sign(src1[s][l]);
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
