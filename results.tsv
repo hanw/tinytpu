@@ -610,3 +610,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	15ef22e	1	vpu	VPU_FSIGN float sign opcode	tasm 120 + backend 921 pass	vpu=69 ops	iter 16 xlu permute
 2026-04-22	885afb6	1	vpu	ARGMIN + ARGMAX per-row index reductions	tasm 122 + backend 922 pass	vpu=71 ops	iter 17 reductions
 2026-04-22	311d4f5	1	vpu	VPU_CLZ + VPU_POPCOUNT	tasm 124 + backend 923 pass	vpu=73 ops	iter 18 byte reverse
+2026-04-22	305fa46	1	doc	architecture.html opcode refresh	none (docs)	docs sync to push 4 state	iter 19 tanh
