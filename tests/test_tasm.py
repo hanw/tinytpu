@@ -728,9 +728,25 @@ def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
     # Full VPU opcode range including EXP2/LOG2/SIN/COS transcendentals
     # and the packed-int8 quantized ops at the tail.
-    assert len(_VPU) == 80
+    assert len(_VPU) == 82
     codes = sorted(_VPU.values())
-    assert codes == list(range(80))
+    assert codes == list(range(82))
+
+
+def test_vpu_rotl_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nLOAD  v1, VMEM[1]\nVPU   v2 = ROTL(v0, v1)\nSTORE VMEM[2], v2\nHALT\nEND\n"
+    wire = assemble(prog)
+    vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
+    assert vpu_line.split()[5] == "80"
+    assert "ROTL(v0, v1)" in disassemble(wire)
+
+
+def test_vpu_rotr_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nLOAD  v1, VMEM[1]\nVPU   v2 = ROTR(v0, v1)\nSTORE VMEM[2], v2\nHALT\nEND\n"
+    wire = assemble(prog)
+    vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
+    assert vpu_line.split()[5] == "81"
+    assert "ROTR(v0, v1)" in disassemble(wire)
 
 
 def test_vpu_fabs_roundtrip():

@@ -6304,6 +6304,45 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     expected = [clear_sign(x) for x in src_tile]
     self.assertEqual(tile, expected, f"FABS bits: got {tile}, expected {expected}")
 
+  def test_vpu_rotl_rotr(self):
+    # Push 4 iter 28: 32-bit lane-wise rotate-left / rotate-right by
+    # an amount taken from src2 (mod 32).
+    sim = os.environ["TINYTPU_SIM"]
+    src = [0x12345678, 0x1, 0x80000000 - (1 << 32), 0x0F, 0xFF, 0xAAAA, 0x5555, 0x10000,
+           0x80000000 - (1 << 32), 0x40000000, 0xFFFFFFFF - (1 << 32), 0, 1, 2, 4, 0x33333333]
+    amt = [4, 1, 1, 4, 8, 16, 16, 12,
+           31, 2, 1, 5, 7, 3, 2, 8]
+    rotl_op = _VPU_OPS["ROTL"]
+    rotr_op = _VPU_OPS["ROTR"]
+    bundle = _bundle(
+      _vmem(0, src),
+      _vmem(1, amt),
+      _load(0, 0),
+      _load(1, 1),
+      _vpu(2, 0, rotl_op, 1),
+      _vpu(3, 0, rotr_op, 1),
+      _store(2, 2),
+      _store(3, 3),
+      _halt(),
+      _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    def rotl(x, a):
+      u = x & 0xFFFFFFFF; a &= 31
+      r = ((u << a) | (u >> (32 - a if a else 0))) & 0xFFFFFFFF if a else u
+      return r - (1 << 32) if r >= (1 << 31) else r
+    def rotr(x, a):
+      u = x & 0xFFFFFFFF; a &= 31
+      r = ((u >> a) | (u << (32 - a if a else 0))) & 0xFFFFFFFF if a else u
+      return r - (1 << 32) if r >= (1 << 31) else r
+    exp_rotl = [rotl(x, a) for x, a in zip(src, amt)]
+    exp_rotr = [rotr(x, a) for x, a in zip(src, amt)]
+    self.assertEqual(tiles[0], exp_rotl, f"ROTL: got {tiles[0]}")
+    self.assertEqual(tiles[1], exp_rotr, f"ROTR: got {tiles[1]}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

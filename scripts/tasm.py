@@ -155,6 +155,8 @@ _VPU = {
     "ABS_DIFF_I32":      77,
     "PACKED_I8_ABS_DIFF": 78,
     "FABS":              79,
+    "ROTL":              80,
+    "ROTR":              81,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 

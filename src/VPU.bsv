@@ -52,7 +52,10 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_ABS_DIFF_I32, VPU_PACKED_I8_ABS_DIFF,
                // Float absolute value (clear sign bit) — single-cycle
                // unary, replaces the FSUB + FMAX pair in softsign.
-               VPU_FABS }
+               VPU_FABS,
+               // 32-bit lane-wise rotate-left / rotate-right; shift
+               // amount taken from low 5 bits of src2 (mod 32).
+               VPU_ROTL, VPU_ROTR }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -671,6 +674,24 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
                   Bit#(32) b = pack(src1[s][l]);
                   Bit#(32) r = { 1'b0, b[30:0] };
+                  row[l] = unpack(r);
+               end
+            end
+            VPU_ROTL: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Bit#(32) b = pack(src1[s][l]);
+                  Bit#(5)  amt = truncate(pack(src2[s][l]));
+                  Bit#(5)  comp = 5'd0 - amt;
+                  Bit#(32) r = (b << amt) | (b >> comp);
+                  row[l] = unpack(r);
+               end
+            end
+            VPU_ROTR: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Bit#(32) b = pack(src1[s][l]);
+                  Bit#(5)  amt = truncate(pack(src2[s][l]));
+                  Bit#(5)  comp = 5'd0 - amt;
+                  Bit#(32) r = (b >> amt) | (b << comp);
                   row[l] = unpack(r);
                end
             end
