@@ -632,3 +632,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	f9e906e	1	lean	sign_bounded + sign_times_self_nonneg	lake build ok (10 theorems)	sign ∈ {-1,0,1} bound + |x| lemma	iter 38 next
 2026-04-22	a35b881	1	todo	lean theorem count + dual-issue retry plan	none (docs)	final TODO update	iter 39 regression
 2026-04-22	b3a9cf7	1	regression	final push-4 regression sweep	Python 1125+1skip	+18 tests since iter 19	iter 40 push-4-done
+2026-04-22	0641bd5	1	push-4-done	final: VPU 55→84 (+29), SXU 36→41 (+5), Lean 3→10 (+7), renderer FABS adoption; tasm 135+, Python 1125+1skip	BSV sample 10/10 targets clean	push 4 (iters 1-40) complete	hand off via checkpoint 2026-04-22
