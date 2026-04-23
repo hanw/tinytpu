@@ -603,3 +603,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	ff3dc81	1	sxu+xlu	DISPATCH_XLU_ROTATE opcode	tasm 116 + backend 914 pass	sxu opcodes 38 total	iter 9 xlu permute
 2026-04-22	0dda23d	1	sxu+psum	PSUM_CLEAR_ALL multi-cycle walker	backend 915 pass	sxu opcodes 39 total	iter 10 pred-not-zero
 2026-04-22	d65461b	1	sxu	SET_PRED_NE_ZERO + SKIP_IF_NOT_PRED	backend 916 pass	sxu opcodes 41 total	iter 11 LOOP_BREAK
+2026-04-22	16fce52	1	vpu	VPU_PACKED_I8_MUL_LOW	tasm 115 + backend 917 pass	packed_i8 at 7 ops	iter 12 run full regression
