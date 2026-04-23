@@ -131,7 +131,16 @@ typedef enum {
    // FSM inside SXU (psumDepth cycles); one instruction replaces the
    // 8-instruction PSUM_CLEAR sweep a multi-K-tile GEMM epilogue
    // otherwise needs at the start of each K-chain. No operand fields.
-   SXU_PSUM_CLEAR_ALL
+   SXU_PSUM_CLEAR_ALL,
+   // SET_PRED_NE_ZERO: pred := (vregSrc[0][0] != 0). Complement of
+   // SET_PRED_IF_ZERO; lets programs express "branch if non-zero"
+   // directly, completing the two-way primitive pair.
+   SXU_SET_PRED_NE_ZERO,
+   // SKIP_IF_NOT_PRED: if pred is False, skip the next instruction
+   // (pc += 2). Complements SKIP_IF_PRED so both arms of an if/else
+   // can be expressed. pred is auto-reset on skip-taken (same as
+   // SKIP_IF_PRED).
+   SXU_SKIP_IF_NOT_PRED
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -191,6 +200,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_PSUM_READ_ROW, SXU_EXEC_PSUM_CLEAR,
                SXU_EXEC_PSUM_ACCUMULATE_ROW,
                SXU_EXEC_SET_PRED, SXU_EXEC_SKIP_IF_PRED,
+               SXU_EXEC_SET_PRED_NE, SXU_EXEC_SKIP_IF_NOT_PRED,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -300,6 +310,8 @@ module mkScalarUnit#(
          SXU_LOAD_LOOP_DEPTH: pc_state <= SXU_EXEC_LOAD_LOOP_DEPTH;
          SXU_DISPATCH_XLU_ROTATE: pc_state <= SXU_EXEC_XLU_ROTATE;
          SXU_PSUM_CLEAR_ALL: pc_state <= SXU_EXEC_PSUM_CLEAR_ALL;
+         SXU_SET_PRED_NE_ZERO: pc_state <= SXU_EXEC_SET_PRED_NE;
+         SXU_SKIP_IF_NOT_PRED: pc_state <= SXU_EXEC_SKIP_IF_NOT_PRED;
          SXU_LOAD_VPU_RESULT: pc_state <= SXU_EXEC_LOAD_VPU_RESULT;
          SXU_LOAD_XLU_RESULT: pc_state <= SXU_EXEC_LOAD_XLU_RESULT;
          SXU_PSUM_WRITE:      pc_state <= SXU_EXEC_PSUM_WRITE;
@@ -615,6 +627,33 @@ module mkScalarUnit#(
                cycle, pc, pred);
 `endif
       pc <= pred ? (pc + 2) : (pc + 1);
+      pred <= False;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // SET_PRED_NE_ZERO: pred := (vreg[0][0] != 0). Complement of
+   // SET_PRED_IF_ZERO — the "branch if non-zero" side of the pair.
+   rule do_set_pred_ne (pc_state == SXU_EXEC_SET_PRED_NE);
+      let src = vrf.read(truncate(curInstr.vregSrc));
+      let scalar = src[0][0];
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=SET_PRED_NE_ZERO pc=%0d src=v%0d scalar=%0d",
+               cycle, pc, curInstr.vregSrc, scalar);
+`endif
+      pred <= (scalar != 0);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // SKIP_IF_NOT_PRED: if pred is False, advance pc by 2; else by 1.
+   // Auto-reset pred either way so the skip state doesn't leak into
+   // later conditional regions.
+   rule do_skip_if_not_pred (pc_state == SXU_EXEC_SKIP_IF_NOT_PRED);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=SKIP_IF_NOT_PRED pc=%0d pred=%0d",
+               cycle, pc, pred);
+`endif
+      pc <= pred ? (pc + 1) : (pc + 2);
       pred <= False;
       pc_state <= SXU_FETCH;
    endrule

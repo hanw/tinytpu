@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all, _set_pred_ne_zero, _skip_if_not_pred
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -5877,6 +5877,51 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(len(tiles), 2)
     self.assertEqual(tiles[0], [0] * 16, "bucket 0 not cleared")
     self.assertEqual(tiles[1], [0] * 16, "bucket 7 not cleared")
+
+  def test_set_pred_ne_zero_and_skip_if_not_pred(self):
+    # Push 4 iter 10: SET_PRED_NE_ZERO + SKIP_IF_NOT_PRED complete the
+    # predicate pair. Program: branch TAKEN when flag is non-zero, so
+    # VMEM[5] gets value A; when flag is zero, it gets value B.
+    sim = os.environ["TINYTPU_SIM"]
+
+    # Two runs back-to-back in one bundle using two flag vregs. Flag
+    # tile with a non-zero top-left lane means "branch taken"; zero
+    # means "skip the taken-branch store".
+    flag_nonzero = [7] + [0] * 15   # v0[0][0] = 7 (!= 0)
+    flag_zero    = [0] * 16         # v1[0][0] = 0
+    val_a = [1] * 16                # v2
+    val_b = [2] * 16                # v3
+
+    sentinel = [9] * 16
+    bundle = _bundle(
+      _vmem(0, flag_nonzero),
+      _vmem(1, flag_zero),
+      _vmem(2, val_a),
+      _vmem(3, val_b),
+      _vmem(6, sentinel),            # preload VMEM[6] with a sentinel
+      _load(0, 0), _load(1, 1), _load(2, 2), _load(3, 3),
+      # Run A: flag non-zero → SKIP_IF_NOT_PRED falls through → STORE A.
+      _set_pred_ne_zero(0),
+      _skip_if_not_pred(),          # pred=True, do NOT skip
+      _store(5, 2),                 # VMEM[5] := A
+      # Run B: flag zero → SKIP_IF_NOT_PRED skips → STORE B skipped.
+      _set_pred_ne_zero(1),
+      _skip_if_not_pred(),          # pred=False, SKIP
+      _store(6, 3),                 # (skipped) — VMEM[6] keeps sentinel
+      _store(7, 3),                 # control: always runs, stores B at 7
+      _halt(),
+      _output_vmem(5), _output_vmem(6), _output_vmem(7),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 3)
+    self.assertEqual(tiles[0], [1] * 16, "run A: STORE A should run")
+    # Run B's STORE should have been skipped — VMEM[6] must still hold
+    # the sentinel (not val_b).
+    self.assertEqual(tiles[1], [9] * 16, "run B: STORE must be skipped")
+    self.assertEqual(tiles[2], [2] * 16, "control STORE B")
 
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop

@@ -68,6 +68,8 @@ _SXU = {
     "LOAD_LOOP_DEPTH":         36,
     "DISPATCH_XLU_ROTATE":     37,
     "PSUM_CLEAR_ALL":          38,
+    "SET_PRED_NE_ZERO":        39,
+    "SKIP_IF_NOT_PRED":        40,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
