@@ -621,3 +621,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	1ceeda0	1	tinytpu	softsign adopts FABS (drops VZERO+FSUB+FMAX)	softsign test pass	renderer adoption start	iter 27 next
 2026-04-22	b98c3e0	1	tinytpu	float-abs adopts FABS (5 instrs -> 3)	58 abs tests pass	renderer adoption 2	iter 28 next
 2026-04-22	1f11ec3	1	vpu	VPU_ROTL + VPU_ROTR	tasm 133 + backend 931 pass	vpu=82 ops	iter 29 next
+2026-04-22	9d00bb7	1	lean	PE weight invariance theorems	lake build ok (8 theorems)	formal WS weight-stationary invariant	iter 30 next
