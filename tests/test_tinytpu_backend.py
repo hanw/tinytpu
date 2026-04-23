@@ -6216,6 +6216,63 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], exp_add, f"SAT_ADD_I32: got {tiles[0]}")
     self.assertEqual(tiles[1], exp_sub, f"SAT_SUB_I32: got {tiles[1]}")
 
+  def test_vpu_abs_diff(self):
+    # Push 4 iter 24: VPU_ABS_DIFF_I32 and VPU_PACKED_I8_ABS_DIFF
+    # compute |a - b| lane-wise (saturating). Useful for L1 distance
+    # reductions.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    I32_MAX = 2147483647
+    src_a = [10, -5, 7, 0, I32_MAX, 100, -100, 0, 1, -1, 500, -500, 0, 7, 42, 3]
+    src_b = [3, 2, -3, 5, -1, 100, -99, 0, -1, 1, 250, -750, 10, 7, 100, -3]
+    adi32_op = _VPU_OPS["ABS_DIFF_I32"]
+    bundle_i32 = _bundle(
+      _vmem(0, src_a),
+      _vmem(1, src_b),
+      _load(0, 0), _load(1, 1),
+      _vpu(2, 0, adi32_op, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle_i32)
+    tile = _parse_vmem_output(out)
+    expected_i32 = [min(I32_MAX, abs(a - b)) for a, b in zip(src_a, src_b)]
+    self.assertEqual(tile, expected_i32, f"ABS_DIFF_I32: got {tile}")
+
+  def test_vpu_packed_i8_abs_diff_byte_wise(self):
+    # Push 4 iter 24: packed-int8 variant of ABS_DIFF.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+    bytes_a = [(10, -5, 7, 0), (127, -128, 50, -50), (1, 2, 3, 4)] + [(0, 0, 0, 0)] * 13
+    bytes_b = [( 3,  2, -3, 5), (-1,  1, 25,  25), (5, 5, 5, 5)] + [(0, 0, 0, 0)] * 13
+    src1_tile = [pack_i8x4(*bs) for bs in bytes_a]
+    src2_tile = [pack_i8x4(*bs) for bs in bytes_b]
+    pi8_abs_diff = _VPU_OPS["PACKED_I8_ABS_DIFF"]
+    bundle = _bundle(
+      _vmem(0, src1_tile),
+      _vmem(1, src2_tile),
+      _load(0, 0), _load(1, 1),
+      _vpu(2, 0, pi8_abs_diff, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Per byte: sat_sub(a, b) then sat_abs.
+    def sat_sub(a, b):
+      return max(-128, min(127, a - b))
+    def sat_abs(x):
+      return 127 if x == -128 else abs(x)
+    exp = [pack_i8x4(*tuple(sat_abs(sat_sub(a, b)) for a, b in zip(ba, bb)))
+           for ba, bb in zip(bytes_a, bytes_b)]
+    self.assertEqual(tile, exp, f"PACKED_I8_ABS_DIFF: got {tile}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

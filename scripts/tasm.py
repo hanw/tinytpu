@@ -152,6 +152,8 @@ _VPU = {
     "BYTE_REVERSE":      74,
     "SAT_ADD_I32":       75,
     "SAT_SUB_I32":       76,
+    "ABS_DIFF_I32":      77,
+    "PACKED_I8_ABS_DIFF": 78,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 

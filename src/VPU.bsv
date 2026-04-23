@@ -46,7 +46,10 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                // 32-bit signed saturating add / sub (clamp to Int#(32)
                // range on overflow, matching C intrinsics /
                // DSP extensions).
-               VPU_SAT_ADD_I32, VPU_SAT_SUB_I32 }
+               VPU_SAT_ADD_I32, VPU_SAT_SUB_I32,
+               // |a - b| — saturating for int32 (|Int32_MIN - 0| clamps
+               // to Int32_MAX). Useful as an L1-distance primitive.
+               VPU_ABS_DIFF_I32, VPU_PACKED_I8_ABS_DIFF }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -639,6 +642,25 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                      (wide < -2147483648)  ? -2147483648 :
                      truncate(wide);
                   row[l] = clamped;
+               end
+            end
+            VPU_ABS_DIFF_I32: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Int#(33) diff = extend(src1[s][l]) - extend(src2[s][l]);
+                  Int#(33) mag  = (diff < 0) ? -diff : diff;
+                  Int#(32) clamped = (mag > 2147483647) ? 2147483647
+                                                        : truncate(mag);
+                  row[l] = clamped;
+               end
+            end
+            VPU_PACKED_I8_ABS_DIFF: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  match { .a0, .a1, .a2, .a3 } = unpack_i8x4(src1[s][l]);
+                  match { .b0, .b1, .b2, .b3 } = unpack_i8x4(src2[s][l]);
+                  row[l] = pack_i8x4(sat_abs_i8(sat_sub_i8(a0, b0)),
+                                     sat_abs_i8(sat_sub_i8(a1, b1)),
+                                     sat_abs_i8(sat_sub_i8(a2, b2)),
+                                     sat_abs_i8(sat_sub_i8(a3, b3)));
                end
             end
             VPU_MUL: begin
