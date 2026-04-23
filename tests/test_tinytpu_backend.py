@@ -5956,6 +5956,40 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tile, expected,
                      f"PACKED_I8_MUL_LOW: got {tile}, expected {expected}")
 
+  def test_vpu_packed_i8_mul_high_byte_wise(self):
+    # Push 4 iter 12: byte-wise signed multiply, keep high 8 bits.
+    # This models Q1.7 × Q1.7 → Q1.7 fixed-point scaling.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+    bytes_a = [(64, -64, 127, -128), (32, 16, 8, 4)] + [(0, 0, 0, 0)] * 14
+    bytes_b = [(64, 64, 64, 64), (32, 32, 32, 32)] + [(0, 0, 0, 0)] * 14
+    src1_tile = [pack_i8x4(*bs) for bs in bytes_a]
+    src2_tile = [pack_i8x4(*bs) for bs in bytes_b]
+    pi8_mul_high = _VPU_OPS["PACKED_I8_MUL_HIGH"]
+    bundle = _bundle(
+      _vmem(0, src1_tile),
+      _vmem(1, src2_tile),
+      _load(0, 0), _load(1, 1),
+      _vpu(2, 0, pi8_mul_high, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    def mulh(a, b):
+      wide = (a * b) & 0xFFFF
+      hi   = (wide >> 8) & 0xFF
+      return hi - 256 if hi >= 128 else hi
+    expected_bytes = [[mulh(a, b) for a, b in zip(ba, bb)]
+                      for ba, bb in zip(bytes_a, bytes_b)]
+    expected = [pack_i8x4(*tuple(e)) for e in expected_bytes]
+    self.assertEqual(tile, expected,
+                     f"PACKED_I8_MUL_HIGH: got {tile}, expected {expected}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

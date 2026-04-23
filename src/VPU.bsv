@@ -26,7 +26,7 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_PACKED_I8_MAX, VPU_PACKED_I8_MIN,
                VPU_PACKED_I8_NEG, VPU_PACKED_I8_RELU,
                VPU_PACKED_I8_CMPLT, VPU_PACKED_I8_CMPEQ,
-               VPU_PACKED_I8_MUL_LOW }
+               VPU_PACKED_I8_MUL_LOW, VPU_PACKED_I8_MUL_HIGH }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -143,6 +143,22 @@ function Int#(32) packed_i8_mul_low(Int#(32) a, Int#(32) b);
    match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
    return pack_i8x4(mul_low_i8(a0, b0), mul_low_i8(a1, b1),
                     mul_low_i8(a2, b2), mul_low_i8(a3, b3));
+endfunction
+
+// Byte-wise signed multiply, HIGH 8 bits of the 16-bit product.
+// Useful for Q1.7 × Q1.7 → Q1.7 (fixed-point scaling): lo gives the
+// wrap-around result, high gives the scaled result.
+function Int#(8) mul_high_i8(Int#(8) a, Int#(8) b);
+   Int#(16) wide = extend(a) * extend(b);
+   Bit#(16) bits = pack(wide);
+   return unpack(bits[15:8]);
+endfunction
+
+function Int#(32) packed_i8_mul_high(Int#(32) a, Int#(32) b);
+   match { .a0, .a1, .a2, .a3 } = unpack_i8x4(a);
+   match { .b0, .b1, .b2, .b3 } = unpack_i8x4(b);
+   return pack_i8x4(mul_high_i8(a0, b0), mul_high_i8(a1, b1),
+                    mul_high_i8(a2, b2), mul_high_i8(a3, b3));
 endfunction
 
 // Reinterpret Int#(32) bits as IEEE 754 Float (bitcast, not conversion)
@@ -466,6 +482,10 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_PACKED_I8_MUL_LOW: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = packed_i8_mul_low(src1[s][l], src2[s][l]);
+            end
+            VPU_PACKED_I8_MUL_HIGH: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = packed_i8_mul_high(src1[s][l], src2[s][l]);
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
