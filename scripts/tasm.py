@@ -154,6 +154,7 @@ _VPU = {
     "SAT_SUB_I32":       76,
     "ABS_DIFF_I32":      77,
     "PACKED_I8_ABS_DIFF": 78,
+    "FABS":              79,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
@@ -170,7 +171,7 @@ _VPU_UNARY = {"RELU", "SUM_REDUCE", "MAX_REDUCE", "MIN_REDUCE", "NOT", "COPY",
               "PACKED_I8_NEG", "PACKED_I8_RELU",
               "PACKED_I8_ABS", "SIGN", "PACKED_I8_SIGN", "FSIGN",
               "ARGMIN", "ARGMAX", "CLZ", "POPCOUNT",
-              "CTZ", "BYTE_REVERSE"}
+              "CTZ", "BYTE_REVERSE", "FABS"}
 
 # VMEM/WMEM/AMEM tile geometry
 _VMEM_ELEMS = 16   # 4×4 Int32

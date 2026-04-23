@@ -49,7 +49,10 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_SAT_ADD_I32, VPU_SAT_SUB_I32,
                // |a - b| — saturating for int32 (|Int32_MIN - 0| clamps
                // to Int32_MAX). Useful as an L1-distance primitive.
-               VPU_ABS_DIFF_I32, VPU_PACKED_I8_ABS_DIFF }
+               VPU_ABS_DIFF_I32, VPU_PACKED_I8_ABS_DIFF,
+               // Float absolute value (clear sign bit) — single-cycle
+               // unary, replaces the FSUB + FMAX pair in softsign.
+               VPU_FABS }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -661,6 +664,14 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                                      sat_abs_i8(sat_sub_i8(a1, b1)),
                                      sat_abs_i8(sat_sub_i8(a2, b2)),
                                      sat_abs_i8(sat_sub_i8(a3, b3)));
+               end
+            end
+            VPU_FABS: begin
+               // Clear the IEEE-754 sign bit of each lane.
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Bit#(32) b = pack(src1[s][l]);
+                  Bit#(32) r = { 1'b0, b[30:0] };
+                  row[l] = unpack(r);
                end
             end
             VPU_MUL: begin

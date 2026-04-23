@@ -6273,6 +6273,37 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
            for ba, bb in zip(bytes_a, bytes_b)]
     self.assertEqual(tile, exp, f"PACKED_I8_ABS_DIFF: got {tile}")
 
+  def test_vpu_fabs_float(self):
+    # Push 4 iter 25: VPU_FABS clears the float sign bit (bit 31).
+    # Compare at the int32-bit level, not reconstructed floats, because
+    # some literal decimals (e.g. 3.1, 1e-30) don't round-trip exactly
+    # through float32.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    def f2i(x): return struct.unpack("<i", struct.pack("<f", x))[0]
+    floats = [2.5, -3.1, 0.0, -0.0, 1e20, -1e20, 1e-30, -1e-30,
+              1.0, -1.0, 42.0, -42.0, 127.5, -0.001, 0.0, -0.0]
+    src_tile = [f2i(x) for x in floats]
+    fabs_op = _VPU_OPS["FABS"]
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _vpu(1, 0, fabs_op, 0),
+      _store(1, 1),
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Expected: clear bit 31 of each input. Express unsigned-ish via
+    # Python's signed→unsigned → back-to-signed through int32 masking.
+    def clear_sign(x):
+      u = x & 0x7FFFFFFF
+      return u - (1 << 32) if u >= (1 << 31) else u
+    expected = [clear_sign(x) for x in src_tile]
+    self.assertEqual(tile, expected, f"FABS bits: got {tile}, expected {expected}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0
