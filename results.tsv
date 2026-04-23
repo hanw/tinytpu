@@ -628,3 +628,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	decba23	1	vpu	VPU_MIN_U32 + VPU_MAX_U32	tasm 135 + backend 933 pass	vpu=84 ops	iter 34 memory refresh
 2026-04-22	4ed93cb	1	memory	checkpoint_2026_04_22 + MEMORY.md bump	none (memory)	push-4 checkpoint current	iter 35 project_status
 2026-04-22	1b4f03b	1	memory	project_tinytpu_status push-4 refresh	none (memory)	resume pointer current	iter 36 next
+2026-04-22	6512019	1	regression	BSV sample sweep (10 targets, 32 passes)	all green	no BSV regressions from push 4 opcode additions	iter 37 next
