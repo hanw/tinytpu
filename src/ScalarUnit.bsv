@@ -250,8 +250,21 @@ module mkScalarUnit#(
    // follow-up iter.
    Reg#(Bool)                    xlu_busy <- mkReg(False);
    Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
-   Reg#(Bool)                    vpu_busy <- mkReg(False);
-   Reg#(UInt#(4))                vpu_dst  <- mkReg(0);
+
+   // VPU writeback-pending tracker. This is strictly SXU-pipeline
+   // bookkeeping, NOT a view into the VPU's internal busy state
+   // (the VPU exposes that through `vpu.isDone` already). A
+   // DISPATCH_VPU or DISPATCH_VPU_BG sets `vpu_wb_pending := True`
+   // and captures the destination vreg in `vpu_wb_dst`; the unified
+   // collect rule retires the result into `vrf[vpu_wb_dst]` and
+   // clears the flag. Its sole purpose is to let SXU rule guards
+   // know "I have an outstanding BG whose vreg write hasn't landed
+   // yet," which is needed for RAW stalls on downstream readers
+   // (the VPU itself doesn't know about vregs — the target register
+   // is purely an SXU concept). Naming mirrors the intent: `_wb_`
+   // = writeback, not VPU-busy.
+   Reg#(Bool)                    vpu_wb_pending <- mkReg(False);
+   Reg#(UInt#(4))                vpu_wb_dst     <- mkReg(0);
 
    // Nested-loop state for SXU_LOOP_BEGIN / SXU_LOOP_END. Depth-4
    // stack: each LOOP_BEGIN pushes (count, return-pc) and each
@@ -347,7 +360,7 @@ module mkScalarUnit#(
    endrule
 
    // LOAD step 2: collect readResp, write to VRegFile, advance pc
-   rule do_load_resp (pc_state == SXU_EXEC_LOAD_RESP);
+   rule do_load_resp (pc_state == SXU_EXEC_LOAD_RESP && !vpu_wb_pending);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=LOAD_RESP pc=%0d", cycle, pc);
       $display("TRACE cycle=%0d unit=VMEM ev=READ_RESP", cycle);
@@ -359,7 +372,7 @@ module mkScalarUnit#(
 
    // STORE: read VRegFile, write to VMEM, advance pc
    // Conservative RAW stall: wait out any in-flight VPU_BG before
-   // STORE. A finer-grained `curInstr.vregSrc == vpu_dst` check would
+   // STORE. A finer-grained `curInstr.vregSrc == vpu_wb_dst` check would
    // let non-dependent STOREs proceed, but bsc's per-index Vector-of-
    // Reg VRegFile makes the cross-field guard elaborate catastrophi-
    // cally (>10x slowdown and blowing past the step-unfolding
@@ -367,7 +380,7 @@ module mkScalarUnit#(
    // follows a BG — acceptable for the first cut. A RAW scoreboard
    // keyed on the destination index can land in a follow-up iter
    // once we have a way to express it without pushing bsc over.
-   rule do_store (pc_state == SXU_EXEC_STORE && !vpu_busy);
+   rule do_store (pc_state == SXU_EXEC_STORE && !vpu_wb_pending);
       let data = vrf.read(truncate(curInstr.vregSrc));
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=STORE pc=%0d addr=%0d", cycle, pc, curInstr.vmemAddr);
@@ -387,10 +400,10 @@ module mkScalarUnit#(
    // to EXEC_VPU_COLLECT (main FSM stalls on collect), BG advances
    // pc + returns to FETCH in the same cycle so subsequent non-VPU
    // instructions overlap the in-flight VPU. Both paths capture
-   // vregDst into vpu_dst and set vpu_busy, so the unified collect
+   // vregDst into vpu_wb_dst and set vpu_wb_pending, so the unified collect
    // rule can retire either.
    rule do_vpu ((pc_state == SXU_EXEC_VPU || pc_state == SXU_EXEC_VPU_BG)
-                && !vpu_busy);
+                && !vpu_wb_pending);
       let s1 = vrf.read(truncate(curInstr.vregSrc));
       let s2 = vrf.read(truncate(curInstr.vregSrc2));
 `ifdef TRACE
@@ -401,8 +414,8 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=VPU ev=EXEC op=%0d", cycle, pack(curInstr.vpuOp));
 `endif
       vpu.execute(curInstr.vpuOp, s1, s2);
-      vpu_busy <= True;
-      vpu_dst  <= curInstr.vregDst;
+      vpu_wb_pending <= True;
+      vpu_wb_dst  <= curInstr.vregDst;
       if (pc_state == SXU_EXEC_VPU_BG) begin
          pc <= pc + 1;
          pc_state <= SXU_FETCH;
@@ -412,19 +425,19 @@ module mkScalarUnit#(
    endrule
 
 
-   // Unified VPU collect for both sync and BG. Fires on vpu_busy &&
+   // Unified VPU collect for both sync and BG. Fires on vpu_wb_pending &&
    // vpu.isDone — single-cycle ops next cycle, multi-cycle ops when
-   // fp_busy/transc_busy inside VPU drains. Writes vrf[vpu_dst] and
-   // clears vpu_busy. Sync-path collect additionally advances pc and
+   // fp_busy/transc_busy inside VPU drains. Writes vrf[vpu_wb_dst] and
+   // clears vpu_wb_pending. Sync-path collect additionally advances pc and
    // returns to FETCH (BG already did that at dispatch).
-   rule do_vpu_collect (vpu_busy && vpu.isDone);
+   rule do_vpu_collect (vpu_wb_pending && vpu.isDone);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=VPU_COLLECT pc=%0d dst=v%0d",
-               cycle, pc, vpu_dst);
+               cycle, pc, vpu_wb_dst);
       $display("TRACE cycle=%0d unit=VPU ev=RESULT", cycle);
 `endif
-      vrf.write(truncate(vpu_dst), vpu.result);
-      vpu_busy <= False;
+      vrf.write(truncate(vpu_wb_dst), vpu.result);
+      vpu_wb_pending <= False;
       if (pc_state == SXU_EXEC_VPU_COLLECT) begin
          pc <= pc + 1;
          pc_state <= SXU_FETCH;
@@ -437,7 +450,7 @@ module mkScalarUnit#(
    // guarded by !xlu_busy so a new XLU op can't be dispatched while
    // another is still outstanding (structural hazard). A RAW stall on
    // readers of xlu_dst lands in the next iter.
-   rule do_xlu_broadcast (pc_state == SXU_EXEC_XLU_BROADCAST && !xlu_busy);
+   rule do_xlu_broadcast (pc_state == SXU_EXEC_XLU_BROADCAST && !xlu_busy && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(lanes)) srcLane = truncate(curInstr.vregSrc2);
 `ifdef TRACE
@@ -451,7 +464,7 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_broadcast_scalar (pc_state == SXU_EXEC_XLU_BROADCAST_SCALAR && !xlu_busy);
+   rule do_xlu_broadcast_scalar (pc_state == SXU_EXEC_XLU_BROADCAST_SCALAR && !xlu_busy && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(4) sel = curInstr.vregSrc2;
       UInt#(TLog#(sublanes)) srcRow = truncate(sel >> valueOf(TLog#(lanes)));
@@ -466,7 +479,7 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_broadcast_row (pc_state == SXU_EXEC_XLU_BROADCAST_ROW && !xlu_busy);
+   rule do_xlu_broadcast_row (pc_state == SXU_EXEC_XLU_BROADCAST_ROW && !xlu_busy && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(sublanes)) srcRow = truncate(curInstr.vregSrc2);
 `ifdef TRACE
@@ -479,7 +492,7 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_broadcast_col (pc_state == SXU_EXEC_XLU_BROADCAST_COL && !xlu_busy);
+   rule do_xlu_broadcast_col (pc_state == SXU_EXEC_XLU_BROADCAST_COL && !xlu_busy && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(lanes)) srcCol = truncate(curInstr.vregSrc2);
 `ifdef TRACE
@@ -492,7 +505,7 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   rule do_xlu_transpose (pc_state == SXU_EXEC_XLU_TRANSPOSE && !xlu_busy);
+   rule do_xlu_transpose (pc_state == SXU_EXEC_XLU_TRANSPOSE && !xlu_busy && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=XLU_TRANSPOSE pc=%0d src=v%0d", cycle, pc, curInstr.vregSrc);
@@ -506,7 +519,7 @@ module mkScalarUnit#(
 
    // DISPATCH_XLU_ROTATE: cyclic lane rotation.
    // vregSrc = source tile; vregSrc2 low bits = rotate amount.
-   rule do_xlu_rotate (pc_state == SXU_EXEC_XLU_ROTATE && !xlu_busy);
+   rule do_xlu_rotate (pc_state == SXU_EXEC_XLU_ROTATE && !xlu_busy && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(lanes)) amount = truncate(curInstr.vregSrc2);
 `ifdef TRACE
@@ -538,7 +551,7 @@ module mkScalarUnit#(
    //   vregSrc  = condition tile register
    //   vregSrc2 = lhs/true tile register
    //   mxuWBase low bits = rhs/false tile register
-   rule do_select_copy (pc_state == SXU_EXEC_SELECT_COPY);
+   rule do_select_copy (pc_state == SXU_EXEC_SELECT_COPY && !vpu_wb_pending);
       let rhs = vrf.read(truncate(curInstr.mxuWBase));
       let zeros = replicate(replicate(0));
 `ifdef TRACE
@@ -551,7 +564,7 @@ module mkScalarUnit#(
 
    // DISPATCH_SELECT step 2: run native VPU_SELECT using copied rhs as the
    // implicit false path held in VPU resultReg.
-   rule do_select (pc_state == SXU_EXEC_SELECT);
+   rule do_select (pc_state == SXU_EXEC_SELECT && !vpu_wb_pending);
       let cond = vrf.read(truncate(curInstr.vregSrc));
       let lhs  = vrf.read(truncate(curInstr.vregSrc2));
 `ifdef TRACE
@@ -559,6 +572,10 @@ module mkScalarUnit#(
       $display("TRACE cycle=%0d unit=VPU ev=EXEC op=%0d", cycle, pack(VPU_SELECT));
 `endif
       vpu.execute(VPU_SELECT, cond, lhs);
+      // Set wb-pending so the unified do_vpu_collect rule retires
+      // the SELECT result into vregDst (same protocol as do_vpu).
+      vpu_wb_pending <= True;
+      vpu_wb_dst     <= curInstr.vregDst;
       pc_state <= SXU_EXEC_VPU_COLLECT;
    endrule
 
@@ -566,7 +583,8 @@ module mkScalarUnit#(
    // Mirror of LOAD_MXU_RESULT for the VPU accumulator. Lets kernels
    // chain VPU ops into a downstream engine without round-tripping
    // through VRegFile for writeback+read.
-   rule do_load_vpu_result (pc_state == SXU_EXEC_LOAD_VPU_RESULT && vpu.isDone);
+   rule do_load_vpu_result (pc_state == SXU_EXEC_LOAD_VPU_RESULT && vpu.isDone
+                            && !vpu_wb_pending);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=LOAD_VPU_RESULT pc=%0d dst=v%0d", cycle, pc, curInstr.vregDst);
 `endif
@@ -587,7 +605,7 @@ module mkScalarUnit#(
 
    // PSUM_WRITE: read vregSrc, deposit into psum bucket. Bucket index is
    // carried in vmemAddr (same 8-bit field as VMEM addr, truncated).
-   rule do_psum_write (pc_state == SXU_EXEC_PSUM_WRITE);
+   rule do_psum_write (pc_state == SXU_EXEC_PSUM_WRITE && !vpu_wb_pending);
       let data = vrf.read(truncate(curInstr.vregSrc));
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=PSUM_WRITE pc=%0d addr=%0d src=v%0d",
@@ -599,7 +617,7 @@ module mkScalarUnit#(
    endrule
 
    // PSUM_ACCUMULATE: psum[addr] += vregSrc.
-   rule do_psum_accumulate (pc_state == SXU_EXEC_PSUM_ACCUMULATE);
+   rule do_psum_accumulate (pc_state == SXU_EXEC_PSUM_ACCUMULATE && !vpu_wb_pending);
       let data = vrf.read(truncate(curInstr.vregSrc));
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=PSUM_ACCUMULATE pc=%0d addr=%0d src=v%0d",
@@ -634,7 +652,7 @@ module mkScalarUnit#(
    // PSUM_ACCUMULATE_ROW: accumulate row 0 of vregSrc into
    // psum[addr][row]. Mirror of Controller.psum.accumulateRow but
    // driven from a vreg (VPU-side path).
-   rule do_psum_accumulate_row (pc_state == SXU_EXEC_PSUM_ACCUMULATE_ROW);
+   rule do_psum_accumulate_row (pc_state == SXU_EXEC_PSUM_ACCUMULATE_ROW && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       UInt#(TLog#(sublanes)) row = truncate(curInstr.vregDst);
 `ifdef TRACE
@@ -648,7 +666,7 @@ module mkScalarUnit#(
 
    // SET_PRED_IF_ZERO: pred := (vreg[0][0] == 0). Scalar predicate
    // source is the top-left lane of vregSrc's tile.
-   rule do_set_pred (pc_state == SXU_EXEC_SET_PRED);
+   rule do_set_pred (pc_state == SXU_EXEC_SET_PRED && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       let scalar = src[0][0];
 `ifdef TRACE
@@ -674,7 +692,7 @@ module mkScalarUnit#(
 
    // SET_PRED_NE_ZERO: pred := (vreg[0][0] != 0). Complement of
    // SET_PRED_IF_ZERO — the "branch if non-zero" side of the pair.
-   rule do_set_pred_ne (pc_state == SXU_EXEC_SET_PRED_NE);
+   rule do_set_pred_ne (pc_state == SXU_EXEC_SET_PRED_NE && !vpu_wb_pending);
       let src = vrf.read(truncate(curInstr.vregSrc));
       let scalar = src[0][0];
 `ifdef TRACE
@@ -774,7 +792,7 @@ module mkScalarUnit#(
    endrule
 
    // VABS: vregDst := |vregSrc| lane-wise.
-   rule do_vabs (pc_state == SXU_EXEC_VABS);
+   rule do_vabs (pc_state == SXU_EXEC_VABS && !vpu_wb_pending);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=VABS pc=%0d dst=v%0d src=v%0d",
                cycle, pc, curInstr.vregDst, curInstr.vregSrc);
@@ -789,7 +807,7 @@ module mkScalarUnit#(
    endrule
 
    // VNEG: vregDst := -vregSrc lane-wise (signed two's complement).
-   rule do_vneg (pc_state == SXU_EXEC_VNEG);
+   rule do_vneg (pc_state == SXU_EXEC_VNEG && !vpu_wb_pending);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=VNEG pc=%0d dst=v%0d src=v%0d",
                cycle, pc, curInstr.vregDst, curInstr.vregSrc);
@@ -803,7 +821,7 @@ module mkScalarUnit#(
    endrule
 
    // VMOV: copy vregSrc into vregDst in one cycle.
-   rule do_vmov (pc_state == SXU_EXEC_VMOV);
+   rule do_vmov (pc_state == SXU_EXEC_VMOV && !vpu_wb_pending);
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=VMOV pc=%0d dst=v%0d src=v%0d",
                cycle, pc, curInstr.vregDst, curInstr.vregSrc);
