@@ -141,3 +141,19 @@ theorem abs_fold_preserves_weight (s : AbsPE) (xs : List Int) :
   | cons x xs ih =>
     rw [List.foldl_cons, ih, abs_step_preserves_weight]
 
+/-- `sign x` always returns a value in `{-1, 0, 1}`. Downstream
+    renderers (clip / relu chains) rely on this bound. -/
+theorem sign_bounded (x : Int) : -1 ≤ sign x ∧ sign x ≤ 1 := by
+  unfold sign
+  split_ifs <;> constructor <;> omega
+
+/-- `sign x * x` ≥ 0 (i.e. |x|, modulo the `sign 0 = 0` case). -/
+theorem sign_times_self_nonneg (x : Int) : sign x * x ≥ 0 := by
+  unfold sign
+  split_ifs
+  · omega
+  · have : x < 0 := by assumption
+    have : -x > 0 := by omega
+    nlinarith
+  · simp
+
