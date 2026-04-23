@@ -103,3 +103,24 @@ theorem zero_weight_accum_unchanged (s : AbsPE) (h : s.weight = 0)
       simp [AbsPE.step, h]
     rw [List.foldl_cons, ih (AbsPE.step s x) hstep_w, hstep_a]
 
+/-! ## VPU_SIGN semantics -/
+
+/--
+Integer sign function matching the BSV `VPU_SIGN` opcode: returns
+-1 / 0 / +1 lane-wise.
+-/
+def sign (x : Int) : Int :=
+  if x > 0 then 1 else if x < 0 then -1 else 0
+
+/-- `sign(sign(x)) = sign(x)` — the image of `sign` is in `{-1, 0, 1}`
+    and `sign` is the identity on that set. Matches the idempotency
+    property downstream renderers can rely on for clip/relu chains. -/
+theorem sign_idempotent (x : Int) : sign (sign x) = sign x := by
+  unfold sign
+  split_ifs <;> omega
+
+/-- `sign` is odd: `sign(-x) = -sign(x)`. -/
+theorem sign_odd (x : Int) : sign (-x) = -sign x := by
+  unfold sign
+  split_ifs <;> omega
+
