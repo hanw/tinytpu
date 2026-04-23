@@ -282,7 +282,7 @@ def datapath():
     # Engines column
     c.append(box("dp-mxu", "MXU (Tensor Engine)\nSystolicArray 4×4 Int8 + Controller · WS + OS",
                  280, ROWS["mxu"][0], 440, ROWS["mxu"][1], "mxu"))
-    c.append(box("dp-vpu", "VPU (Vector Engine)\nint32 + float32 ALU · 55 opcodes",
+    c.append(box("dp-vpu", "VPU (Vector Engine)\nint32 + float32 ALU · 73 opcodes (incl. packed int8)",
                  280, ROWS["vpu"][0], 440, ROWS["vpu"][1], "vpu"))
     c.append(box("dp-fpr",  "FpReducer\nFADD + FMUL + FCMP walker",
                  280, ROWS["fpr"][0], 215, ROWS["fpr"][1], "vpu"))
@@ -627,7 +627,7 @@ def main():
 <div class="panel">
 <div class="cap" style="margin-bottom:10px"><strong>Instruction encoding</strong> — one SXU instr per row, 10 fields</div>
 <ul>
-  <li>36 SXU opcodes: <code>LOAD_VREG</code>(0) … <code>HALT</code>(7) …
+  <li>41 SXU opcodes: <code>LOAD_VREG</code>(0) … <code>HALT</code>(7) …
       <code>DISPATCH_MXU</code>(4), <code>PSUM_*</code>(15–19, 22),
       <code>DISPATCH_MXU_ACCUMULATE</code>(23) (was the old misnomer
       <code>MXU_OS</code>), <code>MXU_CLEAR</code>(24),
@@ -636,9 +636,13 @@ def main():
       <code>LOOP_BEGIN</code>(28)/<code>LOOP_END</code>(29),
       <code>VZERO</code>(30)/<code>VFILL</code>(31)/<code>VMOV</code>(32),
       <code>DISPATCH_MXU_OS_ACCUMULATE</code>(33),
-      <code>VNEG</code>(34)/<code>VABS</code>(35)</li>
-  <li><code>sxu_op</code>=2 (DISPATCH_VPU) indexes into 55 float/int ALUs +
-      reducers + transcendentals</li>
+      <code>VNEG</code>(34)/<code>VABS</code>(35),
+      <code>LOAD_LOOP_DEPTH</code>(36),
+      <code>DISPATCH_XLU_ROTATE</code>(37),
+      <code>PSUM_CLEAR_ALL</code>(38),
+      <code>SET_PRED_NE_ZERO</code>(39)/<code>SKIP_IF_NOT_PRED</code>(40)</li>
+  <li><code>sxu_op</code>=2 (DISPATCH_VPU) indexes into 73 float/int/packed-i8
+      ALUs + reducers + transcendentals</li>
   <li>SXU waits on <code>vpu.isDone</code> between VPU dispatches —
       FpReducer / TranscUnit take N cycles</li>
   <li>XLU dispatches fire the bg collect rule; structural guard
@@ -730,8 +734,10 @@ def main():
       float SUM / MAX / MIN / PROD reducers (tile / row / col granularity).</li>
   <li><code>src/TranscUnit.bsv</code> — multi-cycle walker implementing EXP2 / LOG2 /
       SIN / COS via Remez minimax polynomials + range reduction.</li>
-  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; 36 SXU opcodes +
-      background <code>do_xlu_collect_bg</code> dual-issue rule + 1-bit predicate.</li>
+  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; 41 SXU opcodes +
+      background <code>do_xlu_collect_bg</code> dual-issue rule + 1-bit predicate
+      (complete pair: SET_PRED_{IF_ZERO,NE_ZERO} + SKIP_IF_{PRED,NOT_PRED}) +
+      nested-loop stack (depth 4).</li>
   <li><code>src/TensorCore.bsv</code>, <code>src/SystolicArray.bsv</code>,
       <code>src/Controller.bsv</code> — MXU stack + per-core integration. Controller
       carries a <code>DataflowMode</code> register; <code>startOS</code> preserves
