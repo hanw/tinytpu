@@ -42,7 +42,11 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_CLZ, VPU_POPCOUNT,
                // Count trailing zeros (32 for all-zero); byte-swap
                // within each 32-bit lane.
-               VPU_CTZ, VPU_BYTE_REVERSE }
+               VPU_CTZ, VPU_BYTE_REVERSE,
+               // 32-bit signed saturating add / sub (clamp to Int#(32)
+               // range on overflow, matching C intrinsics /
+               // DSP extensions).
+               VPU_SAT_ADD_I32, VPU_SAT_SUB_I32 }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -615,6 +619,26 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                   Bit#(32) b = pack(src1[s][l]);
                   Bit#(32) r = { b[ 7: 0], b[15: 8], b[23:16], b[31:24] };
                   row[l] = unpack(r);
+               end
+            end
+            VPU_SAT_ADD_I32: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Int#(33) wide = extend(src1[s][l]) + extend(src2[s][l]);
+                  Int#(32) clamped =
+                     (wide >  2147483647)  ?  2147483647 :
+                     (wide < -2147483648)  ? -2147483648 :
+                     truncate(wide);
+                  row[l] = clamped;
+               end
+            end
+            VPU_SAT_SUB_I32: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Int#(33) wide = extend(src1[s][l]) - extend(src2[s][l]);
+                  Int#(32) clamped =
+                     (wide >  2147483647)  ?  2147483647 :
+                     (wide < -2147483648)  ? -2147483648 :
+                     truncate(wide);
+                  row[l] = clamped;
                end
             end
             VPU_MUL: begin

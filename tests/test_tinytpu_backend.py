@@ -6183,6 +6183,39 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], expected_ctz, f"CTZ: got {tiles[0]}")
     self.assertEqual(tiles[1], expected_br, f"BYTE_REVERSE: got {tiles[1]}")
 
+  def test_vpu_sat_add_sub_i32(self):
+    # Push 4 iter 22: 32-bit signed saturating add/sub. Cover: in-range,
+    # positive overflow → clamp INT_MAX, negative overflow → clamp INT_MIN.
+    sim = os.environ["TINYTPU_SIM"]
+    I32_MAX = 2147483647
+    I32_MIN = -2147483648
+    bytes_a = [10, I32_MAX, I32_MIN,  I32_MAX,  5,  0, I32_MIN,       100,
+                0,    0,    I32_MAX,     -50, -100, 99,        0,     -1]
+    bytes_b = [ 3,       5,      -5,  1,       -10, 0,      -5, I32_MIN,
+                0, I32_MIN,    -10,    I32_MIN,  -50,  1, I32_MAX,     1]
+    sat_add_op = _VPU_OPS["SAT_ADD_I32"]
+    sat_sub_op = _VPU_OPS["SAT_SUB_I32"]
+    bundle = _bundle(
+      _vmem(0, bytes_a),
+      _vmem(1, bytes_b),
+      _load(0, 0), _load(1, 1),
+      _vpu(2, 0, sat_add_op, 1),
+      _vpu(3, 0, sat_sub_op, 1),
+      _store(2, 2),
+      _store(3, 3),
+      _halt(),
+      _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    def sat(x): return max(I32_MIN, min(I32_MAX, x))
+    exp_add = [sat(a + b) for a, b in zip(bytes_a, bytes_b)]
+    exp_sub = [sat(a - b) for a, b in zip(bytes_a, bytes_b)]
+    self.assertEqual(tiles[0], exp_add, f"SAT_ADD_I32: got {tiles[0]}")
+    self.assertEqual(tiles[1], exp_sub, f"SAT_SUB_I32: got {tiles[1]}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

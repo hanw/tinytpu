@@ -150,6 +150,8 @@ _VPU = {
     "POPCOUNT":          72,
     "CTZ":               73,
     "BYTE_REVERSE":      74,
+    "SAT_ADD_I32":       75,
+    "SAT_SUB_I32":       76,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
