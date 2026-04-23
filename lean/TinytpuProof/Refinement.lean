@@ -82,3 +82,24 @@ theorem accumulate_compose (s : AbsPE) (xs ys : List Int) :
     (xs ++ ys).foldl AbsPE.step s := by
   rw [List.foldl_append]
 
+/-! ## Zero-weight inertness -/
+
+/--
+A PE with `weight = 0` is inert: any activation sequence leaves the
+accumulator unchanged. This is the correctness property for the
+"cleared weight tile" idiom — after `startAccumulate` skips the
+drain-time clear but a fresh weight hasn't been loaded yet, any
+leftover activation stream must not corrupt the psum.
+-/
+theorem zero_weight_accum_unchanged (s : AbsPE) (h : s.weight = 0)
+    (xs : List Int) :
+    (xs.foldl AbsPE.step s).accum = s.accum := by
+  induction xs generalizing s with
+  | nil => simp
+  | cons x xs ih =>
+    have hstep_w : (AbsPE.step s x).weight = 0 := by
+      simp [AbsPE.step, h]
+    have hstep_a : (AbsPE.step s x).accum = s.accum := by
+      simp [AbsPE.step, h]
+    rw [List.foldl_cons, ih (AbsPE.step s x) hstep_w, hstep_a]
+
