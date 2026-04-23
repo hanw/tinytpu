@@ -6043,6 +6043,36 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], expected_abs, "PACKED_I8_ABS mismatch")
     self.assertEqual(tiles[1], expected_sign, "PACKED_I8_SIGN mismatch")
 
+  def test_vpu_fsign_float(self):
+    # Push 4 iter 15: VPU_FSIGN emits -1.0 / 0.0 / +1.0 per lane from
+    # the sign of the input float.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    def f2i(x): return struct.unpack("<i", struct.pack("<f", x))[0]
+    def i2f(x): return struct.unpack("<f", struct.pack("<i", x))[0]
+    floats = [2.5, -3.1, 0.0, 1e-30, -1e-30, 1e20, -1e20, 0.0,
+              -0.0, 1.0, -1.0, 42.0, -42.0, 0.0, 127.5, -0.001]
+    src_tile = [f2i(x) for x in floats]
+    fsign_op = _VPU_OPS["FSIGN"]
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _vpu(1, 0, fsign_op, 0),
+      _store(1, 1),
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    float_out = [i2f(x) for x in tile]
+    # Note: -0.0 in IEEE: sign bit set, exp=0, sfd=0. Our impl treats
+    # both +0 and -0 as zero and outputs 0.0.
+    expected = [1.0, -1.0, 0.0, 1.0, -1.0, 1.0, -1.0, 0.0,
+                0.0, 1.0, -1.0, 1.0, -1.0, 0.0, 1.0, -1.0]
+    self.assertEqual(float_out, expected,
+                     f"FSIGN: got {float_out}, expected {expected}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

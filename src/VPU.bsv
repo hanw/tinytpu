@@ -31,7 +31,9 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                // Lane-wise sign: -1 if x<0, 0 if x==0, 1 if x>0.
                VPU_SIGN,
                // Byte-wise sign on packed int8 (per-byte -1/0/+1).
-               VPU_PACKED_I8_SIGN }
+               VPU_PACKED_I8_SIGN,
+               // Float lane-wise sign: -1.0 if x<0, +1.0 if x>0, 0.0 if x==0.
+               VPU_FSIGN }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -527,6 +529,17 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
             VPU_PACKED_I8_SIGN: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = packed_i8_sign(src1[s][l]);
+            end
+            VPU_FSIGN: begin
+               // -1.0 (0xBF800000), 0.0 (0x00000000), +1.0 (0x3F800000).
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Float x = bits2fp(src1[s][l]);
+                  Bool is_zero = (x.exp == 0 && x.sfd == 0);
+                  Int#(32) sign_bits = is_zero ? 32'h00000000 :
+                                        (x.sign ? 32'hBF800000 :
+                                                  32'h3F800000);
+                  row[l] = sign_bits;
+               end
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
