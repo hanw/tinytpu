@@ -124,3 +124,20 @@ theorem sign_odd (x : Int) : sign (-x) = -sign x := by
   unfold sign
   split_ifs <;> omega
 
+/-! ## PE weight invariance -/
+
+/-- A single `AbsPE.step` preserves the weight register — only
+    `accum` changes. This is the invariant downstream Controller
+    logic relies on across dispatches (weight stays stationary in WS). -/
+theorem abs_step_preserves_weight (s : AbsPE) (a : Int) :
+    (AbsPE.step s a).weight = s.weight := by
+  simp [AbsPE.step]
+
+/-- Folding any activation list preserves the weight. -/
+theorem abs_fold_preserves_weight (s : AbsPE) (xs : List Int) :
+    (xs.foldl AbsPE.step s).weight = s.weight := by
+  induction xs generalizing s with
+  | nil => simp
+  | cons x xs ih =>
+    rw [List.foldl_cons, ih, abs_step_preserves_weight]
+
