@@ -616,3 +616,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	27f5a8b	1	vpu	VPU_CTZ + VPU_BYTE_REVERSE	tasm 126 + backend 924 pass	vpu=75 ops	iter 22 next
 2026-04-22	a91d01f	1	vpu	VPU_SAT_ADD_I32 + VPU_SAT_SUB_I32	tasm 128 + backend 925 pass	vpu=77 ops	iter 23 lean sign
 2026-04-22	b2ac7a3	1	lean	sign_idempotent + sign_odd	lake build ok (6 theorems)	formal sign semantics	iter 24 more vpu
+2026-04-22	dad848f	1	vpu	ABS_DIFF_I32 + PACKED_I8_ABS_DIFF	tasm 130 + backend 927 pass	vpu=79 ops	iter 25 todo refresh
