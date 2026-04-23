@@ -612,3 +612,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	311d4f5	1	vpu	VPU_CLZ + VPU_POPCOUNT	tasm 124 + backend 923 pass	vpu=73 ops	iter 18 byte reverse
 2026-04-22	305fa46	1	doc	architecture.html opcode refresh	none (docs)	docs sync to push 4 state	iter 19 tanh
 2026-04-22	531dbe2	1	regression	push-4 midpoint full sweep	Python 1107+1skip; BSV sample 15/15	regression baseline clean	iter 20 TODO refresh
+2026-04-22	ec381ca	1	todo	push-4 progress summary	none (docs)	Nested LOOP closed; int8 at 10 ops	iter 21 next
