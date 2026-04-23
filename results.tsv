@@ -607,3 +607,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	ca19d50	1	vpu	VPU_PACKED_I8_MUL_HIGH (Q-format hi-byte)	tasm 116 + backend 918 pass	packed_i8 at 8 ops	iter 13 vpu sign
 2026-04-22	57b75e7	1	vpu	SIGN + PACKED_I8_ABS + PACKED_I8_SIGN unary ops	tasm 119 + backend 920 pass	packed_i8 at 10 ops (ABS/SIGN)	iter 14 lean proof
 2026-04-22	539d74b	1	lean	zero_weight_accum_unchanged theorem	lake build ok (4 theorems)	formal inertness of 0-weight	iter 15 next
+2026-04-22	15ef22e	1	vpu	VPU_FSIGN float sign opcode	tasm 120 + backend 921 pass	vpu=69 ops	iter 16 xlu permute
