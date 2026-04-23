@@ -615,6 +615,36 @@ New single-cycle opcodes added for instruction density and perf work:
 Renderer adoption of the new opcodes is an ongoing task — most
 renderers still emit the old multi-instruction patterns.
 
+### Recent SXU + VPU extensions (push 4)
+
+Opcode total: SXU 36 → 41; VPU 55 → 73.
+
+SXU additions (36-40):
+- `SXU_LOAD_LOOP_DEPTH` (36) — read current loop-stack depth (for debug
+  introspection of nested loops).
+- `SXU_DISPATCH_XLU_ROTATE` (37) — exposes XLU's cyclic-rotate
+  hardware that had no SXU entry point.
+- `SXU_PSUM_CLEAR_ALL` (38) — multi-cycle walker inside SXU that zeros
+  every bucket. 1 instruction replaces 8 `PSUM_CLEAR`s for multi-K
+  GEMM epilogues.
+- `SXU_SET_PRED_NE_ZERO` (39) / `SXU_SKIP_IF_NOT_PRED` (40) —
+  completes the predicate pair (if-zero and if-nonzero, skip-if-pred
+  and skip-if-not-pred, both arms of `if/else` expressible).
+
+SXU LOOP_BEGIN/LOOP_END now use a **depth-4 stack** (was single-level
+in push 3) — nested counted loops work up to 4 levels.
+
+VPU additions (55-72):
+- Packed-int8 arithmetic: `PACKED_I8_ADD` / `_SUB` / `_MAX` / `_MIN`
+  (55-58) with byte-wise saturation; `_NEG` / `_RELU` (59-60) unary;
+  `_CMPLT` / `_CMPEQ` (61-62) byte-wise compare; `_MUL_LOW` /
+  `_MUL_HIGH` (63-64) multiply with wrap / Q-format; `_ABS` /
+  `_SIGN` (65/67) unary.
+- `VPU_SIGN` (66) int32 lane-wise sign; `VPU_FSIGN` (68) float
+  lane-wise sign (-1.0 / 0.0 / +1.0).
+- `VPU_ARGMIN` / `VPU_ARGMAX` (69/70) per-row index reductions.
+- `VPU_CLZ` / `VPU_POPCOUNT` (71/72) bit-manipulation primitives.
+
 ### Deferred (called out but probably not next)
 
 - Mixed-precision MXU (bf16/fp16 MACs) — big surgery, unclear ROI
@@ -627,11 +657,17 @@ renderers still emit the old multi-instruction patterns.
   Padé forms need a divider (not in TranscUnit); degree-5 odd Remez +
   saturation is feasible but requires careful coefficient fitting. Lower
   ROI now that exp2/log2 compositions cover the usage.
-- **Int8 packed VPU arithmetic.** 4 i8 lanes per VPU lane with
-  saturation. Sits behind a bigger "quantized inference" workload pull
-  — keep deferred until that lands.
-- **Nested loops in SXU.** Current LOOP has one counter Reg; nesting
-  needs a small stack. Add when a renderer actually needs it.
+- **Int8 packed VPU arithmetic.** [largely landed in push 4] Coverage:
+  ADD/SUB (saturating), MAX/MIN, NEG (saturating), RELU, CMPLT/CMPEQ,
+  MUL_LOW (wrap)/MUL_HIGH (Q1.7), ABS, SIGN — 10 opcodes (55-67).
+  Remaining: (a) byte-wise logical ops reuse VPU_AND/OR/XOR/NOT via
+  the 32-bit path (no new opcode needed); (b) unpack/pack between
+  packed-i8 and full int32 tiles — deferred until a real quantized
+  workload needs it (shape math is tricky); (c) renderer adoption
+  (none yet — no int8 tinygrad workload has landed).
+- **Nested loops in SXU.** [done in push 4 iter 1] LOOP_BEGIN/END now use
+  a depth-4 stack (`loopCounterStack` + `loopReturnPcStack` + `loopTop`).
+  `LOAD_LOOP_DEPTH` (36) exposes the current depth for debug.
 
 ## Milestones
 
