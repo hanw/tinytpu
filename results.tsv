@@ -615,3 +615,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	ec381ca	1	todo	push-4 progress summary	none (docs)	Nested LOOP closed; int8 at 10 ops	iter 21 next
 2026-04-22	27f5a8b	1	vpu	VPU_CTZ + VPU_BYTE_REVERSE	tasm 126 + backend 924 pass	vpu=75 ops	iter 22 next
 2026-04-22	a91d01f	1	vpu	VPU_SAT_ADD_I32 + VPU_SAT_SUB_I32	tasm 128 + backend 925 pass	vpu=77 ops	iter 23 lean sign
+2026-04-22	b2ac7a3	1	lean	sign_idempotent + sign_odd	lake build ok (6 theorems)	formal sign semantics	iter 24 more vpu
