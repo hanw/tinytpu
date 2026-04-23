@@ -141,20 +141,6 @@ typedef enum {
    // can be expressed. pred is auto-reset on skip-taken (same as
    // SKIP_IF_PRED).
    SXU_SKIP_IF_NOT_PRED,
-   // DISPATCH_VPU_BG: background-collect dual-issue VPU dispatch,
-   // aimed at single-cycle ops. Same operand layout as
-   // SXU_DISPATCH_VPU. The dispatch rule fires vpu.execute, captures
-   // vregDst into vpu_dst, sets vpu_busy, advances pc and returns to
-   // FETCH in the same cycle (no EXEC_VPU_COLLECT stall). A separate
-   // background rule (do_vpu_collect_bg) fires when vpu.isDone is
-   // True while vpu_busy is set, writes vpu.result into vpu_dst, and
-   // clears vpu_busy. While vpu_busy is set, both sync DISPATCH_VPU
-   // and a second DISPATCH_VPU_BG stall (structural hazard on
-   // resultReg / vpu.execute). Multi-cycle ops will functionally
-   // work via this opcode too (BG collect just waits for
-   // transc/fp_busy to drain), but the target usage is single-cycle
-   // arithmetic where the 1-cycle resultReg latency can overlap the
-   // next LOAD / STORE / MXU dispatch.
    SXU_DISPATCH_VPU_BG
 } SxuOpCode deriving (Bits, Eq, FShow);
 
@@ -264,15 +250,6 @@ module mkScalarUnit#(
    // follow-up iter.
    Reg#(Bool)                    xlu_busy <- mkReg(False);
    Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
-
-   // VPU dual-issue scoreboard. vpu_busy is set on SXU_DISPATCH_VPU_BG
-   // dispatch and cleared by the background collect rule once the VPU
-   // produces its result (single-cycle: next cycle; multi-cycle:
-   // whenever transc_busy/fp_busy inside the VPU drains). vpu_dst
-   // captures the destination vreg so the collect rule knows where
-   // to write. While set, both the sync DISPATCH_VPU path and a
-   // second DISPATCH_VPU_BG dispatch stall, preventing a collision
-   // on the shared vpu.execute method / resultReg.
    Reg#(Bool)                    vpu_busy <- mkReg(False);
    Reg#(UInt#(4))                vpu_dst  <- mkReg(0);
 
@@ -381,7 +358,16 @@ module mkScalarUnit#(
    endrule
 
    // STORE: read VRegFile, write to VMEM, advance pc
-   rule do_store (pc_state == SXU_EXEC_STORE);
+   // Conservative RAW stall: wait out any in-flight VPU_BG before
+   // STORE. A finer-grained `curInstr.vregSrc == vpu_dst` check would
+   // let non-dependent STOREs proceed, but bsc's per-index Vector-of-
+   // Reg VRegFile makes the cross-field guard elaborate catastrophi-
+   // cally (>10x slowdown and blowing past the step-unfolding
+   // budget). The conservative guard costs 1-2 cycles per STORE that
+   // follows a BG — acceptable for the first cut. A RAW scoreboard
+   // keyed on the destination index can land in a follow-up iter
+   // once we have a way to express it without pushing bsc over.
+   rule do_store (pc_state == SXU_EXEC_STORE && !vpu_busy);
       let data = vrf.read(truncate(curInstr.vregSrc));
 `ifdef TRACE
       $display("TRACE cycle=%0d unit=SXU ev=STORE pc=%0d addr=%0d", cycle, pc, curInstr.vmemAddr);
@@ -392,62 +378,57 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // DISPATCH_VPU: read two source vregs, dispatch VPU. Guarded on
-   // !vpu_busy so a prior DISPATCH_VPU_BG in flight can't be stomped.
-   rule do_vpu (pc_state == SXU_EXEC_VPU && !vpu_busy);
+   // DISPATCH_VPU (sync) and DISPATCH_VPU_BG (dual-issue) share one
+   // dispatch rule to keep the number of vrf.read call sites bounded
+   // — bsc's per-index mux for the Vector-of-Reg VRegFile elaborates
+   // O(numRegs) per call, and adding an extra reader pair above the
+   // baseline blows past the default `-steps-max-intervals 20`
+   // unfolding budget. The rule forks on pc_state: sync transitions
+   // to EXEC_VPU_COLLECT (main FSM stalls on collect), BG advances
+   // pc + returns to FETCH in the same cycle so subsequent non-VPU
+   // instructions overlap the in-flight VPU. Both paths capture
+   // vregDst into vpu_dst and set vpu_busy, so the unified collect
+   // rule can retire either.
+   rule do_vpu ((pc_state == SXU_EXEC_VPU || pc_state == SXU_EXEC_VPU_BG)
+                && !vpu_busy);
       let s1 = vrf.read(truncate(curInstr.vregSrc));
       let s2 = vrf.read(truncate(curInstr.vregSrc2));
 `ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_VPU pc=%0d op=%0d", cycle, pc, pack(curInstr.vpuOp));
-      $display("TRACE cycle=%0d unit=VPU ev=EXEC op=%0d", cycle, pack(curInstr.vpuOp));
-`endif
-      vpu.execute(curInstr.vpuOp, s1, s2);
-      pc_state <= SXU_EXEC_VPU_COLLECT;
-   endrule
-
-   // DISPATCH_VPU_BG: background-collect dual-issue path. Fires
-   // vpu.execute, captures vregDst, advances pc and returns to FETCH
-   // in one cycle. A separate do_vpu_collect_bg rule retires the
-   // write one (or more) cycles later without stalling the main FSM.
-   rule do_vpu_bg (pc_state == SXU_EXEC_VPU_BG && !vpu_busy);
-      let s1 = vrf.read(truncate(curInstr.vregSrc));
-      let s2 = vrf.read(truncate(curInstr.vregSrc2));
-`ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_VPU_BG pc=%0d op=%0d dst=v%0d",
-               cycle, pc, pack(curInstr.vpuOp), curInstr.vregDst);
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_VPU%s pc=%0d op=%0d",
+               cycle,
+               (pc_state == SXU_EXEC_VPU_BG) ? "_BG" : "",
+               pc, pack(curInstr.vpuOp));
       $display("TRACE cycle=%0d unit=VPU ev=EXEC op=%0d", cycle, pack(curInstr.vpuOp));
 `endif
       vpu.execute(curInstr.vpuOp, s1, s2);
       vpu_busy <= True;
       vpu_dst  <= curInstr.vregDst;
-      pc <= pc + 1;
-      pc_state <= SXU_FETCH;
+      if (pc_state == SXU_EXEC_VPU_BG) begin
+         pc <= pc + 1;
+         pc_state <= SXU_FETCH;
+      end else begin
+         pc_state <= SXU_EXEC_VPU_COLLECT;
+      end
    endrule
 
-   // Background VPU collect. For single-cycle ops, vpu.isDone is True
-   // the same cycle and this rule retires on cycle N+1. For multi-
-   // cycle ops (EXP2/LOG2/SIN/COS, fp tile reducers), it stalls until
-   // the in-VPU walker drains and isDone asserts.
-   rule do_vpu_collect_bg (vpu_busy && vpu.isDone);
+
+   // Unified VPU collect for both sync and BG. Fires on vpu_busy &&
+   // vpu.isDone — single-cycle ops next cycle, multi-cycle ops when
+   // fp_busy/transc_busy inside VPU drains. Writes vrf[vpu_dst] and
+   // clears vpu_busy. Sync-path collect additionally advances pc and
+   // returns to FETCH (BG already did that at dispatch).
+   rule do_vpu_collect (vpu_busy && vpu.isDone);
 `ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=VPU_COLLECT_BG dst=v%0d", cycle, vpu_dst);
+      $display("TRACE cycle=%0d unit=SXU ev=VPU_COLLECT pc=%0d dst=v%0d",
+               cycle, pc, vpu_dst);
+      $display("TRACE cycle=%0d unit=VPU ev=RESULT", cycle);
 `endif
       vrf.write(truncate(vpu_dst), vpu.result);
       vpu_busy <= False;
-   endrule
-
-   // Collect VPU result. Single-cycle ops report isDone immediately; the
-   // multi-cycle float reducer keeps isDone=False while its FSM walks, so
-   // this rule stalls until the reducer finishes and resultReg holds the
-   // final broadcast value.
-   rule do_vpu_collect (pc_state == SXU_EXEC_VPU_COLLECT && vpu.isDone);
-`ifdef TRACE
-      $display("TRACE cycle=%0d unit=SXU ev=VPU_COLLECT pc=%0d", cycle, pc);
-      $display("TRACE cycle=%0d unit=VPU ev=RESULT", cycle);
-`endif
-      vrf.write(truncate(curInstr.vregDst), vpu.result);
-      pc <= pc + 1;
-      pc_state <= SXU_FETCH;
+      if (pc_state == SXU_EXEC_VPU_COLLECT) begin
+         pc <= pc + 1;
+         pc_state <= SXU_FETCH;
+      end
    endrule
 
    // XLU dispatches are now dual-issue: they fire on the dispatch cycle,

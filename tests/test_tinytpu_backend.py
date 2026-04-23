@@ -5628,6 +5628,55 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertLess(span, 16,
                     f"VPU_BG dual-issue span {span} cycles — BG collect regressed to sync")
 
+  def test_vpu_bg_multi_cycle_log2_still_drains_correctly(self):
+    # Push 5 iter 2: prove SXU_DISPATCH_VPU_BG is safe for multi-cycle ops
+    # too. Push-4's iter-2 dual-issue attempt broke log2/exp2 (result
+    # returned 0); the dedicated opcode plus vpu_busy-guarded BG collect
+    # stalls on vpu.isDone inside VPU, so the walker finishes before the
+    # write. LOG2(8) == 3.0 exact; other lanes: LOG2(1)=0, LOG2(2)=1,
+    # LOG2(4)=2, LOG2(16)=4 — all exact at powers of two.
+    import struct
+    from tinygrad.runtime.ops_tinytpu import _vpu_bg
+    sim = os.environ["TINYTPU_SIM"]
+    def _f(x: float) -> int:
+      return int.from_bytes(struct.pack("<f", x), "little", signed=False)
+    inputs = [1.0, 2.0, 4.0, 8.0] + [0.0] * 12   # last 12 lanes padded
+    tile_bits = [_f(v) for v in inputs]
+    # First confirm sync LOG2 still works (sanity baseline).
+    bundle_sync = _bundle(
+      _vmem(0, tile_bits),
+      _load(0, 0),
+      _vpu(1, 0, _VPU_OPS["LOG2"]),
+      _store(1, 1),
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out_sync = _run_bundle(sim, bundle_sync)
+    tile_sync = _parse_vmem_output(out_sync)
+    sync_floats = [struct.unpack("<f", int(u).to_bytes(4, "little", signed=False))[0]
+                   for u in (t & 0xFFFFFFFF for t in tile_sync)]
+    self.assertAlmostEqual(sync_floats[1], 1.0, delta=0.01, msg="sync LOG2 broken")
+
+    bundle = _bundle(
+      _vmem(0, tile_bits),
+      _load(0, 0),
+      _vpu_bg(1, 0, _VPU_OPS["LOG2"]),  # multi-cycle through BG path
+      _store(1, 1),
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    as_floats = [struct.unpack("<f", int(u).to_bytes(4, "little", signed=False))[0]
+                 for u in (t & 0xFFFFFFFF for t in tile)]
+    # Exact at powers of two (per TranscUnit LOG2 design).
+    self.assertAlmostEqual(as_floats[0], 0.0, delta=0.01)   # log2(1)
+    self.assertAlmostEqual(as_floats[1], 1.0, delta=0.01)   # log2(2)
+    self.assertAlmostEqual(as_floats[2], 2.0, delta=0.01)   # log2(4)
+    self.assertAlmostEqual(as_floats[3], 3.0, delta=0.01)   # log2(8)
+
   def test_vpu_packed_i8_add_lane_wise_saturating(self):
     # Push 4 iter 2: new VPU_PACKED_I8_ADD treats each 32-bit lane as 4
     # packed signed int8 bytes (little-endian) and adds them with per-

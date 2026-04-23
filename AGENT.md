@@ -195,7 +195,7 @@ When updating `TODO.md`, keep the edit scoped to the completed iteration:
 When updating `results.tsv`, append one row per completed iteration or batch. Keep the file tab-separated with this schema:
 
 ```text
-date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_gap
+date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_gap	runtime_build_s
 ```
 
 Rules for `results.tsv`:
@@ -208,6 +208,15 @@ Rules for `results.tsv`:
 - Use `tests_passed` for the highest-signal verification command and result.
 - Use `todo_delta` to summarize TODO progress changed by the iteration.
 - Use `remaining_gap` for the next concrete blocker surfaced by the work.
+- Use `runtime_build_s` for a clean-rebuild wall-clock timing of
+  `build/mkTbTinyTPURuntime.bexe` (seconds, from the `total` line of
+  `time make build/mkTbTinyTPURuntime.bexe` after removing the
+  relevant `.bo` / `.bexe` artifacts). If an iter didn't touch BSV
+  or didn't need the runtime sim, reuse the last iter's number. If
+  it jumps >2× vs. the prior iter, treat it as a regression and
+  investigate before landing (usually: collapsing extra vrf.read /
+  vrf.write call sites, or moving cross-field struct-equality
+  checks out of rule guards and into fetch-time cached Bools).
 
 ## Expected Output
 
