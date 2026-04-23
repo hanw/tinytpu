@@ -39,7 +39,10 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_ARGMIN, VPU_ARGMAX,
                // Per-lane count-leading-zeros and popcount (lane-wise
                // unary ops on the raw 32-bit value).
-               VPU_CLZ, VPU_POPCOUNT }
+               VPU_CLZ, VPU_POPCOUNT,
+               // Count trailing zeros (32 for all-zero); byte-swap
+               // within each 32-bit lane.
+               VPU_CTZ, VPU_BYTE_REVERSE }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -593,6 +596,25 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                      if (b[bi] == 1)
                         cnt = cnt + 1;
                   row[l] = unpack(pack(cnt));
+               end
+            end
+            VPU_CTZ: begin
+               // Count trailing zeros; 32 for all-zero input.
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Bit#(32) b = pack(src1[s][l]);
+                  UInt#(32) cnt = 32;
+                  for (Integer bi = 0; bi < 32; bi = bi + 1)
+                     if (b[bi] == 1 && cnt == 32)
+                        cnt = fromInteger(bi);
+                  row[l] = unpack(pack(cnt));
+               end
+            end
+            VPU_BYTE_REVERSE: begin
+               // Byte-swap each 32-bit lane (little-endian ↔ big-endian).
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Bit#(32) b = pack(src1[s][l]);
+                  Bit#(32) r = { b[ 7: 0], b[15: 8], b[23:16], b[31:24] };
+                  row[l] = unpack(r);
                end
             end
             VPU_MUL: begin

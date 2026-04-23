@@ -728,9 +728,25 @@ def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
     # Full VPU opcode range including EXP2/LOG2/SIN/COS transcendentals
     # and the packed-int8 quantized ops at the tail.
-    assert len(_VPU) == 73
+    assert len(_VPU) == 75
     codes = sorted(_VPU.values())
-    assert codes == list(range(73))
+    assert codes == list(range(75))
+
+
+def test_vpu_ctz_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nVPU   v1 = CTZ(v0)\nSTORE VMEM[1], v1\nHALT\nEND\n"
+    wire = assemble(prog)
+    vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
+    assert vpu_line.split()[5] == "73"
+    assert "CTZ(v0)" in disassemble(wire)
+
+
+def test_vpu_byte_reverse_roundtrip():
+    prog = "LOAD  v0, VMEM[0]\nVPU   v1 = BYTE_REVERSE(v0)\nSTORE VMEM[1], v1\nHALT\nEND\n"
+    wire = assemble(prog)
+    vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
+    assert vpu_line.split()[5] == "74"
+    assert "BYTE_REVERSE(v0)" in disassemble(wire)
 
 
 def test_vpu_clz_roundtrip():

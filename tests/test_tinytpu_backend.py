@@ -6143,6 +6143,46 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], expected_clz, f"CLZ mismatch: {tiles[0]}")
     self.assertEqual(tiles[1], expected_popc, f"POPCOUNT mismatch: {tiles[1]}")
 
+  def test_vpu_ctz_and_byte_reverse(self):
+    # Push 4 iter 21: VPU_CTZ counts trailing zeros (32 if all-zero);
+    # VPU_BYTE_REVERSE swaps byte order within each 32-bit lane.
+    sim = os.environ["TINYTPU_SIM"]
+    # CTZ test: 0→32, 1→0, 2→1, 4→2, 8→3, 0x100→8, -1→0, etc.
+    # BYTE_REVERSE test: same values, check byte-swap.
+    src = [0, 1, 2, 4, 8, 0x100, -1, 0x12345678, 0x80000000 - (1 << 32),
+           0x40, 0xFF, 7, 256, 512, 0x10000, -4]
+    ctz_op = _VPU_OPS["CTZ"]
+    br_op = _VPU_OPS["BYTE_REVERSE"]
+    bundle = _bundle(
+      _vmem(0, src),
+      _load(0, 0),
+      _vpu(1, 0, ctz_op, 0),
+      _vpu(2, 0, br_op, 0),
+      _store(1, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(1), _output_vmem(2),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    def ctz(x):
+      u = x & 0xFFFFFFFF
+      if u == 0: return 32
+      i = 0
+      while (u >> i) & 1 == 0: i += 1
+      return i
+    def brev(x):
+      u = x & 0xFFFFFFFF
+      b0, b1, b2, b3 = u & 0xFF, (u >> 8) & 0xFF, (u >> 16) & 0xFF, (u >> 24) & 0xFF
+      r = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+      return r - (1 << 32) if r >= (1 << 31) else r
+    expected_ctz = [ctz(x) for x in src]
+    expected_br  = [brev(x) for x in src]
+    self.assertEqual(tiles[0], expected_ctz, f"CTZ: got {tiles[0]}")
+    self.assertEqual(tiles[1], expected_br, f"BYTE_REVERSE: got {tiles[1]}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0
