@@ -5923,6 +5923,39 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[1], [9] * 16, "run B: STORE must be skipped")
     self.assertEqual(tiles[2], [2] * 16, "control STORE B")
 
+  def test_vpu_packed_i8_mul_low_byte_wise(self):
+    # Push 4 iter 11: byte-wise signed multiply keeping low 8 bits.
+    # Cover non-wrapping, negative, and wrap cases.
+    import struct
+    sim = os.environ["TINYTPU_SIM"]
+    def pack_i8x4(b0, b1, b2, b3):
+      return struct.unpack("<i", struct.pack("<bbbb", b0, b1, b2, b3))[0]
+    bytes_a = [(3, -2, 10, 100), (127, -128, 50, -50)] + [(0, 0, 0, 0)] * 14
+    bytes_b = [(4, 3, -5, 2), (2, 2, 3, 4)] + [(0, 0, 0, 0)] * 14
+    src1_tile = [pack_i8x4(*bs) for bs in bytes_a]
+    src2_tile = [pack_i8x4(*bs) for bs in bytes_b]
+    pi8_mul_low = _VPU_OPS["PACKED_I8_MUL_LOW"]
+    bundle = _bundle(
+      _vmem(0, src1_tile),
+      _vmem(1, src2_tile),
+      _load(0, 0), _load(1, 1),
+      _vpu(2, 0, pi8_mul_low, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    def trunc_i8(x):
+      x = x & 0xFF
+      return x - 256 if x >= 128 else x
+    expected_bytes = [[trunc_i8(a * b) for a, b in zip(ba, bb)]
+                      for ba, bb in zip(bytes_a, bytes_b)]
+    expected = [pack_i8x4(*tuple(e)) for e in expected_bytes]
+    self.assertEqual(tile, expected,
+                     f"PACKED_I8_MUL_LOW: got {tile}, expected {expected}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0
