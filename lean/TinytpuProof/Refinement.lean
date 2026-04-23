@@ -157,3 +157,67 @@ theorem sign_times_self_nonneg (x : Int) : sign x * x ≥ 0 := by
     nlinarith
   · simp
 
+/-! ## VPU dual-issue (SXU_DISPATCH_VPU_BG) refinement
+
+The SXU's DISPATCH_VPU_BG path splits a single synchronous VPU op into
+two stages: a dispatch that advances pc immediately while setting a
+pending flag, and a background collect that retires the result into
+the destination register one (or more) cycles later. These theorems
+formalize the core correctness claim: dispatch-then-collect on the BG
+path produces the same destination-register value as the synchronous
+path, given no intervening read of the destination. -/
+
+/-- A VPU op is modeled abstractly as a pure function on the source
+    register value. Real VPU ops take a vector and a second source,
+    but this scalarized view captures the dispatch→collect correctness
+    property without dragging in the tile shape. -/
+structure VpuState where
+  reg : Int := 0        -- the destination vreg
+  pending : Option Int := none  -- in-flight BG writeback (SXU-side)
+
+/-- Synchronous dispatch: compute f(reg) and land it in reg atomically.
+    Matches the `DISPATCH_VPU` opcode plus its 1-cycle collect. -/
+def VpuState.syncStep (s : VpuState) (f : Int → Int) : VpuState :=
+  { s with reg := f s.reg, pending := none }
+
+/-- Background dispatch: compute f(reg), latch into `pending`. The
+    destination register does not change yet. Matches `DISPATCH_VPU_BG`
+    at its dispatch cycle. -/
+def VpuState.bgDispatch (s : VpuState) (f : Int → Int) : VpuState :=
+  { s with pending := some (f s.reg) }
+
+/-- Background collect: if a pending writeback exists, retire it into
+    the destination register and clear the flag. Matches the unified
+    `do_vpu_collect` rule firing at the first cycle after dispatch
+    where `vpu.isDone` holds. -/
+def VpuState.bgCollect (s : VpuState) : VpuState :=
+  match s.pending with
+  | some v => { s with reg := v, pending := none }
+  | none   => s
+
+/-- Core equivalence: BG dispatch followed by BG collect, starting
+    from a clean state (no prior pending writeback), retires the
+    same destination value as a single synchronous step. This is
+    the invariant SXU relies on: a BG op behaves like the sync op,
+    modulo the cycle at which the register visibly updates. -/
+theorem bg_dispatch_then_collect_matches_sync
+    (s : VpuState) (f : Int → Int) (_h : s.pending = none) :
+    ((s.bgDispatch f).bgCollect).reg = (s.syncStep f).reg := by
+  simp [VpuState.bgDispatch, VpuState.bgCollect, VpuState.syncStep]
+
+/-- BG collect is idempotent when there's nothing pending — firing it
+    an extra time (e.g. the main FSM happens to schedule it in a cycle
+    with no writeback to retire) is a no-op. Mirrors the guard
+    `vpu_wb_pending && vpu.isDone`: when `pending = none`, no state
+    change. -/
+theorem bg_collect_idempotent_when_empty (s : VpuState)
+    (h : s.pending = none) : s.bgCollect = s := by
+  simp [VpuState.bgCollect, h]
+
+/-- Dispatch leaves the destination register unchanged — the whole
+    point of BG is that pc (and other SXU state) can proceed while the
+    writeback waits on `pending`. -/
+theorem bg_dispatch_preserves_reg (s : VpuState) (f : Int → Int) :
+    (s.bgDispatch f).reg = s.reg := by
+  simp [VpuState.bgDispatch]
+
