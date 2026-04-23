@@ -5583,6 +5583,51 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertLess(span, 60,
                     f"dual-issue span {span} cycles — VRegFile serialization regressed")
 
+  def test_vpu_bg_single_cycle_correctness_and_overlap(self):
+    # Push 5 iter 1: SXU_DISPATCH_VPU_BG fires vpu.execute and advances
+    # pc in the same cycle; a background collect rule writes the result
+    # once vpu.isDone asserts. For single-cycle ops like VPU_ADD, that
+    # lands 1 cycle after dispatch, overlapping any in-between LOAD /
+    # STORE. Verify correctness (the VPU result still reaches the dst
+    # vreg) and that back-to-back VPU_BG dispatches run faster than the
+    # sync path would.
+    from tinygrad.runtime.ops_tinytpu import _vpu_bg
+    sim = os.environ["TINYTPU_SIM"]
+    src_tile_a = list(range(16))          # VMEM[0] = 0..15
+    src_tile_b = [2] * 16                 # VMEM[1] = all 2
+    bundle = _bundle(
+      _vmem(0, src_tile_a),
+      _vmem(1, src_tile_b),
+      _load(0, 0),                        # v0 := VMEM[0]
+      _load(1, 1),                        # v1 := VMEM[1]
+      _read_cycle(10),                    # t0
+      _vpu_bg(2, 0, _VPU_OPS["ADD"], 1),  # v2 := v0 + v1  (BG)
+      _vpu_bg(3, 2, _VPU_OPS["ADD"], 1),  # v3 := v2 + v1  (BG, depends on v2)
+      _vpu_bg(4, 3, _VPU_OPS["ADD"], 1),  # v4 := v3 + v1  (BG)
+      _vpu_bg(5, 4, _VPU_OPS["ADD"], 1),  # v5 := v4 + v1  (BG)
+      _read_cycle(11),                    # t1
+      _store(0, 5),                       # VMEM[0] := v5
+      _store(1, 10),                      # t0 -> VMEM[1]
+      _store(2, 11),                      # t1 -> VMEM[2]
+      _halt(),
+      _output_vmem(0), _output_vmem(1), _output_vmem(2),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    self.assertEqual(len(tiles), 3)
+    # Correctness: v5 = v0 + 4*2 elementwise = [8, 9, 10, ..., 23].
+    self.assertEqual(tiles[0], [i + 8 for i in range(16)])
+    t0, t1 = tiles[1][0], tiles[2][0]
+    span = t1 - t0
+    # 4 BG dispatches + READ_CYCLE epilogue pc-advance. If BG actually
+    # overlaps the next fetch, the span stays tight (<= ~12). Pre-BG
+    # sync path would be ~16+ cycles (each EXEC_VPU_COLLECT stalls a
+    # cycle). Loose upper bound that'd fail if BG regresses to sync.
+    self.assertLess(span, 16,
+                    f"VPU_BG dual-issue span {span} cycles — BG collect regressed to sync")
+
   def test_vpu_packed_i8_add_lane_wise_saturating(self):
     # Push 4 iter 2: new VPU_PACKED_I8_ADD treats each 32-bit lane as 4
     # packed signed int8 bytes (little-endian) and adds them with per-

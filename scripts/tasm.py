@@ -70,6 +70,7 @@ _SXU = {
     "PSUM_CLEAR_ALL":          38,
     "SET_PRED_NE_ZERO":        39,
     "SKIP_IF_NOT_PRED":        40,
+    "DISPATCH_VPU_BG":         41,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -294,14 +295,15 @@ def assemble(text: str) -> str:
                 vs = _parse_vreg(parts[1])
                 out.append(_instr(_SXU["STORE_VREG"], vmemAddr=vd, vregSrc=vs))
 
-            elif kw == "VPU":
+            elif kw in ("VPU", "VPU_BG"):
                 # VPU vD = OP(vA) or VPU vD = OP(vA, vB)
-                rest = line[len("VPU"):].strip()
+                # VPU_BG vD = OP(vA) — background-collect dual-issue.
+                rest = line[len(kw):].strip()
                 m = re.fullmatch(r"(v\d+)\s*=\s*(\w+)\(([^)]+)\)", rest,
                                  re.IGNORECASE)
                 if not m:
                     raise SyntaxError(
-                        "VPU syntax: VPU vD = OP(vA) or VPU vD = OP(vA, vB)")
+                        f"{kw} syntax: {kw} vD = OP(vA) or {kw} vD = OP(vA, vB)")
                 vd = _parse_vreg(m.group(1))
                 op_name = m.group(2).upper()
                 if op_name not in _VPU:
@@ -312,7 +314,9 @@ def assemble(text: str) -> str:
                 args = [a.strip() for a in m.group(3).split(",")]
                 va = _parse_vreg(args[0])
                 vb = _parse_vreg(args[1]) if len(args) > 1 else 0
-                out.append(_instr(_SXU["DISPATCH_VPU"],
+                sxu_op = _SXU["DISPATCH_VPU_BG"] if kw == "VPU_BG" \
+                                                 else _SXU["DISPATCH_VPU"]
+                out.append(_instr(sxu_op,
                                   vregDst=vd, vregSrc=va,
                                   vpuOp=op_int, vregSrc2=vb))
 
@@ -726,6 +730,15 @@ def disassemble(wire: str) -> str:
                     else:
                         out.append(
                             f"VPU   v{vregDst} = {op_name}(v{vregSrc}, v{vregSrc2})")
+
+                elif opc == _SXU["DISPATCH_VPU_BG"]:
+                    op_name = _VPU_INV.get(vpuOp, f"VPU_OP_{vpuOp}")
+                    if op_name in _VPU_UNARY:
+                        out.append(
+                            f"VPU_BG v{vregDst} = {op_name}(v{vregSrc})")
+                    else:
+                        out.append(
+                            f"VPU_BG v{vregDst} = {op_name}(v{vregSrc}, v{vregSrc2})")
 
                 elif opc == _SXU["DISPATCH_XLU_BROADCAST"]:
                     lane_sfx = f", lane={vregSrc2}" if vregSrc2 != 0 else ""

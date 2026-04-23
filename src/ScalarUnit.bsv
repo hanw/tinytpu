@@ -140,7 +140,22 @@ typedef enum {
    // (pc += 2). Complements SKIP_IF_PRED so both arms of an if/else
    // can be expressed. pred is auto-reset on skip-taken (same as
    // SKIP_IF_PRED).
-   SXU_SKIP_IF_NOT_PRED
+   SXU_SKIP_IF_NOT_PRED,
+   // DISPATCH_VPU_BG: background-collect dual-issue VPU dispatch,
+   // aimed at single-cycle ops. Same operand layout as
+   // SXU_DISPATCH_VPU. The dispatch rule fires vpu.execute, captures
+   // vregDst into vpu_dst, sets vpu_busy, advances pc and returns to
+   // FETCH in the same cycle (no EXEC_VPU_COLLECT stall). A separate
+   // background rule (do_vpu_collect_bg) fires when vpu.isDone is
+   // True while vpu_busy is set, writes vpu.result into vpu_dst, and
+   // clears vpu_busy. While vpu_busy is set, both sync DISPATCH_VPU
+   // and a second DISPATCH_VPU_BG stall (structural hazard on
+   // resultReg / vpu.execute). Multi-cycle ops will functionally
+   // work via this opcode too (BG collect just waits for
+   // transc/fp_busy to drain), but the target usage is single-cycle
+   // arithmetic where the 1-cycle resultReg latency can overlap the
+   // next LOAD / STORE / MXU dispatch.
+   SXU_DISPATCH_VPU_BG
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -201,6 +216,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_PSUM_ACCUMULATE_ROW,
                SXU_EXEC_SET_PRED, SXU_EXEC_SKIP_IF_PRED,
                SXU_EXEC_SET_PRED_NE, SXU_EXEC_SKIP_IF_NOT_PRED,
+               SXU_EXEC_VPU_BG,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -248,6 +264,17 @@ module mkScalarUnit#(
    // follow-up iter.
    Reg#(Bool)                    xlu_busy <- mkReg(False);
    Reg#(UInt#(4))                xlu_dst  <- mkReg(0);
+
+   // VPU dual-issue scoreboard. vpu_busy is set on SXU_DISPATCH_VPU_BG
+   // dispatch and cleared by the background collect rule once the VPU
+   // produces its result (single-cycle: next cycle; multi-cycle:
+   // whenever transc_busy/fp_busy inside the VPU drains). vpu_dst
+   // captures the destination vreg so the collect rule knows where
+   // to write. While set, both the sync DISPATCH_VPU path and a
+   // second DISPATCH_VPU_BG dispatch stall, preventing a collision
+   // on the shared vpu.execute method / resultReg.
+   Reg#(Bool)                    vpu_busy <- mkReg(False);
+   Reg#(UInt#(4))                vpu_dst  <- mkReg(0);
 
    // Nested-loop state for SXU_LOOP_BEGIN / SXU_LOOP_END. Depth-4
    // stack: each LOOP_BEGIN pushes (count, return-pc) and each
@@ -322,6 +349,7 @@ module mkScalarUnit#(
          SXU_PSUM_ACCUMULATE_ROW: pc_state <= SXU_EXEC_PSUM_ACCUMULATE_ROW;
          SXU_SET_PRED_IF_ZERO: pc_state <= SXU_EXEC_SET_PRED;
          SXU_SKIP_IF_PRED:    pc_state <= SXU_EXEC_SKIP_IF_PRED;
+         SXU_DISPATCH_VPU_BG: pc_state <= SXU_EXEC_VPU_BG;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -364,8 +392,9 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // DISPATCH_VPU: read two source vregs, dispatch VPU
-   rule do_vpu (pc_state == SXU_EXEC_VPU);
+   // DISPATCH_VPU: read two source vregs, dispatch VPU. Guarded on
+   // !vpu_busy so a prior DISPATCH_VPU_BG in flight can't be stomped.
+   rule do_vpu (pc_state == SXU_EXEC_VPU && !vpu_busy);
       let s1 = vrf.read(truncate(curInstr.vregSrc));
       let s2 = vrf.read(truncate(curInstr.vregSrc2));
 `ifdef TRACE
@@ -374,6 +403,37 @@ module mkScalarUnit#(
 `endif
       vpu.execute(curInstr.vpuOp, s1, s2);
       pc_state <= SXU_EXEC_VPU_COLLECT;
+   endrule
+
+   // DISPATCH_VPU_BG: background-collect dual-issue path. Fires
+   // vpu.execute, captures vregDst, advances pc and returns to FETCH
+   // in one cycle. A separate do_vpu_collect_bg rule retires the
+   // write one (or more) cycles later without stalling the main FSM.
+   rule do_vpu_bg (pc_state == SXU_EXEC_VPU_BG && !vpu_busy);
+      let s1 = vrf.read(truncate(curInstr.vregSrc));
+      let s2 = vrf.read(truncate(curInstr.vregSrc2));
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_VPU_BG pc=%0d op=%0d dst=v%0d",
+               cycle, pc, pack(curInstr.vpuOp), curInstr.vregDst);
+      $display("TRACE cycle=%0d unit=VPU ev=EXEC op=%0d", cycle, pack(curInstr.vpuOp));
+`endif
+      vpu.execute(curInstr.vpuOp, s1, s2);
+      vpu_busy <= True;
+      vpu_dst  <= curInstr.vregDst;
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // Background VPU collect. For single-cycle ops, vpu.isDone is True
+   // the same cycle and this rule retires on cycle N+1. For multi-
+   // cycle ops (EXP2/LOG2/SIN/COS, fp tile reducers), it stalls until
+   // the in-VPU walker drains and isDone asserts.
+   rule do_vpu_collect_bg (vpu_busy && vpu.isDone);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=VPU_COLLECT_BG dst=v%0d", cycle, vpu_dst);
+`endif
+      vrf.write(truncate(vpu_dst), vpu.result);
+      vpu_busy <= False;
    endrule
 
    // Collect VPU result. Single-cycle ops report isDone immediately; the
