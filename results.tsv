@@ -619,3 +619,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	dad848f	1	vpu	ABS_DIFF_I32 + PACKED_I8_ABS_DIFF	tasm 130 + backend 927 pass	vpu=79 ops	iter 25 todo refresh
 2026-04-22	d4f0fca	1	vpu	VPU_FABS single-cycle float abs	tasm 131 + backend 928 pass	vpu=80 ops	iter 26 softsign renderer adoption
 2026-04-22	1ceeda0	1	tinytpu	softsign adopts FABS (drops VZERO+FSUB+FMAX)	softsign test pass	renderer adoption start	iter 27 next
+2026-04-22	b98c3e0	1	tinytpu	float-abs adopts FABS (5 instrs -> 3)	58 abs tests pass	renderer adoption 2	iter 28 next
