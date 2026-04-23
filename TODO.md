@@ -659,8 +659,22 @@ VPU additions (55-81):
 
 Lean theorems added (push 4): `zero_weight_accum_unchanged`,
 `sign_idempotent`, `sign_odd`, `abs_step_preserves_weight`,
-`abs_fold_preserves_weight` — 5 new theorems on top of the 3 from
-push 3 (8 total).
+`abs_fold_preserves_weight`, `sign_bounded`,
+`sign_times_self_nonneg` — 7 new theorems on top of the 3 from
+push 3 (10 total).
+
+### VPU dual-issue attempt (push 4 iter 2, reverted)
+
+Tried to move DISPATCH_VPU to the background-collect pattern
+(like the existing XLU dual-issue) so non-VPU ops could overlap
+with in-flight VPU work. **Single-cycle ops worked fine**, but
+**multi-cycle ops (LOG2, EXP2, FSUM_REDUCE_TILE, etc.) returned
+zero** — likely a bsc scheduling interaction with the implicit
+`if (!fp_busy && !transc_busy)` guard on `vpu.execute`. Reverted.
+
+Next attempt: add a **separate opcode** `SXU_DISPATCH_VPU_BG` for
+single-cycle ops only; multi-cycle ops stay on the sync path.
+Clean separation should avoid the bug. ~3-5 iters.
 
 ### Deferred (called out but probably not next)
 
