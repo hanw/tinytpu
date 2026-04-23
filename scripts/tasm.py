@@ -157,6 +157,8 @@ _VPU = {
     "FABS":              79,
     "ROTL":              80,
     "ROTR":              81,
+    "MIN_U32":           82,
+    "MAX_U32":           83,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 

@@ -55,7 +55,10 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_FABS,
                // 32-bit lane-wise rotate-left / rotate-right; shift
                // amount taken from low 5 bits of src2 (mod 32).
-               VPU_ROTL, VPU_ROTR }
+               VPU_ROTL, VPU_ROTR,
+               // Unsigned-viewed 32-bit min/max for sort keys and
+               // hashing. Semantically independent of signed MIN/MAX.
+               VPU_MIN_U32, VPU_MAX_U32 }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -693,6 +696,20 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                   Bit#(5)  comp = 5'd0 - amt;
                   Bit#(32) r = (b >> amt) | (b << comp);
                   row[l] = unpack(r);
+               end
+            end
+            VPU_MIN_U32: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  UInt#(32) a = unpack(pack(src1[s][l]));
+                  UInt#(32) b = unpack(pack(src2[s][l]));
+                  row[l] = unpack(pack((a < b) ? a : b));
+               end
+            end
+            VPU_MAX_U32: begin
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  UInt#(32) a = unpack(pack(src1[s][l]));
+                  UInt#(32) b = unpack(pack(src2[s][l]));
+                  row[l] = unpack(pack((a > b) ? a : b));
                end
             end
             VPU_MUL: begin

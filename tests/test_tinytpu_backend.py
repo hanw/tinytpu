@@ -6343,6 +6343,35 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], exp_rotl, f"ROTL: got {tiles[0]}")
     self.assertEqual(tiles[1], exp_rotr, f"ROTR: got {tiles[1]}")
 
+  def test_vpu_min_max_u32(self):
+    # Push 4 iter 33: unsigned-viewed 32-bit min/max. -1 (= 0xFFFFFFFF)
+    # beats every positive int32 when treated as unsigned.
+    sim = os.environ["TINYTPU_SIM"]
+    a = [-1, 1, 5, 10, 0x80000000 - (1 << 32), 100, -100, 0, 7, -7, 0x40000000, 0, 0x10, 0x100, 0x1000, -2]
+    b = [1, 2, 3, 20, -1, 100, 100, 1, 7, 7, 0x80000000 - (1 << 32), -1, -2, -0x10, 0, -4]
+    min_u = _VPU_OPS["MIN_U32"]
+    max_u = _VPU_OPS["MAX_U32"]
+    bundle = _bundle(
+      _vmem(0, a),
+      _vmem(1, b),
+      _load(0, 0), _load(1, 1),
+      _vpu(2, 0, min_u, 1),
+      _vpu(3, 0, max_u, 1),
+      _store(2, 2), _store(3, 3),
+      _halt(),
+      _output_vmem(2), _output_vmem(3),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    def u(x): return x & 0xFFFFFFFF
+    def back(u): return u - (1 << 32) if u >= (1 << 31) else u
+    exp_min = [back(min(u(x), u(y))) for x, y in zip(a, b)]
+    exp_max = [back(max(u(x), u(y))) for x, y in zip(a, b)]
+    self.assertEqual(tiles[0], exp_min, f"MIN_U32: got {tiles[0]}")
+    self.assertEqual(tiles[1], exp_max, f"MAX_U32: got {tiles[1]}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0
