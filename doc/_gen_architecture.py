@@ -282,7 +282,7 @@ def datapath():
     # Engines column
     c.append(box("dp-mxu", "MXU (Tensor Engine)\nSystolicArray 4×4 Int8 + Controller · WS + OS",
                  280, ROWS["mxu"][0], 440, ROWS["mxu"][1], "mxu"))
-    c.append(box("dp-vpu", "VPU (Vector Engine)\nint32 + float32 ALU · 73 opcodes (incl. packed int8)",
+    c.append(box("dp-vpu", "VPU (Vector Engine)\nint32 + float32 ALU · 82 opcodes (packed int8 + bit-manip)",
                  280, ROWS["vpu"][0], 440, ROWS["vpu"][1], "vpu"))
     c.append(box("dp-fpr",  "FpReducer\nFADD + FMUL + FCMP walker",
                  280, ROWS["fpr"][0], 215, ROWS["fpr"][1], "vpu"))
@@ -641,8 +641,11 @@ def main():
       <code>DISPATCH_XLU_ROTATE</code>(37),
       <code>PSUM_CLEAR_ALL</code>(38),
       <code>SET_PRED_NE_ZERO</code>(39)/<code>SKIP_IF_NOT_PRED</code>(40)</li>
-  <li><code>sxu_op</code>=2 (DISPATCH_VPU) indexes into 73 float/int/packed-i8
-      ALUs + reducers + transcendentals</li>
+  <li><code>sxu_op</code>=2 (DISPATCH_VPU) indexes into 82 float/int/packed-i8
+      ALUs + reducers + transcendentals + bit-manip (CLZ / CTZ / POPCOUNT /
+      BYTE_REVERSE / ROTL / ROTR) + saturating arithmetic (SAT_ADD_I32 /
+      SAT_SUB_I32 / ABS_DIFF_I32 / PACKED_I8_ABS_DIFF) + FABS / ARGMIN /
+      ARGMAX / SIGN / FSIGN</li>
   <li>SXU waits on <code>vpu.isDone</code> between VPU dispatches —
       FpReducer / TranscUnit take N cycles</li>
   <li>XLU dispatches fire the bg collect rule; structural guard
