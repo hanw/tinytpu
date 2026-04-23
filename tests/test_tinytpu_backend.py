@@ -6073,6 +6073,41 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(float_out, expected,
                      f"FSIGN: got {float_out}, expected {expected}")
 
+  def test_vpu_argmin_argmax_per_row(self):
+    # Push 4 iter 16: VPU_ARGMIN/ARGMAX compute per-row index of the
+    # min/max value, broadcast to all lanes of the output row. First
+    # lane wins ties.
+    sim = os.environ["TINYTPU_SIM"]
+    # Row 0: [5, 2, 7, 3] → argmin=1 (val 2), argmax=2 (val 7).
+    # Row 1: [-1, -5, -3, -2] → argmin=1 (val -5), argmax=0 (val -1).
+    # Rows 2..3: same pattern.
+    row0 = [5, 2, 7, 3]
+    row1 = [-1, -5, -3, -2]
+    row2 = [10, 10, 5, 10]       # duplicates for tiebreak coverage
+    row3 = [-7, 8, -7, 8]
+    src_tile = row0 + row1 + row2 + row3
+    argmin_op = _VPU_OPS["ARGMIN"]
+    argmax_op = _VPU_OPS["ARGMAX"]
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _vpu(1, 0, argmin_op, 0),
+      _vpu(2, 0, argmax_op, 0),
+      _store(1, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(1), _output_vmem(2),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+    # Row-wise expected argmin/argmax, broadcast to all 4 lanes.
+    exp_argmin = [1, 1, 1, 1,  1, 1, 1, 1,  2, 2, 2, 2,  0, 0, 0, 0]
+    exp_argmax = [2, 2, 2, 2,  0, 0, 0, 0,  0, 0, 0, 0,  1, 1, 1, 1]
+    self.assertEqual(tiles[0], exp_argmin, f"ARGMIN: got {tiles[0]}")
+    self.assertEqual(tiles[1], exp_argmax, f"ARGMAX: got {tiles[1]}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

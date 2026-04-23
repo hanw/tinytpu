@@ -33,7 +33,10 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                // Byte-wise sign on packed int8 (per-byte -1/0/+1).
                VPU_PACKED_I8_SIGN,
                // Float lane-wise sign: -1.0 if x<0, +1.0 if x>0, 0.0 if x==0.
-               VPU_FSIGN }
+               VPU_FSIGN,
+               // Integer argmin/argmax per row: output[s][*] = index
+               // of the min/max value in src1[s][*] (broadcast).
+               VPU_ARGMIN, VPU_ARGMAX }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -540,6 +543,31 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                                                   32'h3F800000);
                   row[l] = sign_bits;
                end
+            end
+            VPU_ARGMIN: begin
+               // Per-row argmin of src1. First-lane-wins tiebreak.
+               Int#(32) m_val = src1[s][0];
+               UInt#(32) m_idx = 0;
+               for (Integer l = 1; l < valueOf(lanes); l = l + 1)
+                  if (src1[s][l] < m_val) begin
+                     m_val = src1[s][l];
+                     m_idx = fromInteger(l);
+                  end
+               Int#(32) bcast = unpack(pack(m_idx));
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = bcast;
+            end
+            VPU_ARGMAX: begin
+               Int#(32) m_val = src1[s][0];
+               UInt#(32) m_idx = 0;
+               for (Integer l = 1; l < valueOf(lanes); l = l + 1)
+                  if (src1[s][l] > m_val) begin
+                     m_val = src1[s][l];
+                     m_idx = fromInteger(l);
+                  end
+               Int#(32) bcast = unpack(pack(m_idx));
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
+                  row[l] = bcast;
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
