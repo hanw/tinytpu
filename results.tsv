@@ -605,3 +605,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	d65461b	1	sxu	SET_PRED_NE_ZERO + SKIP_IF_NOT_PRED	backend 916 pass	sxu opcodes 41 total	iter 11 LOOP_BREAK
 2026-04-22	16fce52	1	vpu	VPU_PACKED_I8_MUL_LOW	tasm 115 + backend 917 pass	packed_i8 at 7 ops	iter 12 run full regression
 2026-04-22	ca19d50	1	vpu	VPU_PACKED_I8_MUL_HIGH (Q-format hi-byte)	tasm 116 + backend 918 pass	packed_i8 at 8 ops	iter 13 vpu sign
+2026-04-22	57b75e7	1	vpu	SIGN + PACKED_I8_ABS + PACKED_I8_SIGN unary ops	tasm 119 + backend 920 pass	packed_i8 at 10 ops (ABS/SIGN)	iter 14 lean proof
