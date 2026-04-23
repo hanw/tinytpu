@@ -36,7 +36,10 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_FSIGN,
                // Integer argmin/argmax per row: output[s][*] = index
                // of the min/max value in src1[s][*] (broadcast).
-               VPU_ARGMIN, VPU_ARGMAX }
+               VPU_ARGMIN, VPU_ARGMAX,
+               // Per-lane count-leading-zeros and popcount (lane-wise
+               // unary ops on the raw 32-bit value).
+               VPU_CLZ, VPU_POPCOUNT }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -568,6 +571,29 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                Int#(32) bcast = unpack(pack(m_idx));
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
                   row[l] = bcast;
+            end
+            VPU_CLZ: begin
+               // Count leading zeros of the raw 32-bit value. All-zero
+               // input returns 32.
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Bit#(32) b = pack(src1[s][l]);
+                  UInt#(32) cnt = 32;
+                  for (Integer bi = 31; bi >= 0; bi = bi - 1)
+                     if (b[bi] == 1 && cnt == 32)
+                        cnt = fromInteger(31 - bi);
+                  row[l] = unpack(pack(cnt));
+               end
+            end
+            VPU_POPCOUNT: begin
+               // Population count (number of 1 bits) of the raw value.
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  Bit#(32) b = pack(src1[s][l]);
+                  UInt#(32) cnt = 0;
+                  for (Integer bi = 0; bi < 32; bi = bi + 1)
+                     if (b[bi] == 1)
+                        cnt = cnt + 1;
+                  row[l] = unpack(pack(cnt));
+               end
             end
             VPU_MUL: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)

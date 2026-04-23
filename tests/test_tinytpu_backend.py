@@ -6108,6 +6108,41 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tiles[0], exp_argmin, f"ARGMIN: got {tiles[0]}")
     self.assertEqual(tiles[1], exp_argmax, f"ARGMAX: got {tiles[1]}")
 
+  def test_vpu_clz_and_popcount(self):
+    # Push 4 iter 17: VPU_CLZ counts leading zeros (32 for all-zero);
+    # VPU_POPCOUNT counts set bits.
+    sim = os.environ["TINYTPU_SIM"]
+    # Mix of 0, powers of 2, all-ones (-1), negative, etc.
+    src_tile = [0, 1, 2, 4, 8, 16, -1, -2, 0xFF, 0x80000000 - (1 << 32),
+                0x40, 0x5555, 0xAAAA, 7, 255, -128]
+    clz_op = _VPU_OPS["CLZ"]
+    popcount_op = _VPU_OPS["POPCOUNT"]
+    bundle = _bundle(
+      _vmem(0, src_tile),
+      _load(0, 0),
+      _vpu(1, 0, clz_op, 0),
+      _vpu(2, 0, popcount_op, 0),
+      _store(1, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(1), _output_vmem(2),
+      _end(),
+    )
+    from tinygrad.runtime.ops_tinytpu import _parse_multi_vmem_output
+    out = _run_bundle(sim, bundle)
+    tiles = _parse_multi_vmem_output(out)
+
+    def clz(x):
+      u = x & 0xFFFFFFFF
+      if u == 0: return 32
+      return 32 - u.bit_length()
+    def popc(x):
+      return bin(x & 0xFFFFFFFF).count("1")
+    expected_clz = [clz(x) for x in src_tile]
+    expected_popc = [popc(x) for x in src_tile]
+    self.assertEqual(tiles[0], expected_clz, f"CLZ mismatch: {tiles[0]}")
+    self.assertEqual(tiles[1], expected_popc, f"POPCOUNT mismatch: {tiles[1]}")
+
   def test_loop_accumulator_integration(self):
     # Integration test: VFILL + LOOP + VPU_ADD + VMOV proves the loop
     # body sees the prior iteration's writeback. Start with v0 = 0

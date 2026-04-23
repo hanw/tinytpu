@@ -146,6 +146,8 @@ _VPU = {
     "FSIGN":             68,
     "ARGMIN":            69,
     "ARGMAX":            70,
+    "CLZ":               71,
+    "POPCOUNT":          72,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 
@@ -161,7 +163,7 @@ _VPU_UNARY = {"RELU", "SUM_REDUCE", "MAX_REDUCE", "MIN_REDUCE", "NOT", "COPY",
               "EXP2", "LOG2", "SIN", "COS",
               "PACKED_I8_NEG", "PACKED_I8_RELU",
               "PACKED_I8_ABS", "SIGN", "PACKED_I8_SIGN", "FSIGN",
-              "ARGMIN", "ARGMAX"}
+              "ARGMIN", "ARGMAX", "CLZ", "POPCOUNT"}
 
 # VMEM/WMEM/AMEM tile geometry
 _VMEM_ELEMS = 16   # 4×4 Int32
