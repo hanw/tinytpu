@@ -625,3 +625,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-04-22	11dc825	1	doc	architecture.html VPU=82	none (docs)	docs in sync with push 4	iter 31 todo refresh
 2026-04-22	faee5d1	1	todo	push-4 summary update	none (docs)	vpu=82, 5 new lean theorems	iter 32 next
 2026-04-22	8bbed4a	1	regression	push-4 end-stage full sweep	Python 1122+1skip (was 1107)	+15 tests since iter 19	iter 33 next
+2026-04-22	decba23	1	vpu	VPU_MIN_U32 + VPU_MAX_U32	tasm 135 + backend 933 pass	vpu=84 ops	iter 34 memory refresh
