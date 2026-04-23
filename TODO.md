@@ -617,7 +617,7 @@ renderers still emit the old multi-instruction patterns.
 
 ### Recent SXU + VPU extensions (push 4)
 
-Opcode total: SXU 36 → 41; VPU 55 → 73.
+Opcode total: SXU 36 → 41; VPU 55 → 82.
 
 SXU additions (36-40):
 - `SXU_LOAD_LOOP_DEPTH` (36) — read current loop-stack depth (for debug
@@ -634,16 +634,33 @@ SXU additions (36-40):
 SXU LOOP_BEGIN/LOOP_END now use a **depth-4 stack** (was single-level
 in push 3) — nested counted loops work up to 4 levels.
 
-VPU additions (55-72):
-- Packed-int8 arithmetic: `PACKED_I8_ADD` / `_SUB` / `_MAX` / `_MIN`
-  (55-58) with byte-wise saturation; `_NEG` / `_RELU` (59-60) unary;
+VPU additions (55-81):
+- Packed-int8 arithmetic (55-67): `PACKED_I8_ADD` / `_SUB` / `_MAX` /
+  `_MIN` (55-58) byte-wise saturation; `_NEG` / `_RELU` (59-60) unary;
   `_CMPLT` / `_CMPEQ` (61-62) byte-wise compare; `_MUL_LOW` /
-  `_MUL_HIGH` (63-64) multiply with wrap / Q-format; `_ABS` /
-  `_SIGN` (65/67) unary.
-- `VPU_SIGN` (66) int32 lane-wise sign; `VPU_FSIGN` (68) float
-  lane-wise sign (-1.0 / 0.0 / +1.0).
-- `VPU_ARGMIN` / `VPU_ARGMAX` (69/70) per-row index reductions.
-- `VPU_CLZ` / `VPU_POPCOUNT` (71/72) bit-manipulation primitives.
+  `_MUL_HIGH` (63-64) multiply with wrap / Q-format; `_ABS` / `_SIGN`
+  (65/67) unary.
+- Int32/float sign: `VPU_SIGN` (66), `VPU_FSIGN` (68), `VPU_FABS`
+  (79). Softsign + float-abs renderers adopted `FABS` — drops 2
+  instructions per tile from both.
+- Reductions: `VPU_ARGMIN` / `VPU_ARGMAX` (69/70) per-row index.
+- Bit-manip: `VPU_CLZ` (71), `VPU_POPCOUNT` (72), `VPU_CTZ` (73),
+  `VPU_BYTE_REVERSE` (74), `VPU_ROTL` (80), `VPU_ROTR` (81).
+- Saturating arithmetic: `VPU_SAT_ADD_I32` (75), `VPU_SAT_SUB_I32`
+  (76), `VPU_ABS_DIFF_I32` (77), `VPU_PACKED_I8_ABS_DIFF` (78).
+
+### Renderer adoption (push 4)
+
+- **softsign** (iter 26) — adopts `VPU_FABS`: drops the VZERO + FSUB +
+  FMAX 3-instruction sequence, keeps only LOAD(1.0)+FABS.
+- **float-abs** (iter 27) — adopts `VPU_FABS`: drops the zero-tile
+  VMEM preload + FSUB + FMAX (5 instrs → 3 per tile).
+- **int32-abs** (push 3) — already uses `SXU_VABS` (5 instrs → 3).
+
+Lean theorems added (push 4): `zero_weight_accum_unchanged`,
+`sign_idempotent`, `sign_odd`, `abs_step_preserves_weight`,
+`abs_fold_preserves_weight` — 5 new theorems on top of the 3 from
+push 3 (8 total).
 
 ### Deferred (called out but probably not next)
 
