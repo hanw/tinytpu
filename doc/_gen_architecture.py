@@ -130,9 +130,13 @@ def sxu_fsm():
     c.append(box("sf-psum", "PSUM_{WRITE, ACC, READ, READ_ROW, CLEAR, ACC_ROW}\n8-bucket bank; 1-cycle except READ (2-step)", 700, 320, 320, 44, "mxu"))
     c.append(box("sf-pred", "SET_PRED_IF_ZERO / SKIP_IF_PRED\n1-bit pred reg; baby IF/BARRIER", 40, 320, 260, 44, "sxu"))
     c.append(box("sf-ld-xlu", "LD_XLU_RESULT\nxlu.result → vrf", 1040, 320, 140, 40, "xlu"))
-    # row 4 (bg rule)
+    # row 4 (bg rules)
     c.append(box("sf-xlu-bg", "do_xlu_collect_bg (parallel rule)\nfires when xlu_busy=True; writes\nvrf[xlu_dst] ← xlu.result; clears xlu_busy",
-                 440, 410, 320, 60, "xlu"))
+                 40, 410, 320, 60, "xlu"))
+    c.append(box("sf-vpu-bg", "DISPATCH_VPU_BG (dual-issue)\nvpu.execute + set vpu_wb_pending;\npc++ → FETCH immediately\n(unified collect retires later)",
+                 380, 410, 320, 60, "vpu"))
+    c.append(box("sf-vpu-coll-bg", "do_vpu_collect (unified)\nvpu_wb_pending ∧ vpu.isDone →\nvrf[vpu_wb_dst] ← vpu.result;\nclears vpu_wb_pending (sync: pc++)",
+                 740, 410, 320, 60, "vpu"))
 
     # rails labels
     c.append(text("sf-l1", "dispatch",           20, 145, 80, 16))
@@ -151,6 +155,8 @@ def sxu_fsm():
                   exit=(0.12, 1), entry=(0.5, 0)))
     c.append(edge("sf-ef-vpu",    "sf-fetch", "sf-vpu",      "solid", "DISPATCH_VPU",
                   exit=(0.25, 1), entry=(0.5, 0)))
+    c.append(edge("sf-ef-vpu-bg", "sf-fetch", "sf-vpu-bg",   "solid", "DISPATCH_VPU_BG",
+                  exit=(0.30, 1), entry=(0.5, 0)))
     c.append(edge("sf-ef-xlu",    "sf-fetch", "sf-xlu",      "solid", "XLU_*",
                   exit=(0.38, 1), entry=(0.5, 0)))
     c.append(edge("sf-ef-sel",    "sf-fetch", "sf-sel-copy", "solid", "SELECT",
@@ -178,9 +184,14 @@ def sxu_fsm():
                   exit=(0.5, 1), entry=(0.5, 0)))
     c.append(edge("sf-s4", "sf-sel",      "sf-vpu-coll", "guard", "vpu.isDone",
                   exit=(0, 0.5), entry=(1, 0.5)))
-    # bg rule edge (dashed, not a state transition)
+    # bg rule edges (dashed, not a state transition)
     c.append(edge("sf-s5", "sf-xlu", "sf-xlu-bg", "bg", "1-cycle later",
                   exit=(0.5, 1), entry=(0.5, 0)))
+    c.append(edge("sf-s6", "sf-vpu-bg", "sf-vpu-coll-bg", "bg", "when vpu.isDone",
+                  exit=(1, 0.5), entry=(0, 0.5)))
+    # BG path back-edge: dispatch advances pc directly (main FSM doesn't stall)
+    c.append(edge("sf-b-vpu-bg", "sf-vpu-bg", "sf-fetch", "back", "pc++ at dispatch",
+                  exit=(0.5, 0), entry=(0.45, 1)))
     # back edges pc++ — route from each terminal to FETCH's left or right edge
     c.append(edge("sf-b1",  "sf-store",     "sf-fetch", "back", "pc++",
                   exit=(0.5, 0), entry=(0.2, 1)))
@@ -282,7 +293,7 @@ def datapath():
     # Engines column
     c.append(box("dp-mxu", "MXU (Tensor Engine)\nSystolicArray 4×4 Int8 + Controller · WS + OS",
                  280, ROWS["mxu"][0], 440, ROWS["mxu"][1], "mxu"))
-    c.append(box("dp-vpu", "VPU (Vector Engine)\nint32 + float32 ALU · 82 opcodes (packed int8 + bit-manip)",
+    c.append(box("dp-vpu", "VPU (Vector Engine)\nint32 + float32 ALU · 84 opcodes (packed int8 + bit-manip)",
                  280, ROWS["vpu"][0], 440, ROWS["vpu"][1], "vpu"))
     c.append(box("dp-fpr",  "FpReducer\nFADD + FMUL + FCMP walker",
                  280, ROWS["fpr"][0], 215, ROWS["fpr"][1], "vpu"))
@@ -460,8 +471,9 @@ def main():
     parts.append('<h1>TinyTPU — Top-Level Datapath &amp; Compilation Flow</h1>')
     parts.append('<p class="sub">4×4 tensor core with shared FP reducer, multi-cycle TranscUnit, '
                  '8-bucket PSUM bank, double-buffered Weight/Activation SRAMs + DMA engines, and a '
-                 'dual-issue SXU sequencer (XLU overlaps with non-XLU ops). tinygrad <code>TINYTPU</code> '
-                 'backend lowers UOp graphs to SXU microprograms executed on the BSV runtime. '
+                 'dual-issue SXU sequencer (background XLU + VPU collect rules let non-conflicting '
+                 'ops overlap with in-flight engines). tinygrad <code>TINYTPU</code> backend lowers '
+                 'UOp graphs to SXU microprograms executed on the BSV runtime. '
                  '<em>Diagrams rendered by draw.io viewer</em> — click any diagram to zoom, pan, or export.</p>')
 
     # compilation flow
@@ -474,12 +486,18 @@ def main():
     parts.append('<h2>TensorCore — pipeline &amp; parallel execution</h2>')
     parts.append('<div class="panel" style="margin-bottom:24px">')
     parts.append('<div class="cap" style="margin-bottom:10px">'
-                 '<strong>SXU pipeline FSM.</strong> The main sequencer is single-issue with a '
-                 '<em>background XLU collect rule</em>: XLU dispatches advance pc immediately '
-                 '(no XLU_COLLECT state), and a parallel rule writes the result one cycle '
-                 'later while the main FSM fetches/executes the next non-XLU op. MXU dispatch '
-                 'is non-blocking — it latches operand bases into Controller and SXU proceeds. '
-                 'Multi-cycle collectors (VPU reducers, TranscUnit walker) guard on <code>isDone</code>.'
+                 '<strong>SXU pipeline FSM.</strong> The main sequencer is single-issue with '
+                 '<em>background collect rules</em> for XLU and VPU: XLU dispatches and '
+                 '<code>DISPATCH_VPU_BG</code> advance pc at dispatch (no stall in an '
+                 '<code>EXEC_*_COLLECT</code> state), and parallel rules retire the result '
+                 'one (or more) cycles later while the main FSM fetches/executes the next op. '
+                 'Sync <code>DISPATCH_VPU</code> still uses <code>EXEC_VPU_COLLECT</code>; both '
+                 'paths share one unified <code>do_vpu_collect</code> rule writing '
+                 '<code>vrf[vpu_wb_dst]</code>. A conservative <code>!vpu_wb_pending</code> RAW '
+                 'stall gates every vreg-reader rule so in-flight BG ops can never race with a '
+                 'dependent reader. MXU dispatch is non-blocking — it latches operand bases into '
+                 'Controller and SXU proceeds. Multi-cycle collectors (VPU reducers, TranscUnit '
+                 'walker) guard on <code>isDone</code>.'
                  '</div>')
     parts.append(viewer_div(sxu_fsm(), height=640))
     parts.append('</div>')
@@ -627,7 +645,7 @@ def main():
 <div class="panel">
 <div class="cap" style="margin-bottom:10px"><strong>Instruction encoding</strong> — one SXU instr per row, 10 fields</div>
 <ul>
-  <li>41 SXU opcodes: <code>LOAD_VREG</code>(0) … <code>HALT</code>(7) …
+  <li>42 SXU opcodes: <code>LOAD_VREG</code>(0) … <code>HALT</code>(7) …
       <code>DISPATCH_MXU</code>(4), <code>PSUM_*</code>(15–19, 22),
       <code>DISPATCH_MXU_ACCUMULATE</code>(23) (was the old misnomer
       <code>MXU_OS</code>), <code>MXU_CLEAR</code>(24),
@@ -640,8 +658,11 @@ def main():
       <code>LOAD_LOOP_DEPTH</code>(36),
       <code>DISPATCH_XLU_ROTATE</code>(37),
       <code>PSUM_CLEAR_ALL</code>(38),
-      <code>SET_PRED_NE_ZERO</code>(39)/<code>SKIP_IF_NOT_PRED</code>(40)</li>
-  <li><code>sxu_op</code>=2 (DISPATCH_VPU) indexes into 82 float/int/packed-i8
+      <code>SET_PRED_NE_ZERO</code>(39)/<code>SKIP_IF_NOT_PRED</code>(40),
+      <code>DISPATCH_VPU_BG</code>(41) (dual-issue VPU; pc advances at
+      dispatch, unified <code>do_vpu_collect</code> retires into
+      <code>vpu_wb_dst</code> when <code>vpu.isDone</code>)</li>
+  <li><code>sxu_op</code>=2 (DISPATCH_VPU) and 41 (DISPATCH_VPU_BG) index into 84 float/int/packed-i8
       ALUs + reducers + transcendentals + bit-manip (CLZ / CTZ / POPCOUNT /
       BYTE_REVERSE / ROTL / ROTR) + saturating arithmetic (SAT_ADD_I32 /
       SAT_SUB_I32 / ABS_DIFF_I32 / PACKED_I8_ABS_DIFF) + FABS / ARGMIN /
@@ -737,8 +758,11 @@ def main():
       float SUM / MAX / MIN / PROD reducers (tile / row / col granularity).</li>
   <li><code>src/TranscUnit.bsv</code> — multi-cycle walker implementing EXP2 / LOG2 /
       SIN / COS via Remez minimax polynomials + range reduction.</li>
-  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; 41 SXU opcodes +
-      background <code>do_xlu_collect_bg</code> dual-issue rule + 1-bit predicate
+  <li><code>src/ScalarUnit.bsv</code> — microprogram sequencer; 42 SXU opcodes +
+      background <code>do_xlu_collect_bg</code> dual-issue rule + VPU dual-issue
+      via <code>SXU_DISPATCH_VPU_BG</code> (unified dispatch/collect, SXU-side
+      <code>vpu_wb_pending</code>/<code>vpu_wb_dst</code> scoreboard, conservative
+      RAW stall on every vreg-reader rule) + 1-bit predicate
       (complete pair: SET_PRED_{IF_ZERO,NE_ZERO} + SKIP_IF_{PRED,NOT_PRED}) +
       nested-loop stack (depth 4).</li>
   <li><code>src/TensorCore.bsv</code>, <code>src/SystolicArray.bsv</code>,
