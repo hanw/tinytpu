@@ -663,18 +663,68 @@ Lean theorems added (push 4): `zero_weight_accum_unchanged`,
 `sign_times_self_nonneg` — 7 new theorems on top of the 3 from
 push 3 (10 total).
 
-### VPU dual-issue attempt (push 4 iter 2, reverted)
+### VPU dual-issue (push 5 iters 1-4, LANDED)
 
-Tried to move DISPATCH_VPU to the background-collect pattern
-(like the existing XLU dual-issue) so non-VPU ops could overlap
-with in-flight VPU work. **Single-cycle ops worked fine**, but
-**multi-cycle ops (LOG2, EXP2, FSUM_REDUCE_TILE, etc.) returned
-zero** — likely a bsc scheduling interaction with the implicit
-`if (!fp_busy && !transc_busy)` guard on `vpu.execute`. Reverted.
+Dedicated `SXU_DISPATCH_VPU_BG` opcode (41) for background-collect
+dual-issue. Unlike push-4 iter 2's attempt (which converted the
+existing sync path and broke multi-cycle ops), this iter keeps sync
+DISPATCH_VPU behavior identical and adds the BG path alongside.
+The main FSM's do_fetch dispatches both opcodes through one rule
+(do_vpu) that forks on pc_state: sync transitions to
+EXEC_VPU_COLLECT and stalls; BG advances pc and returns to FETCH,
+overlapping subsequent non-vreg-reader ops (MXU dispatch, PSUM
+clear, loop control, skip-if-pred). A single unified do_vpu_collect
+rule retires via vrf[vpu_wb_dst] for both paths — keeping the
+VRegFile writer count at parity with push-4 HEAD is what avoids
+blowing past bsc's `-steps-max-intervals 20` elaboration budget.
 
-Next attempt: add a **separate opcode** `SXU_DISPATCH_VPU_BG` for
-single-cycle ops only; multi-cycle ops stay on the sync path.
-Clean separation should avoid the bug. ~3-5 iters.
+Iter 3 added conservative !vpu_wb_pending RAW stall to every vreg-
+reader rule so multi-cycle BG (LOG2/EXP2/SIN/COS) and single-cycle
+BG followed by a dependent reader both stay correct. The fix is
+pessimistic: the reader stalls until the writeback lands even if
+its source vreg doesn't collide with vpu_wb_dst. A more precise
+`curInstr.vregSrc == vpu_wb_dst` check would let non-dependent
+readers overlap, but both the in-guard form and a fetch-time
+precompute form blow past the unfolding budget — likely because
+accessing packed-struct fields (`curInstr.vregSrc`) re-decodes
+the SxuInstr representation at every use site. Resolving that
+needs either a flat-field decode stage (separate Regs for
+vregSrc/vregSrc2/vregDst) or a restructured VRegFile with fewer
+writer sites per module.
+
+Iter 4 formalized the dispatch/collect equivalence in Lean:
+`bg_dispatch_then_collect_matches_sync`,
+`bg_collect_idempotent_when_empty`,
+`bg_dispatch_preserves_reg` (13 theorems total, was 10).
+
+### Remaining push-5 work
+
+- [ ] **Precise per-vreg RAW scoreboard.** Fine-grained alternative
+      to the coarse !vpu_wb_pending stall. Requires flat scalar Regs
+      for curInstr.vregSrc/vregSrc2/vregDst populated by do_fetch so
+      the hazard check `cur_raw_pending` stays cheap to elaborate.
+      Unlocks real dual-issue overlap on VPU-adjacent readers.
+- [ ] **Multi-input VPU command queue.** A small FIFO of pending
+      VPU dispatches so the main FSM can keep fetching/decoding
+      while back-to-back VPU_BG ops queue up. Useful when pairing
+      a VPU_BG with XLU/MXU dispatch to keep the engines busy.
+      Needs careful elaboration budget: a SizedFIFO + drain rule
+      adds ~2 vrf.read call sites, which may push bsc over.
+- [ ] **Renderer adoption.** Tinygrad's FABS / softsign / float-abs
+      tile chains can emit VPU_BG for the final VPU op before STORE
+      once the precise RAW scoreboard lands — without it, the
+      coarse stall burns the dual-issue window.
+- [ ] **Per-engine command queues.** Full Tier-1 decouple: SXU
+      fetch stage feeds four per-engine FIFOs (VPU/XLU/MXU/FpReducer)
+      with independent executors. Groundwork is in place
+      (vpu_wb_pending tracks VPU retire, xlu_busy tracks XLU retire);
+      the missing pieces are the FIFOs and a RAW scoreboard keyed
+      on vreg destination index.
+
+Build-time budget: push-5 iter 3 baseline is ~186s CPU for a clean
+`build/mkTbTinyTPURuntime.bexe`. Treat >2x regressions as stop-the-
+line; the usual fix is collapsing vrf.write call sites or moving
+cross-field equality checks out of rule guards.
 
 ### Deferred (called out but probably not next)
 
