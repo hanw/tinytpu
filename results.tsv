@@ -642,3 +642,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-15	f2915e7	1	tests	end-to-end attention block: QKV proj + Q@K^T + relu-attn + host-softmax-attn + 2-head MHA	sim tests/test_e2e_attention.py 7 passed	none (test-only)	bool->int32 MXU activation packing (1<<24 mis-encode); permute view folded by matmul scheduler unless .contiguous()	178.4
 2026-05-16	4249682	1	tinytpu	sinh/cosh renderers	backend 934 pass (+2)	none	logsigmoid/softplus/mish/elu still UNSUPPORTED	178.4
 2026-05-16	961722a	1	tinytpu	tan renderer	backend 935 pass (+1)	none	elu/softplus/logsigmoid/mish UNSUPPORTED	178.4
+2026-05-16	2306446	1	tests	multi-tile sinh/cosh/tan	backend 938 pass (+3)	none	softplus/elu/mish still UNSUPPORTED	178.4
