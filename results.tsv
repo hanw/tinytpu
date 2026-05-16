@@ -650,3 +650,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	c05e996	1	tinytpu	hardsigmoid renderer	backend hardsigmoid+adjacent 3 passed	coverage overview adds hardsigmoid	elu/mish still UNSUPPORTED	178.4
 2026-05-16	ITER2	1	tinytpu	elu renderer	backend elu+adjacent 3 passed	coverage overview adds elu	mish still UNSUPPORTED	178.4
 2026-05-16	ITER3	1	tinytpu	mish renderer	backend mish+adjacent 3 passed	coverage overview adds mish	composite activation multi-tile sweeps remain	178.4
+2026-05-16	ITER4	1	tests	multi-tile hardsigmoid coverage	backend hardsigmoid multi-tile pass	none	activation shape sweeps continue	178.4
