@@ -1140,6 +1140,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").hardsigmoid().numpy()
     np.testing.assert_allclose(result, np.clip(a / 6.0 + 0.5, 0.0, 1.0), atol=1e-6)
 
+  def test_hardsigmoid_saturation_matches_reference(self):
+    a = np.array([-24.0, -12.0, -6.0, 6.0, 12.0, 24.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").hardsigmoid().numpy()
+    np.testing.assert_allclose(result, np.clip(a / 6.0 + 0.5, 0.0, 1.0), atol=1e-6)
+
   def test_elu_matches_reference(self):
     a = np.array([-3.0, -1.0, -0.25, 0.0, 0.5, 2.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").elu().numpy()
