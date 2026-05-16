@@ -1162,6 +1162,12 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = a * np.tanh(np.log1p(np.exp(a)))
     np.testing.assert_allclose(result, expected, rtol=0.07, atol=0.07)
 
+  def test_mish_2d_matches_reference(self):
+    a = np.linspace(-3.0, 3.0, 12, dtype=np.float32).reshape(3, 4)
+    result = Tensor(a, dtype="float", device="TINYTPU").mish().numpy()
+    expected = a * np.tanh(np.log1p(np.exp(a)))
+    np.testing.assert_allclose(result, expected, rtol=0.07, atol=0.07)
+
   def test_logsigmoid_multi_tile_matches_reference(self):
     a = np.linspace(-3.0, 3.0, 32, dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").logsigmoid().numpy()
