@@ -221,3 +221,66 @@ theorem bg_dispatch_preserves_reg (s : VpuState) (f : Int → Int) :
     (s.bgDispatch f).reg = s.reg := by
   simp [VpuState.bgDispatch]
 
+
+/-! ## SXU predicate / skip semantics
+
+The SXU exposes a 1-bit predicate register plus `SET_PRED_IF_ZERO` /
+`SET_PRED_NE_ZERO` / `SKIP_IF_PRED` / `SKIP_IF_NOT_PRED` opcodes. The
+microarchitectural invariant we depend on for `if/else` lowering: a
+predicate read auto-resets the predicate after the (possibly skipped)
+fetch, so two skips in a row don't compound. These theorems make
+that contract explicit. -/
+
+structure PredState where
+  pred : Bool := false
+  pc   : Nat  := 0
+
+/-- `SET_PRED_IF_ZERO` from a vreg lane: pred ← (lane == 0). -/
+def PredState.setPredIfZero (s : PredState) (lane : Int) : PredState :=
+  { s with pred := decide (lane = 0) }
+
+/-- `SET_PRED_NE_ZERO` from a vreg lane: pred ← (lane ≠ 0). -/
+def PredState.setPredNeZero (s : PredState) (lane : Int) : PredState :=
+  { s with pred := decide (lane ≠ 0) }
+
+/-- `SKIP_IF_PRED`: when pred is set, advance pc by 2 (skip the next
+    instruction). Auto-reset pred either way (matches BSV: `pred <= False`
+    is unconditional). -/
+def PredState.skipIfPred (s : PredState) : PredState :=
+  if s.pred then { pred := false, pc := s.pc + 2 }
+  else      { pred := false, pc := s.pc + 1 }
+
+/-- `SKIP_IF_NOT_PRED`: dual of the above. Pred resets unconditionally. -/
+def PredState.skipIfNotPred (s : PredState) : PredState :=
+  if s.pred then { pred := false, pc := s.pc + 1 }
+  else      { pred := false, pc := s.pc + 2 }
+
+/-- Skip-if-pred always auto-resets the predicate, regardless of
+    whether the skip was taken. This is what makes `if/else` lowerings
+    safe to chain: the second `SKIP_IF_*` consumer reads pred = false
+    unless an intervening `SET_PRED_*` re-arms it. -/
+theorem skipIfPred_resets_pred (s : PredState) :
+    (s.skipIfPred).pred = false := by
+  unfold PredState.skipIfPred
+  split_ifs <;> rfl
+
+/-- Same property for the dual opcode. -/
+theorem skipIfNotPred_resets_pred (s : PredState) :
+    (s.skipIfNotPred).pred = false := by
+  unfold PredState.skipIfNotPred
+  split_ifs <;> rfl
+
+/-- `SET_PRED_IF_ZERO` and `SET_PRED_NE_ZERO` are dual on every lane
+    value: exactly one of them sets pred to true. -/
+theorem setPred_zero_or_ne (s : PredState) (lane : Int) :
+    (s.setPredIfZero lane).pred = ! (s.setPredNeZero lane).pred := by
+  unfold PredState.setPredIfZero PredState.setPredNeZero
+  by_cases h : lane = 0 <;> simp [h]
+
+/-- Skip-if-pred advances pc by 1 or 2 — never by 0 (no infinite
+    loop) and never backwards. This is the liveness contract the SXU
+    sequencer relies on. -/
+theorem skipIfPred_pc_advances (s : PredState) :
+    (s.skipIfPred).pc = s.pc + 1 ∨ (s.skipIfPred).pc = s.pc + 2 := by
+  unfold PredState.skipIfPred
+  split_ifs <;> simp
