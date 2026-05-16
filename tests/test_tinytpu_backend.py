@@ -1100,6 +1100,13 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = 1.0 / (1.0 + np.exp(-a))
     np.testing.assert_allclose(result, expected, atol=0.05)
 
+  def test_tan_matches_reference(self):
+    # tan(x) = sin(x)/cos(x), where cos(x) is lowered to sin(π/2 - x).
+    a = np.array([-0.5, -0.2, 0.0, 0.2, 0.5, 0.8], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").tan().numpy()
+    expected = np.tan(a)
+    np.testing.assert_allclose(result, expected, rtol=0.01, atol=0.01)
+
   def test_cosh_matches_reference(self):
     a = np.array([-2.0, -1.0, 0.0, 0.5, 1.0, 2.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").cosh().numpy()
