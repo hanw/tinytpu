@@ -1155,6 +1155,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").elu().numpy()
     np.testing.assert_allclose(result, np.where(a > 0, a, np.exp(a) - 1.0), rtol=0.03, atol=0.03)
 
+  def test_elu_tail_tile_matches_reference(self):
+    a = np.linspace(-3.0, 3.0, 17, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").elu().numpy()
+    np.testing.assert_allclose(result, np.where(a > 0, a, np.exp(a) - 1.0), rtol=0.03, atol=0.03)
+
   def test_mish_matches_reference(self):
     a = np.array([-3.0, -1.0, -0.25, 0.0, 0.5, 2.0], dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").mish().numpy()
