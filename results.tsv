@@ -648,3 +648,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	5b3a865	1	tests	multi-tile logsigmoid	backend 942 pass (+1)	none	-	178.4
 2026-05-16	af56f78	1	tinytpu	relu6 renderer	backend 944 pass (+2)	none	hardsigmoid/elu/mish still UNSUPPORTED	178.4
 2026-05-16	c05e996	1	tinytpu	hardsigmoid renderer	backend hardsigmoid+adjacent 3 passed	coverage overview adds hardsigmoid	elu/mish still UNSUPPORTED	178.4
+2026-05-16	ITER2	1	tinytpu	elu renderer	backend elu+adjacent 3 passed	coverage overview adds elu	mish still UNSUPPORTED	178.4
