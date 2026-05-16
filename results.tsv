@@ -644,3 +644,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	961722a	1	tinytpu	tan renderer	backend 935 pass (+1)	none	elu/softplus/logsigmoid/mish UNSUPPORTED	178.4
 2026-05-16	2306446	1	tests	multi-tile sinh/cosh/tan	backend 938 pass (+3)	none	softplus/elu/mish still UNSUPPORTED	178.4
 2026-05-16	bea6afe	1	lean	predicate skip/set theorems	lake build clean (17 theorems, was 13)	none	-	178.4
+2026-05-16	488894c	1	tinytpu	softplus/logsigmoid renderers	backend 941 pass (+3)	none	elu/mish/hardsigmoid still UNSUPPORTED	178.4

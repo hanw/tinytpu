@@ -1100,6 +1100,21 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = 1.0 / (1.0 + np.exp(-a))
     np.testing.assert_allclose(result, expected, atol=0.05)
 
+  def test_softplus_matches_reference(self):
+    a = np.array([-3.0, -1.0, 0.0, 1.0, 2.0, 3.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").softplus().numpy()
+    np.testing.assert_allclose(result, np.log1p(np.exp(a)), rtol=0.04, atol=0.04)
+
+  def test_logsigmoid_matches_reference(self):
+    a = np.array([-3.0, -1.0, 0.0, 1.0, 2.0, 3.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").logsigmoid().numpy()
+    np.testing.assert_allclose(result, -np.log1p(np.exp(-a)), rtol=0.04, atol=0.04)
+
+  def test_softplus_multi_tile_matches_reference(self):
+    a = np.linspace(-3.0, 3.0, 32, dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").softplus().numpy()
+    np.testing.assert_allclose(result, np.log1p(np.exp(a)), rtol=0.05, atol=0.05)
+
   def test_tan_multi_tile_matches_reference(self):
     a = np.linspace(-0.6, 0.6, 32, dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").tan().numpy()
