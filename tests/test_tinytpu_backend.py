@@ -3767,6 +3767,28 @@ class TestTinyTPUBackend(unittest.TestCase):
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
       self.assertTrue(any(r.get("op") in ("VPU_BINARY", "SXU_PROGRAM") for r in records))
 
+  def test_lowering_dump_records_hardsigmoid_sxu_program(self):
+    with tempfile.TemporaryDirectory() as td:
+      dump = Path(td) / "lowering.jsonl"
+      env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "tinygrad"), "TINYTPU_DUMP_LOWERING": str(dump)}
+      proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent("""\
+          import numpy as np
+          from tinygrad import Tensor
+          x = Tensor(np.linspace(-6, 6, 8, dtype=np.float32), dtype="float", device="TINYTPU")
+          print(x.hardsigmoid().numpy())
+        """)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+      )
+      self.assertEqual(proc.returncode, 0, msg=proc.stdout + "\n" + proc.stderr)
+      records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
+      self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("num_output_tiles") == 1 for r in records), records)
+      self.assertFalse(any(r.get("op") == "UNSUPPORTED" for r in records), records)
+
   def test_lowering_dump_records_wmma_gemm_descriptor(self):
     with tempfile.TemporaryDirectory() as td:
       dump = Path(td) / "lowering.jsonl"
