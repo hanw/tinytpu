@@ -660,3 +660,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	ITER11	1	tests	tail-tile elu coverage	backend elu tail pass	none	activation tail sweeps continue	178.4
 2026-05-16	ITER12	1	tests	tail-tile mish coverage	backend mish tail pass	none	activation lowering dump checks continue	178.4
 2026-05-16	ITER13	1	tests	hardsigmoid lowering dump coverage	backend hardsigmoid dump pass	none	activation lowering dump checks continue	178.4
+2026-05-16	ITER14	1	tests	elu lowering dump coverage	backend elu dump pass	none	activation lowering dump checks continue	178.4
