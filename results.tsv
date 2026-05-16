@@ -664,3 +664,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	ITER15	1	tests	mish lowering dump coverage	backend mish dump pass	none	activation sign-region checks continue	178.4
 2026-05-16	ITER16	1	tests	hardsigmoid saturation coverage	backend hardsigmoid saturation pass	none	activation sign-region checks continue	178.4
 2026-05-16	ITER17	1	tests	elu negative-branch coverage	backend elu negative branch pass	none	activation sign-region checks continue	178.4
+2026-05-16	ITER18	1	tests	elu positive-branch coverage	backend elu positive branch pass	none	activation sign-region checks continue	178.4
