@@ -1100,6 +1100,18 @@ class TestTinyTPUBackend(unittest.TestCase):
     expected = 1.0 / (1.0 + np.exp(-a))
     np.testing.assert_allclose(result, expected, atol=0.05)
 
+  def test_cosh_matches_reference(self):
+    a = np.array([-2.0, -1.0, 0.0, 0.5, 1.0, 2.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").cosh().numpy()
+    expected = np.cosh(a)
+    np.testing.assert_allclose(result, expected, rtol=0.02, atol=0.05)
+
+  def test_sinh_matches_reference(self):
+    a = np.array([-2.0, -1.0, 0.0, 0.5, 1.0, 2.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").sinh().numpy()
+    expected = np.sinh(a)
+    np.testing.assert_allclose(result, expected, rtol=0.03, atol=0.05)
+
   def test_exp_wide_range_matches_reference(self):
     # With EXP2 range reduction Tensor.exp() stays within 2% relative
     # error across a wide range — previously only |x| ≤ 0.7 worked.
