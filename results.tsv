@@ -653,3 +653,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	ITER4	1	tests	multi-tile hardsigmoid coverage	backend hardsigmoid multi-tile pass	none	activation shape sweeps continue	178.4
 2026-05-16	ITER5	1	tests	multi-tile elu coverage	backend elu multi-tile pass	none	activation shape sweeps continue	178.4
 2026-05-16	ITER6	1	tests	multi-tile mish coverage	backend mish multi-tile pass	none	activation 2D sweeps continue	178.4
+2026-05-16	ITER7	1	tests	2D hardsigmoid coverage	backend hardsigmoid 2D pass	none	activation 2D sweeps continue	178.4
