@@ -13,7 +13,7 @@ Current coverage includes hardware-backed TinyTPU execution for:
 GEMM (multi-WMMA, batched, deep-K, wide-N, with hardware fused bias+ReLU
 epilogue); full int32/bool VPU elementwise (ADD/MUL/SUB/MAX/MIN/DIV/MOD/
 ABS, CMP{LT,EQ,NE}, AND/OR/XOR/NOT, SHL/SHR, WHERE, RELU, clip, fused
-add+relu); scalar-const variants and scalar broadcasting; all shapes with
+add+relu, hardsigmoid); scalar-const variants and scalar broadcasting; all shapes with
 numel>16 through multi-tile elementwise loops; scalar, row-wise, and
 column-wise reductions (SUM/MAX/MIN/PROD) for any NxM through SXU_PROGRAM
 emitting VPU_{SUM,MAX,MIN,MUL}_REDUCE{,_COL,_TILE}; movement ops

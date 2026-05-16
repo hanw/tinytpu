@@ -1120,6 +1120,11 @@ class TestTinyTPUBackend(unittest.TestCase):
     result = Tensor(a, dtype="float", device="TINYTPU").relu6().numpy()
     np.testing.assert_allclose(result, np.clip(a, 0.0, 6.0))
 
+  def test_hardsigmoid_matches_reference(self):
+    a = np.array([-5.0, -3.0, -1.5, 0.0, 1.5, 3.0, 5.0], dtype=np.float32)
+    result = Tensor(a, dtype="float", device="TINYTPU").hardsigmoid().numpy()
+    np.testing.assert_allclose(result, np.clip(a / 6.0 + 0.5, 0.0, 1.0), atol=1e-6)
+
   def test_logsigmoid_multi_tile_matches_reference(self):
     a = np.linspace(-3.0, 3.0, 32, dtype=np.float32)
     result = Tensor(a, dtype="float", device="TINYTPU").logsigmoid().numpy()
