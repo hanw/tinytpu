@@ -4227,6 +4227,23 @@ class TestTinyTPUBackend(unittest.TestCase):
       records = [json.loads(line) for line in dump.read_text(encoding="utf-8").splitlines()]
       self.assertTrue(any(r.get("op") == "SXU_PROGRAM" and r.get("primitive") == "BROADCAST_SCALAR" and any(instr.startswith("2 9 ") for instr in r.get("instructions", [])) for r in records), records)
 
+  def test_instsel_walker_owns_int_elementwise(self):
+    # doc/plan-tinytpu-instsel.md: int32/bool elementwise kernels are lowered
+    # by the UOp-walking InstSel pass, not the legacy _render_* recognizers.
+    from tinygrad import Device
+    from tinygrad.engine.realize import get_program
+    from tinygrad.uop.ops import Ops
+    from tinygrad.runtime.support.tinytpu_lowering import can_lower, lower_kernel
+    a = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")
+    b = Tensor([5, 6, 7, 8], dtype="int32", device="TINYTPU")
+    asts = [s.ast for s in (a + b).schedule() if s.ast.op is not Ops.COPY]
+    self.assertTrue(asts, "no compute kernel scheduled")
+    prog = get_program(asts[-1], Device["TINYTPU"].renderer)
+    self.assertTrue(can_lower(prog.uops), "InstSel walker did not claim int elementwise add")
+    desc = lower_kernel(prog.uops)
+    self.assertEqual(desc["op"], "SXU_PROGRAM")
+    self.assertTrue(any(i.startswith("2 2 ") for i in desc["instructions"]), desc["instructions"])
+
   def test_lowering_dump_records_column_broadcast_compare_as_sxu_program(self):
     with tempfile.TemporaryDirectory() as td:
       dump = Path(td) / "lowering.jsonl"

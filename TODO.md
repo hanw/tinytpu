@@ -82,6 +82,22 @@ sim tests.
   - `_render_legacy_descriptor` now returns only SXU descriptors (the GEMM fallback builds an SXU_PROGRAM)
   - `analyze_tinytpu_uops` remains for external consumers in `tests/onnx_tinytpu_trace/driver.py` but is unreachable from the runtime dispatch
 
+## InstSel Migration (UOp-Walking Renderer)
+
+Replacing the ~47-recognizer `_render_*_sxu_program` waterfall with a single
+UOp-walking instruction-selection pass in
+`tinygrad/tinygrad/runtime/support/tinytpu_lowering.py`. See
+`doc/plan-tinytpu-instsel.md`.
+
+- [x] Iteration 1: InstSel module — `TpuInst`/`TpuKernel`/encoder and the walker
+  for int32/bool elementwise (ALU, WHERE, scalar broadcast, multi-tile). `render()`
+  routes these kernels to the walker via the positive `can_lower` predicate.
+- [ ] float elementwise through the walker, then delete `_render_elementwise_sxu_program`
+- [ ] transcendentals (EXP2/LOG2/SIN), delete transcendental recognizers
+- [ ] SQRT/RSQRT/RECIPROCAL microprograms
+- [ ] composite activations (deleted once the primitives above land)
+- [ ] divmod/trunc; register-allocation spill; orphaned `_find_*` helper cleanup
+
 ## Coverage Estimate by Area
 
 ### Current VPU/Runtime Architecture: 20-40 iterations

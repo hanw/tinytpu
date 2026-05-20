@@ -667,3 +667,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	ITER18	1	tests	elu positive-branch coverage	backend elu positive branch pass	none	activation sign-region checks continue	178.4
 2026-05-16	ITER19	1	tests	mish negative-region coverage	backend mish negative region pass	none	final activation sweep remains	178.4
 2026-05-16	ITER20	1	tests	mish positive-region coverage	backend mish positive region pass	none	full backend sweep	178.4
+2026-05-20	ITER21	1	instsel	int32/bool elementwise via UOp-walking InstSel pass	backend 774 pass / 124 fail (base 749/148): 0 regressions, 24 fixed	added InstSel migration section	walker: float, cast, transcendental coverage	178.4
