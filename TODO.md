@@ -92,7 +92,9 @@ UOp-walking instruction-selection pass in
 - [x] Iteration 1: InstSel module — `TpuInst`/`TpuKernel`/encoder and the walker
   for int32/bool elementwise (ALU, WHERE, scalar broadcast, multi-tile). `render()`
   routes these kernels to the walker via the positive `can_lower` predicate.
-- [ ] float elementwise through the walker, then delete `_render_elementwise_sxu_program`
+- [x] float elementwise through the walker (VECTORIZE/GEP see-through, float
+  CMPNE/CMPEQ, transparent bool→int cast); `_render_elementwise_sxu_program`
+  and orphaned `_find_alu_const` deleted
 - [ ] transcendentals (EXP2/LOG2/SIN), delete transcendental recognizers
 - [ ] SQRT/RSQRT/RECIPROCAL microprograms
 - [ ] composite activations (deleted once the primitives above land)

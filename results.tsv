@@ -669,3 +669,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-16	ITER20	1	tests	mish positive-region coverage	backend mish positive region pass	none	full backend sweep	178.4
 2026-05-20	ITER21	1	instsel	int32/bool elementwise via UOp-walking InstSel pass	backend 774 pass / 124 fail (base 749/148): 0 regressions, 24 fixed	added InstSel migration section	walker: float, cast, transcendental coverage	178.4
 2026-05-20	ITER22	1	instsel	float elementwise via UOp walker (VECTORIZE/GEP see-through)	backend 784 pass / 114 fail: 0 regressions, 10 fixed	none	delete _render_elementwise after structured broadcast	178.4
+2026-05-20	ITER23	1	instsel	float CMPNE/CMPEQ + bool-cast in walker; _render_elementwise deleted (315 lines)	backend 811 pass / 87 fail: 0 regressions, 27 fixed	marked _render_elementwise removal done	transcendental/activation recognizers	178.4
