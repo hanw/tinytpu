@@ -4234,7 +4234,7 @@ class TestTinyTPUBackend(unittest.TestCase):
     from tinygrad import Device
     from tinygrad.engine.realize import get_program
     from tinygrad.uop.ops import Ops
-    from tinygrad.runtime.support.tinytpu_lowering import can_lower, lower_kernel
+    from tinygrad.renderer.tinytpu import can_lower, lower_kernel
     a = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")
     b = Tensor([5, 6, 7, 8], dtype="int32", device="TINYTPU")
     asts = [s.ast for s in (a + b).schedule() if s.ast.op is not Ops.COPY]
