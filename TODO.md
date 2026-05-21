@@ -95,10 +95,19 @@ UOp-walking instruction-selection pass in
 - [x] float elementwise through the walker (VECTORIZE/GEP see-through, float
   CMPNE/CMPEQ, transparent bool→int cast); `_render_elementwise_sxu_program`
   and orphaned `_find_alu_const` deleted
-- [ ] transcendentals (EXP2/LOG2/SIN), delete transcendental recognizers
+- [x] transcendentals EXP2/LOG2/SIN routed through the walker (single VPU
+  opcodes 51/52/53)
+- [ ] delete transcendental + composite-activation recognizers (walker owns them)
 - [ ] SQRT/RSQRT/RECIPROCAL microprograms
-- [ ] composite activations (deleted once the primitives above land)
 - [ ] divmod/trunc; register-allocation spill; orphaned `_find_*` helper cleanup
+
+**Unmasked hardware bug:** the walker faithfully lowers tinygrad's
+decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
+(EXP2 returns ~0 for positive inputs; LOG2 is very imprecise). The old
+activation recognizers used hardware-dodging formulations that hid this. ~40
+transcendental/activation test failures, plus `test_elu_positive_branch` and
+`test_log_compound_input`, trace to this. Fix belongs in `src/` BSV, not the
+backend — see `doc/plan-primitive-ops-handoff.md`.
 
 ## Coverage Estimate by Area
 
