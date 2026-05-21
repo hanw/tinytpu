@@ -126,6 +126,15 @@ remain a deliberate later slice.
   `render()` dispatches on `KernelClass.ELEMENTWISE` → `lower_kernel`; all
   other classes fall through to the structural recognizers unchanged.
   Behavior-neutral; suite unchanged (810 pass / 88 fail, 0 regressions).
+- [x] **Step 3 (ITER31): reduction lowerer.** `reduction.py` adds
+  `is_reduction(uops)` (positive predicate) and `lower_reduction(uops)`,
+  a single classify-then-emit lowerer for scalar/row/column SUM/MAX/MIN/PROD
+  reductions. `KernelClass.REDUCTION` is checked most-specific-first (after
+  GEMM, before ELEMENTWISE); `render()` dispatches it to `lower_reduction`.
+  The three legacy recognizers (`_render_reduction`/`_render_rowreduce`/
+  `_render_colreduce`, ~565 lines) and orphaned helpers `_is_float_min_negation`
+  / `_detect_reduce_op` are deleted. Behavior-neutral; suite unchanged
+  (810 pass / 88 fail, 0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §7.
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
