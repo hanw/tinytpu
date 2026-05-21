@@ -147,6 +147,19 @@ remain a deliberate later slice.
   ~300 lines) and the orphaned helper `_classify_structured_broadcast_axis`
   are deleted. Behavior-neutral; suite unchanged (810 pass / 88 fail,
   0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §8.
+- [x] **Step 5 (ITER33): trivial kernels.** cast / copy / const-fill folded
+  into the elementwise walker as degenerate elementwise maps. `can_lower`/
+  `lower_kernel` now accept a bare-`LOAD` DAG (copy, with a constant source
+  offset for contiguous reshape / slice / shrink), a bare-`CONST` DAG
+  (single-tile const-fill), and `CAST` value converts (`I2F`/`F2I`; bool→int
+  stays transparent via `_canon`). `_render_cast_sxu_program` and
+  `_render_const_fill_sxu_program` are deleted in full along with the orphaned
+  `_ALU_OP_NAMES`. `_render_copy_sxu_program` (186 lines) is reduced to
+  `_render_rowbc_copy_sxu_program` — the one non-degenerate case it carried, a
+  single-input row broadcast (`Tensor([[..]]).expand(N,M)`), which is a
+  structured broadcast, not a per-element map. Behavior-neutral; suite
+  unchanged (810 pass / 88 fail, 0 regressions). See
+  `doc/plan-tinytpu-instsel-structural.md` §6.
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
