@@ -177,6 +177,27 @@ remain a deliberate later slice.
   `KernelClass.GEMM` to `lower_gemm`; the non-WMMA matmul fallback runs via
   `lower_gemm_fallback`. Behavior-neutral; suite unchanged (810 pass / 88 fail,
   0 regressions); cosim passes. See `doc/plan-tinytpu-instsel-structural.md` §9.
+- [x] **Step 7-8 (ITER35): movement lowerer (Branch B).** The Task 7 spike
+  chose **Branch B** (renderer-side lowering): rangeify already dissolves the
+  movement op itself, but the recognizers recover a non-affine tile access
+  pattern the SXU model cannot express generically — they do real
+  SXU-specific instruction selection, so they are relocated, not deleted.
+  New `movement.py` adds `is_movement(uops)` (positive predicate) and
+  `lower_movement(uops)`, a classify-then-emit lowerer that ports the three
+  legacy recognizers verbatim: pad / flip / non-affine permute (PAD_FILL
+  scatter data plan), the 4×4 `permute(1,0)` (`SXU_DISPATCH_XLU_TRANSPOSE`),
+  and single-input row-broadcast copy (`SXU_BROADCAST_ROW`). `is_movement`
+  carries the legacy fallback-ordering gate (`can_lower` kernels — e.g. a
+  scalar `expand` lowered as `BROADCAST_SCALAR` — were never reached by the
+  recognizers and are excluded here). `KernelClass.MOVEMENT` is checked
+  most-specific-first (after GEMM/REDUCTION/BROADCAST, before ELEMENTWISE);
+  `render()` dispatches it to `lower_movement`. The three legacy recognizers
+  (`_render_pad`/`_render_transpose`/`_render_rowbc_copy_sxu_program`, ~285
+  lines) and orphaned helpers `_uop_contains`/`_has_load_src`/`_data_alu_ops`/
+  `_ALU_OPS` are deleted. `ops_tinytpu.py` now has zero `_render_*_sxu_program`
+  recognizers; `_render_sxu_program` is a trivial `return None` shell (Task 9
+  deletes it). Behavior-neutral; suite unchanged (810 pass / 88 fail,
+  0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §10.
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
