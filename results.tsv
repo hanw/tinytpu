@@ -676,3 +676,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-20	ITER27	1	instsel	linear-scan VREG allocation with reuse in the walker	backend 810 pass / 88 fail: 0 regressions	none	divmod/trunc, delete last 2 non-structural recognizers	178.4
 2026-05-20	ITER28	1	instsel	trunc + divmod via walker; deleted last 2 non-structural recognizers	backend 810 pass / 88 fail: 0 regressions; 4 divmod tests corrected to floor semantics	marked divmod/trunc done; slice complete	structural recognizers (separate slice)	178.4
 2026-05-20	ITER29	1	instsel	0 (structural)	backend 810 pass / 88 fail: 0 regressions	InstSel structural slice step 1 (package split)	structural recognizers (classifier, reduction, broadcast, GEMM)	178.4
+2026-05-20	ITER30	1	instsel	0 (structural)	backend 810 pass / 88 fail: 0 regressions	InstSel structural slice step 2 (classifier)	structural recognizers (reduction, broadcast, GEMM)	178.4

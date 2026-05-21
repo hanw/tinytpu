@@ -121,6 +121,11 @@ remain a deliberate later slice.
   helpers, InstSel pass), `elementwise.py` (walker), `__init__.py` (re-exports
   `can_lower`/`lower_kernel`). Behavior-neutral; suite unchanged (810 pass / 88
   fail, 0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §6.
+- [x] **Step 2 (ITER30): classifier.** `classify.py` introduces `KernelClass`
+  enum (`ELEMENTWISE`, `GEMM`, `UNSUPPORTED`) and `classify(uops)` function.
+  `render()` dispatches on `KernelClass.ELEMENTWISE` → `lower_kernel`; all
+  other classes fall through to the structural recognizers unchanged.
+  Behavior-neutral; suite unchanged (810 pass / 88 fail, 0 regressions).
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
