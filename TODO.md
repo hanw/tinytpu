@@ -160,6 +160,23 @@ remain a deliberate later slice.
   structured broadcast, not a per-element map. Behavior-neutral; suite
   unchanged (810 pass / 88 fail, 0 regressions). See
   `doc/plan-tinytpu-instsel-structural.md` §6.
+- [x] **Step 6 (ITER34): GEMM relocate.** Behavior-neutral relocation, two
+  parts. (A) All bundle-instruction encoders (`_vmem`/`_wmem`/`_amem`,
+  `_load`/`_store`/`_vpu`/`_vpu_bg`/`_vpu_exp2`/`_vpu_log2`/`_vpu_sin`,
+  `_select`, `_broadcast*`, `_mxu*`, `_psum*`, `_loop_*`, `_vzero`/`_vfill`/
+  `_vmov`/`_vneg`/`_vabs`, `_set_pred_*`/`_skip_*`, `_halt`/`_output_*`/
+  `_end`/`_bundle`, …) moved verbatim into `common.py`; `ops_tinytpu.py`
+  re-exports them so existing `tests/`/`scripts/` imports keep working.
+  `reduction.py`/`broadcast.py` local encoder copies deleted and imported
+  from `common.py`. (B) New `gemm.py` with `lower_gemm`/`lower_gemm_fallback`:
+  the WMMA branch of `_render_sxu_program`, `_render_gemm_fallback_sxu_program`,
+  and the GEMM-only helpers (`_generate_gemm_sxu_instructions`,
+  `_extract_wmma_epilogue`, `_apply_gemm_epilogue`, `_infer_tiling`,
+  `_tiling_failure_note`) moved verbatim. `_find_unique_param_arg` moved to
+  `common.py` (shared with the structural recognizers). `render()` dispatches
+  `KernelClass.GEMM` to `lower_gemm`; the non-WMMA matmul fallback runs via
+  `lower_gemm_fallback`. Behavior-neutral; suite unchanged (810 pass / 88 fail,
+  0 regressions); cosim passes. See `doc/plan-tinytpu-instsel-structural.md` §9.
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken

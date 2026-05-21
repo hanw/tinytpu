@@ -680,3 +680,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-20	ITER31	1	instsel	0 (structural)	backend 810 pass / 88 fail: 0 regressions	InstSel structural slice step 3 (reduction lowerer)	structural recognizers (broadcast, GEMM)	178.4
 2026-05-20	ITER32	1	instsel	0 (structural)	backend 810 pass / 88 fail: 0 regressions	InstSel structural slice step 4 (broadcast lowerer)	structural recognizers (GEMM)	178.4
 2026-05-20	ITER33	1	instsel	0 (structural)	backend 810 pass / 88 fail: 0 regressions	InstSel structural slice step 5 (trivial kernels: cast/copy/const-fill)	structural recognizers (pad, transpose, rowbc-copy, GEMM)	178.4
+2026-05-20	ITER34	1	instsel	0 (structural)	backend 810 pass / 88 fail: 0 regressions	InstSel structural slice step 6 (GEMM relocate + encoder consolidation)	structural recognizers (pad, transpose, rowbc-copy)	178.4
