@@ -135,6 +135,18 @@ remain a deliberate later slice.
   `_render_colreduce`, ~565 lines) and orphaned helpers `_is_float_min_negation`
   / `_detect_reduce_op` are deleted. Behavior-neutral; suite unchanged
   (810 pass / 88 fail, 0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §7.
+- [x] **Step 4 (ITER32): broadcast lowerer.** `broadcast.py` adds
+  `is_broadcast(uops)` (positive predicate) and `lower_broadcast(uops)`,
+  a single classify-then-emit lowerer for row / column / column-where
+  broadcasts. The axis is classified from the smaller operand's index
+  relationship to the output ranges; `colbc_where` emits the column
+  broadcast then the WHERE/select. `KernelClass.BROADCAST` is checked
+  most-specific-first (after GEMM and REDUCTION, before ELEMENTWISE);
+  `render()` dispatches it to `lower_broadcast`. The three legacy
+  recognizers (`_render_rowbc`/`_render_colbc`/`_render_colbc_where`,
+  ~300 lines) and the orphaned helper `_classify_structured_broadcast_axis`
+  are deleted. Behavior-neutral; suite unchanged (810 pass / 88 fail,
+  0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §8.
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
