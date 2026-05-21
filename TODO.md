@@ -198,6 +198,27 @@ remain a deliberate later slice.
   recognizers; `_render_sxu_program` is a trivial `return None` shell (Task 9
   deletes it). Behavior-neutral; suite unchanged (810 pass / 88 fail,
   0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §10.
+- [x] **Step 9 (ITER36): final cleanup.** The empty `_render_sxu_program`
+  shell and its call site in `render()` are deleted — `render()` is now a
+  clean `classify(uops)` → per-class lowerer dispatch, with the non-WMMA
+  matmul fallback (`lower_gemm_fallback`) preserved on the path before the
+  `UNSUPPORTED` descriptor. Duplicated graph helpers `_has_load_src` /
+  `_data_alu_ops` (byte-identical copies in `movement.py`/`reduction.py`/
+  `broadcast.py`) are hoisted into one canonical copy in `common.py`. The
+  `id()`-based traversal closures in `movement.py` (`_has_range`, `_consts_in`,
+  load-index distinctness set) are replaced with `UOp.toposort()`-based
+  equivalents. The provably-dead `WMMA` reject entry is removed from the
+  movement recognizers (`classify` routes WMMA → GEMM before `is_movement`);
+  the `MULACC` guard is kept (a non-WMMA matmul can reach `is_movement`, so
+  it is not provably dead). Dead `_apply_gemm_epilogue` (zero callers) is
+  deleted from `gemm.py`. A deferred TODO is added at
+  `broadcast.py:_classify_broadcast_axis`. Behavior-neutral; suite unchanged
+  (810 pass / 88 fail, 0 regressions); cosim passes.
+
+**Structural slice complete.** All 12 structural recognizers migrated;
+`ops_tinytpu.py` has zero `_render_*` recognizers and is 1260 lines (from
+6984); all kernel lowering is in the `tinytpu_lowering` package behind
+`classify()`.
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
