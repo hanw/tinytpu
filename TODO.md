@@ -114,6 +114,14 @@ in `tinytpu_lowering.py`. `ops_tinytpu.py` shrank from 6984 to ~3400 lines. The
 structural recognizers (reductions, broadcasts, pad, transpose, cast, copy)
 remain a deliberate later slice.
 
+## InstSel Migration — Structural Slice
+
+- [x] **Step 1 (ITER29): package split.** `tinytpu_lowering.py` split into
+  `tinytpu_lowering/` package: `common.py` (shared types, opcode tables, graph
+  helpers, InstSel pass), `elementwise.py` (walker), `__init__.py` (re-exports
+  `can_lower`/`lower_kernel`). Behavior-neutral; suite unchanged (810 pass / 88
+  fail, 0 regressions). See `doc/plan-tinytpu-instsel-structural.md` §6.
+
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
 (EXP2 returns ~0 for positive inputs; LOG2 is very imprecise). The old
