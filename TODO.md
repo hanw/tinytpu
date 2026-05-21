@@ -97,8 +97,9 @@ UOp-walking instruction-selection pass in
   and orphaned `_find_alu_const` deleted
 - [x] transcendentals EXP2/LOG2/SIN routed through the walker (single VPU
   opcodes 51/52/53)
+- [x] RECIPROCAL (FRECIP opcode 23) and SQRT (InstSel graph-rewrite to
+  exp2(0.5·log2(x))) routed through the walker
 - [ ] delete transcendental + composite-activation recognizers (walker owns them)
-- [ ] SQRT/RSQRT/RECIPROCAL microprograms
 - [ ] divmod/trunc; register-allocation spill; orphaned `_find_*` helper cleanup
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
