@@ -103,7 +103,16 @@ UOp-walking instruction-selection pass in
   and 3 orphaned pattern helpers (3062 lines); `ops_tinytpu.py` 6984 → 3551 lines
 - [x] linear-scan VREG allocation with reuse (deep DAGs no longer burn a VREG
   per node)
-- [ ] divmod/trunc through the walker; delete the last two non-structural recognizers
+- [x] divmod/trunc through the walker (MOD InstSel rewrite `a-(a//b)*b`, TRUNC
+  F2I+I2F micro-pair); deleted `_render_trunc` and `_render_scalar_const_divmod`.
+  Negative `//`/`%` now match tinygrad/numpy floor semantics — 4 tests that
+  encoded the legacy recognizer's truncating result were corrected.
+
+**InstSel migration slice complete.** Every elementwise / unary / transcendental
+/ activation / divmod / trunc kernel is lowered by the UOp-walking InstSel pass
+in `tinytpu_lowering.py`. `ops_tinytpu.py` shrank from 6984 to ~3400 lines. The
+structural recognizers (reductions, broadcasts, pad, transpose, cast, copy)
+remain a deliberate later slice.
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken

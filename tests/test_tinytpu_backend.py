@@ -2411,16 +2411,20 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_array_equal(result, np.array([3, 6, 10, 13], dtype=np.int32))
 
   def test_idiv_negative_matches_reference(self):
+    # The InstSel walker faithfully lowers tinygrad's floor-division graph, so
+    # negative // matches tinygrad's CPU backend and numpy (-10 // 3 == -4).
+    # The legacy recognizer produced truncating results, disagreeing with both.
     result = (Tensor([-10, -9, 9, 10], dtype="int32", device="TINYTPU") // 3).numpy()
-    np.testing.assert_array_equal(result, np.array([-3, -3, 3, 3], dtype=np.int32))
+    np.testing.assert_array_equal(result, np.array([-4, -3, 3, 3], dtype=np.int32))
 
   def test_mod_scalar_matches_reference(self):
     result = (Tensor([10, 20, 30, 40], dtype="int32", device="TINYTPU") % 3).numpy()
     np.testing.assert_array_equal(result, np.array([1, 2, 0, 1], dtype=np.int32))
 
   def test_mod_negative_matches_reference(self):
+    # Floor-division remainder, matching tinygrad's CPU backend and numpy.
     result = (Tensor([-10, -9, 9, 10], dtype="int32", device="TINYTPU") % 3).numpy()
-    np.testing.assert_array_equal(result, np.array([-1, 0, 0, 1], dtype=np.int32))
+    np.testing.assert_array_equal(result, np.array([2, 0, 0, 1], dtype=np.int32))
 
   def test_idiv_full_tile_matches_reference(self):
     data = list(range(3, 19))
@@ -2433,12 +2437,10 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) // 3)
 
   def test_idiv_negative_multi_tile_matches_reference(self):
-    # TinyTPU VPU_DIV truncates toward zero (C-style), not floor (Python-style).
-    # Build expected values using truncation so the test matches hardware semantics.
-    import math
+    # The InstSel walker honors tinygrad's floor-division semantics.
     data = list(range(-16, 16))
     result = (Tensor(data, dtype="int32", device="TINYTPU") // 3).numpy()
-    expected = np.array([math.trunc(x / 3) for x in data], dtype=np.int32)
+    expected = np.array([x // 3 for x in data], dtype=np.int32)
     np.testing.assert_array_equal(result, expected)
 
   def test_mod_full_tile_matches_reference(self):
@@ -2452,11 +2454,10 @@ class TestTinyTPUBackend(unittest.TestCase):
     np.testing.assert_array_equal(result, np.array(data, dtype=np.int32) % 7)
 
   def test_mod_negative_multi_tile_matches_reference(self):
-    # TinyTPU MOD uses truncation-based remainder: a % b = a - b*(trunc(a/b)).
-    import math
+    # Floor-division remainder, matching tinygrad's CPU backend and numpy.
     data = list(range(-16, 16))
     result = (Tensor(data, dtype="int32", device="TINYTPU") % 3).numpy()
-    expected = np.array([x - 3 * math.trunc(x / 3) for x in data], dtype=np.int32)
+    expected = np.array([x % 3 for x in data], dtype=np.int32)
     np.testing.assert_array_equal(result, expected)
 
   def test_idiv_tensor_tensor_matches_reference(self):
