@@ -101,7 +101,9 @@ UOp-walking instruction-selection pass in
   exp2(0.5·log2(x))) routed through the walker
 - [x] deleted 34 transcendental/activation/elementwise `_render_*` recognizers
   and 3 orphaned pattern helpers (3062 lines); `ops_tinytpu.py` 6984 → 3551 lines
-- [ ] divmod/trunc through the walker; register-allocation spill
+- [x] linear-scan VREG allocation with reuse (deep DAGs no longer burn a VREG
+  per node)
+- [ ] divmod/trunc through the walker; delete the last two non-structural recognizers
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken

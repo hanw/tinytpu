@@ -673,3 +673,4 @@ date	commit	iterations	scope	supported_delta	tests_passed	todo_delta	remaining_g
 2026-05-20	ITER24	1	instsel	EXP2/LOG2/SIN transcendentals routed through walker	backend 809 pass / 89 fail: 2 hardware-exposure regressions (broken EXP2/LOG2 unmasked)	noted unmasked transcendental hardware bug	delete transcendental+activation recognizers	178.4
 2026-05-20	ITER25	1	instsel	RECIPROCAL (FRECIP) + SQRT via InstSel graph-rewrite	backend 810 pass / 88 fail: 0 regressions, 1 fixed	none	delete transcendental+activation recognizers	178.4
 2026-05-20	ITER26	1	instsel	deleted 34 transcendental/activation/elementwise recognizers + 3 orphan helpers (3062 lines)	backend 810 pass / 88 fail: 0 regressions	marked recognizer deletion done	divmod/trunc, regalloc spill	178.4
+2026-05-20	ITER27	1	instsel	linear-scan VREG allocation with reuse in the walker	backend 810 pass / 88 fail: 0 regressions	none	divmod/trunc, delete last 2 non-structural recognizers	178.4
