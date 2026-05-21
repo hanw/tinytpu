@@ -99,8 +99,9 @@ UOp-walking instruction-selection pass in
   opcodes 51/52/53)
 - [x] RECIPROCAL (FRECIP opcode 23) and SQRT (InstSel graph-rewrite to
   exp2(0.5·log2(x))) routed through the walker
-- [ ] delete transcendental + composite-activation recognizers (walker owns them)
-- [ ] divmod/trunc; register-allocation spill; orphaned `_find_*` helper cleanup
+- [x] deleted 34 transcendental/activation/elementwise `_render_*` recognizers
+  and 3 orphaned pattern helpers (3062 lines); `ops_tinytpu.py` 6984 → 3551 lines
+- [ ] divmod/trunc through the walker; register-allocation spill
 
 **Unmasked hardware bug:** the walker faithfully lowers tinygrad's
 decompositions, which exposed that the BSV EXP2/LOG2/SIN units are broken
