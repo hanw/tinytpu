@@ -4,6 +4,7 @@ import Vector :: *;
 import FloatingPoint :: *;
 import FpReducer :: *;
 import TranscUnit :: *;
+import Assert :: *;
 
 typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, VPU_CMPNE, VPU_SUB, VPU_CMPEQ, VPU_MAX_REDUCE, VPU_SHL, VPU_SHR, VPU_MIN, VPU_MIN_REDUCE, VPU_DIV, VPU_AND, VPU_OR, VPU_XOR,
                VPU_FADD, VPU_FMUL, VPU_FSUB, VPU_FMAX, VPU_FCMPLT, VPU_FRECIP, VPU_I2F, VPU_F2I,
@@ -58,7 +59,12 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                VPU_ROTL, VPU_ROTR,
                // Unsigned-viewed 32-bit min/max for sort keys and
                // hashing. Semantically independent of signed MIN/MAX.
-               VPU_MIN_U32, VPU_MAX_U32 }
+               VPU_MIN_U32, VPU_MAX_U32,
+               // Pairwise 2D rotation of adjacent lane pairs (RoPE):
+               //   out[2p]   = d[2p]*cos - d[2p+1]*sin
+               //   out[2p+1] = d[2p]*sin + d[2p+1]*cos
+               // src2 packs cos in even lanes, sin in odd lanes.
+               VPU_PAIR_ROTATE }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -365,6 +371,9 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
       Add#(1, sl_, TMul#(sublanes, lanes)),
       Bits#(Vector#(sublanes, Vector#(lanes, Int#(32))), vsz)
    );
+
+   staticAssert(valueOf(lanes) % 2 == 0,
+                "VPU_PAIR_ROTATE requires an even lane count");
 
    Reg#(Vector#(sublanes, Vector#(lanes, Int#(32)))) resultReg <- mkRegU;
 
@@ -806,6 +815,23 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                   b_neg.sign = !b_neg.sign;
                   let r = addFP(bits2fp(src1[s][l]), b_neg, Rnd_Nearest_Even);
                   row[l] = fp2bits(tpl_1(r));
+               end
+            end
+            VPU_PAIR_ROTATE: begin
+               // Rotate each adjacent lane pair (2p, 2p+1) by the angle in
+               // src2: even lane = cos, odd lane = sin.
+               for (Integer p = 0; p < valueOf(lanes) / 2; p = p + 1) begin
+                  Float d_e = bits2fp(src1[s][2 * p]);
+                  Float d_o = bits2fp(src1[s][2 * p + 1]);
+                  Float c   = bits2fp(src2[s][2 * p]);
+                  Float sn  = bits2fp(src2[s][2 * p + 1]);
+                  Float ec = tpl_1(multFP(d_e, c,  Rnd_Nearest_Even));
+                  Float os = tpl_1(multFP(d_o, sn, Rnd_Nearest_Even));
+                  Float es = tpl_1(multFP(d_e, sn, Rnd_Nearest_Even));
+                  Float oc = tpl_1(multFP(d_o, c,  Rnd_Nearest_Even));
+                  Float os_neg = os; os_neg.sign = !os_neg.sign;
+                  row[2 * p]     = fp2bits(tpl_1(addFP(ec, os_neg, Rnd_Nearest_Even)));
+                  row[2 * p + 1] = fp2bits(tpl_1(addFP(es, oc,     Rnd_Nearest_Even)));
                end
             end
             VPU_FMAX: begin

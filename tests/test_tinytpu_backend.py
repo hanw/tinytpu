@@ -6648,6 +6648,49 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     expected = [clear_sign(x) for x in src_tile]
     self.assertEqual(tile, expected, f"FABS bits: got {tile}, expected {expected}")
 
+  def test_vpu_pair_rotate_float(self):
+    # VPU_PAIR_ROTATE: 2D rotation of each adjacent lane pair (2p, 2p+1).
+    #   out[2p]   = d[2p]*cos - d[2p+1]*sin
+    #   out[2p+1] = d[2p]*sin + d[2p+1]*cos
+    # src2 is the coefficient tile: even lane = cos, odd lane = sin.
+    import struct, math
+    sim = os.environ["TINYTPU_SIM"]
+    def f2i(x): return struct.unpack("<i", struct.pack("<f", x))[0]
+    def i2f(x): return struct.unpack("<f", struct.pack("<i", x))[0]
+    PAIR_ROTATE = _VPU_OPS["PAIR_ROTATE"]
+    # 4 rows x 4 lanes; one rotation angle per row, both lane-pairs use it.
+    data = [ 1.0,  2.0,  3.0,  4.0,
+            -1.5,  0.5,  2.0, -3.0,
+             0.0,  1.0, -1.0,  0.0,
+             5.0, -5.0,  2.5,  2.5]
+    angles = [0.0, math.pi / 2, math.pi / 4, math.pi / 6]
+    coef = []
+    for r in range(4):
+      c, s = math.cos(angles[r]), math.sin(angles[r])
+      coef += [c, s, c, s]  # pair 0 and pair 1 of this row share the angle
+    bundle = _bundle(
+      _vmem(0, [f2i(x) for x in data]),
+      _vmem(1, [f2i(x) for x in coef]),
+      _load(0, 0),
+      _load(1, 1),
+      _vpu(2, 0, PAIR_ROTATE, 1),
+      _store(2, 2),
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    got = [i2f(x) for x in _parse_vmem_output(out)]
+    expected = []
+    for r in range(4):
+      c, s = math.cos(angles[r]), math.sin(angles[r])
+      row = data[r * 4:r * 4 + 4]
+      for p in range(2):
+        de, do = row[2 * p], row[2 * p + 1]
+        expected.append(de * c - do * s)
+        expected.append(de * s + do * c)
+    np.testing.assert_allclose(got, expected, rtol=1e-4, atol=1e-5)
+
   def test_vpu_rotl_rotr(self):
     # Push 4 iter 28: 32-bit lane-wise rotate-left / rotate-right by
     # an amount taken from src2 (mod 32).
