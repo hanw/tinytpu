@@ -728,9 +728,9 @@ def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
     # Full VPU opcode range including EXP2/LOG2/SIN/COS transcendentals
     # and the packed-int8 quantized ops at the tail.
-    assert len(_VPU) == 84
+    assert len(_VPU) == 85
     codes = sorted(_VPU.values())
-    assert codes == list(range(84))
+    assert codes == list(range(85))
 
 
 def test_vpu_min_u32_roundtrip():
@@ -755,6 +755,18 @@ def test_vpu_rotl_roundtrip():
     vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
     assert vpu_line.split()[5] == "80"
     assert "ROTL(v0, v1)" in disassemble(wire)
+
+
+def test_vpu_pair_rotate_roundtrip():
+    prog = ("LOAD  v0, VMEM[0]\n"
+            "LOAD  v1, VMEM[1]\n"
+            "VPU   v2 = PAIR_ROTATE(v0, v1)\n"
+            "STORE VMEM[2], v2\n"
+            "HALT\nEND\n")
+    wire = assemble(prog)
+    vpu_line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 2 "))
+    assert vpu_line.split()[5] == "84"
+    assert "PAIR_ROTATE(v0, v1)" in disassemble(wire)
 
 
 def test_vpu_rotr_roundtrip():
