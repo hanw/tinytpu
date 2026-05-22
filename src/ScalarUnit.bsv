@@ -141,7 +141,14 @@ typedef enum {
    // can be expressed. pred is auto-reset on skip-taken (same as
    // SKIP_IF_PRED).
    SXU_SKIP_IF_NOT_PRED,
-   SXU_DISPATCH_VPU_BG
+   SXU_DISPATCH_VPU_BG,
+   // Fused GEMM + epilogue: runs a WS dispatch and applies bias / relu at
+   // drain time, storing the post-processed rows x cols result matrix in
+   // the Controller's epilogueBuf. The SXU then writes the result to a
+   // vreg (bit4=0) or VMEM (bit4=1) as indicated by the vpuOp config.
+   // Opcodes 42 and 43 — must match assembler DISPATCH_MXU_EPILOGUE / LOAD_EPILOGUE_STAT.
+   SXU_DISPATCH_MXU_EPILOGUE,
+   SXU_LOAD_EPILOGUE_STAT
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -203,6 +210,8 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_SET_PRED, SXU_EXEC_SKIP_IF_PRED,
                SXU_EXEC_SET_PRED_NE, SXU_EXEC_SKIP_IF_NOT_PRED,
                SXU_EXEC_VPU_BG,
+               SXU_EXEC_MXU_EPILOGUE, SXU_WAIT_MXU_EPILOGUE,
+               SXU_EXEC_MXU_EPILOGUE_WB, SXU_EXEC_LOAD_EPILOGUE_STAT,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -340,6 +349,8 @@ module mkScalarUnit#(
          SXU_SET_PRED_IF_ZERO: pc_state <= SXU_EXEC_SET_PRED;
          SXU_SKIP_IF_PRED:    pc_state <= SXU_EXEC_SKIP_IF_PRED;
          SXU_DISPATCH_VPU_BG: pc_state <= SXU_EXEC_VPU_BG;
+         SXU_DISPATCH_MXU_EPILOGUE: pc_state <= SXU_EXEC_MXU_EPILOGUE;
+         SXU_LOAD_EPILOGUE_STAT: pc_state <= SXU_EXEC_LOAD_EPILOGUE_STAT;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -1018,6 +1029,59 @@ module mkScalarUnit#(
          pc <= pc + 1;
          pc_state <= SXU_FETCH;
       end
+   endrule
+
+   // DISPATCH_MXU_EPILOGUE: read bias from row 0 of vregSrc, call
+   // ctrl.startEpilogue with the bias vector and the vpuOp config field.
+   rule do_mxu_epilogue (pc_state == SXU_EXEC_MXU_EPILOGUE);
+      Bit#(7) cfg = pack(curInstr.vpuOp);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_EPILOGUE pc=%0d cfg=%0d src=v%0d",
+               cycle, pc, cfg, curInstr.vregSrc);
+`endif
+      let biasTile = vrf.read(truncate(curInstr.vregSrc));
+      EpilogueConfig ec = EpilogueConfig {
+         biasEnable:   cfg[0] == 1,
+         reluEnable:   cfg[1] == 1,
+         reduceEnable: cfg[2] == 1,
+         reduceSumsq:  cfg[3] == 1 };
+      ctrl.startEpilogue(truncate(curInstr.mxuWBase),
+                         truncate(curInstr.mxuABase),
+                         truncate(curInstr.mxuTLen),
+                         biasTile[0], ec);
+      pc_state <= SXU_WAIT_MXU_EPILOGUE;
+   endrule
+
+   // Wait for the Controller to finish the fused GEMM+epilogue dispatch.
+   rule do_wait_mxu_epilogue (pc_state == SXU_WAIT_MXU_EPILOGUE);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=WAIT_MXU_EPILOGUE pc=%0d", cycle, pc);
+`endif
+      if (ctrl.isDone) pc_state <= SXU_EXEC_MXU_EPILOGUE_WB;
+   endrule
+
+   // Write back the epilogue result: row-broadcast vreg or VMEM tile.
+   // bit4 of vpuOp selects the destination: 0 => vrf, 1 => vmem.
+   rule do_mxu_epilogue_wb (pc_state == SXU_EXEC_MXU_EPILOGUE_WB);
+      Bit#(7) cfg = pack(curInstr.vpuOp);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=MXU_EPILOGUE_WB pc=%0d dst=v%0d vmem=%0d",
+               cycle, pc, curInstr.vregDst, curInstr.vmemAddr);
+`endif
+      let m = ctrl.epilogueResult;
+      if (cfg[4] == 1)
+         vmem.write(truncate(curInstr.vmemAddr), m);
+      else
+         vrf.write(truncate(curInstr.vregDst), m);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // LOAD_EPILOGUE_STAT stub: placeholder for a future status-register read.
+   // Currently a no-op that advances pc; filled in by a later task.
+   rule do_load_epilogue_stat (pc_state == SXU_EXEC_LOAD_EPILOGUE_STAT);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
    endrule
 
    method Action loadInstr(UInt#(TLog#(progDepth)) addr, SxuInstr instr);

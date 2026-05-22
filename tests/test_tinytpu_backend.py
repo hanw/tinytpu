@@ -7291,6 +7291,38 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     self.assertEqual(tile[0:4], [2, 4, 6, 8])
     self.assertEqual(tile[4:16], [0] * 12)
 
+  def test_mxu_epilogue_bias_only(self):
+    # SXU_DISPATCH_MXU_EPILOGUE: GEMM + row-broadcast bias in one dispatch.
+    # Uses identity weights and activation [1,2,3,4].  WS mode, tLen=1:
+    #   PE[r][c] = w[r][c] * a[r] = 1_{r==c} * a[r]
+    # So getMatrix is diagonal(a).  After bias [10,20,30,40] added column-wise:
+    #   row 0: [1+10, 0+20, 0+30, 0+40] = [11, 20, 30, 40]
+    #   row 1: [0+10, 2+20, 0+30, 0+40] = [10, 22, 30, 40]
+    #   row 2: [0+10, 0+20, 3+30, 0+40] = [10, 20, 33, 40]
+    #   row 3: [0+10, 0+20, 0+30, 4+40] = [10, 20, 30, 44]
+    import numpy as np
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _mxu_epilogue
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    act_vec       = [1, 2, 3, 4]
+    bias          = [10, 20, 30, 40]
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, act_vec),
+      _vmem(0, bias + [0] * 12),   # bias tile in VMEM[0]
+      _load(0, 0),                  # v0 := VMEM[0]  (bias vreg)
+      _mxu_epilogue(0, 0, 1, bias_vreg=0, dst=1, bias=True),
+      _store(1, 1),                 # VMEM[1] := epilogue result (vreg 1)
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # WS per-PE = diag(a), then + bias column-wise:
+    expected = [11, 20, 30, 40,  10, 22, 30, 40,  10, 20, 33, 40,  10, 20, 30, 44]
+    self.assertEqual(tile, expected, f"epilogue bias: got {tile}")
+
 
 if __name__ == "__main__":
   unittest.main()

@@ -8,6 +8,7 @@ import PSUMBank :: *;
 
 export ControlState(..);
 export DataflowMode(..);
+export EpilogueConfig(..);
 export Controller_IFC(..);
 export mkController;
 
@@ -42,6 +43,13 @@ typedef enum {
    DF_OUTPUT_STATIONARY
 } DataflowMode deriving (Bits, Eq, FShow);
 
+typedef struct {
+   Bool biasEnable;
+   Bool reluEnable;
+   Bool reduceEnable;
+   Bool reduceSumsq;
+} EpilogueConfig deriving (Bits, Eq, FShow);
+
 interface Controller_IFC#(numeric type rows, numeric type cols, numeric type depth);
    method Action start(UInt#(TLog#(depth)) weightBase,
                        UInt#(TLog#(depth)) actBase,
@@ -55,6 +63,15 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
                            UInt#(8) psumAddr,
                            UInt#(TLog#(rows)) psumRow,
                            PsumMode psumMode);
+   // Fused GEMM + epilogue (bias / relu at drain time). Runs the same WS
+   // feed path as startPsum; at drain the full rows x cols result matrix
+   // is post-processed according to epiCfg, then stored in epilogueBuf.
+   // The SXU reads the result back via epilogueResult once isDone.
+   method Action startEpilogue(UInt#(TLog#(depth)) weightBase,
+                               UInt#(TLog#(depth)) actBase,
+                               UInt#(TLog#(depth)) tileLen,
+                               Vector#(cols, Int#(32)) biasVec,
+                               EpilogueConfig epiCfg);
    // WS with cross-dispatch accumulator-hold. Runs the same feed path
    // as start() but skips the drain-time clearAll, so consecutive
    // startAccumulate calls sum partial psums into the same PE. The
@@ -92,6 +109,8 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    // this returns the per-PE accumulator state which collapses to
    // `results` when summed down columns.
    method Vector#(rows, Vector#(cols, Int#(32))) resultsMatrix;
+   // Post-epilogue result matrix (valid when isDone and epilogueActive).
+   method Vector#(rows, Vector#(cols, Int#(32))) epilogueResult;
    method ControlState getState;
    // Currently selected dataflow mode (set via startOS in future iters;
    // exposed now so SXU/tests can observe Controller state without
@@ -153,6 +172,12 @@ module mkController#(
    // an OS start path lands this flips in startOS() for the duration
    // of a dispatch.
    Reg#(DataflowMode)             dfModeReg   <- mkReg(DF_WEIGHT_STATIONARY);
+
+   // Epilogue state: bias vector, config, active flag, and result buffer.
+   Reg#(Vector#(cols, Int#(32)))             biasReg       <- mkRegU;
+   Reg#(EpilogueConfig)                      epiCfgReg     <- mkRegU;
+   Reg#(Bool)                                epilogueActive <- mkReg(False);
+   Reg#(Vector#(rows, Vector#(cols, Int#(32)))) epilogueBuf <- mkRegU;
 `ifdef TRACE
    Reg#(UInt#(32)) cycle <- mkReg(0);
 
@@ -310,8 +335,9 @@ module mkController#(
       $display("TRACE cycle=%0d unit=MXU ev=DRAIN", cycle);
 `endif
       let r = array.getResults;
+      let drainMatrix = array.getMatrix;
       outputBuf <= r;
-      matrixBuf <= array.getMatrix;
+      matrixBuf <= drainMatrix;
       // DF_WEIGHT_STATIONARY clears the array so each dispatch starts
       // from zero. The other two modes preserve the accumulator:
       // DF_WEIGHT_STATIONARY_ACCUMULATE lets consecutive dispatches
@@ -320,6 +346,17 @@ module mkController#(
       // and clears explicitly with clearArray().
       if (dfModeReg == DF_WEIGHT_STATIONARY)
          array.clearAll;
+      if (epilogueActive) begin
+         Vector#(rows, Vector#(cols, Int#(32))) m = drainMatrix;
+         Vector#(rows, Vector#(cols, Int#(32))) outm = m;
+         for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
+            for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
+               Int#(32) v = m[ri][ci];
+               if (epiCfgReg.biasEnable) v = v + biasReg[ci];
+               outm[ri][ci] = v;
+            end
+         epilogueBuf <= outm;
+      end
       case (psumModeReg)
          PSUM_WRITE: begin
 `ifdef TRACE
@@ -350,6 +387,7 @@ module mkController#(
       firstActRead <= False;
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
+      epilogueActive <= False;
       // WS always starts from a zeroed accumulator. Prior dispatches may
       // have been OS mode (which intentionally does not drain-clear).
       array.clearAll;
@@ -372,6 +410,27 @@ module mkController#(
       psumRowReg  <= psumRow;
       psumModeReg <= psumMode;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
+      epilogueActive <= False;
+      array.clearAll;
+      cstate <= LoadWeights;
+   endmethod
+
+   method Action startEpilogue(UInt#(TLog#(depth)) weightBase,
+                               UInt#(TLog#(depth)) actBase,
+                               UInt#(TLog#(depth)) tileLen,
+                               Vector#(cols, Int#(32)) biasVec,
+                               EpilogueConfig epiCfg) if (cstate == Idle || cstate == Done);
+      wBase       <= weightBase;
+      aBase       <= actBase;
+      tLen        <= tileLen;
+      actIdx      <= 0;
+      streamCycle <= 0;
+      firstActRead <= False;
+      psumModeReg <= PSUM_OFF;
+      dfModeReg   <= DF_WEIGHT_STATIONARY;
+      biasReg     <= biasVec;
+      epiCfgReg   <= epiCfg;
+      epilogueActive <= True;
       array.clearAll;
       cstate <= LoadWeights;
    endmethod
@@ -387,6 +446,7 @@ module mkController#(
       firstActRead <= False;
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_WEIGHT_STATIONARY_ACCUMULATE;
+      epilogueActive <= False;
       cstate <= LoadWeights;
    endmethod
 
@@ -407,6 +467,7 @@ module mkController#(
       osFeedCycle  <= 0;
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_OUTPUT_STATIONARY;
+      epilogueActive <= False;
       // OS consumers start from a cleared array so each dispatch's
       // psum matrix reflects only its own inputs.
       array.clearAll;
@@ -427,6 +488,7 @@ module mkController#(
       osFeedCycle  <= 0;
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_OUTPUT_STATIONARY;
+      epilogueActive <= False;
       // Skip the clearAll — psums carry over from the previous OS
       // dispatch, letting multi-K-tile OS scale past K == rows.
       cstate <= LoadWeights;
@@ -446,6 +508,10 @@ module mkController#(
 
    method Vector#(rows, Vector#(cols, Int#(32))) resultsMatrix if (cstate == Done);
       return matrixBuf;
+   endmethod
+
+   method Vector#(rows, Vector#(cols, Int#(32))) epilogueResult if (cstate == Done && epilogueActive);
+      return epilogueBuf;
    endmethod
 
    method ControlState getState;
