@@ -23,14 +23,19 @@ A `hanw.refactor` merge once pulled the bumped tinygrad in but botched the
 merge is the orphaned commit `5de53f78f`. So `5de53f78f` contains the correct
 **core tinygrad** of the target version, but a **broken backend** and no
 `renderer/tinytpu/` package (the renderer-move commit is not in its history).
+`5de53f78f` is also a merge whose `master`-side first-parent line carries
+pre-migration tinytpu commits, so it cannot be cleanly linearized.
 
-This upgrade was deliberately deferred after the migration; this spec executes it.
+This upgrade keeps `e0c5faa26` as the trunk and **discards `5de53f78f`
+entirely** (see Approach), maintaining a single linear submodule history. It
+was deliberately deferred after the migration; this spec executes it.
 
 ## Target version
 
 The tree at commit `5de53f78f` (already vendored, breakage fully
-characterized). Not the latest upstream — that would require re-characterizing
-breakage against newer churn.
+characterized), used **only as the source tree for the core files** — nothing
+is built on top of it. Not the latest upstream — that would require
+re-characterizing breakage against newer churn.
 
 ## Breakage analysis
 
@@ -83,22 +88,38 @@ linearized uops live in the `Ops.LINEAR` child, not a `.uops` attribute.
 
 ## Approach
 
-Build on `5de53f78f` and restore the backend, rather than re-doing the merge.
-`5de53f78f` is already a proven, buildable tree containing the exact target
-core. Hand conflict-resolution is what got botched before; this avoids it.
+Maintain a single, linear submodule history. The current submodule master,
+`e0c5faa26`, stays the trunk — it is the verified migrated state and what the
+parent repo points at. The orphaned merge `5de53f78f` is **discarded**: it is
+a botched merge whose `master`-side history also carries pre-migration tinytpu
+commits, so it cannot be cleanly linearized.
+
+The upgrade is a **single commit on top of `e0c5faa26`**: swap the entire
+vendored tinygrad **core** to the tree at `5de53f78f`, keep the backend from
+`e0c5faa26`, and port it. This is a vendored-dependency bump — the 475 upstream
+commits collapse into one "bump" commit (their granular history remains in
+upstream tinygrad). Result: `… → 705d7e08d → e0c5faa26 → <upgrade>`, one
+continuous line, no merge commits, no divergent sibling. Because the new
+commit's parent is `e0c5faa26`, advancing `origin/master` is a plain
+fast-forward — no rebase, no force-push.
 
 ### Work items
 
-**1. Construct the upgraded tree.**
-In the submodule:
-- `git checkout 5de53f78f` (detached HEAD).
-- Force-restore the backend from `e0c5faa26`:
+**1. Construct the upgraded tree on top of `e0c5faa26`.**
+In the submodule, with `HEAD` at `e0c5faa26`:
+- Replace the working tree and index with `5de53f78f`'s tree while leaving
+  `HEAD` at `e0c5faa26` (e.g. `git read-tree -m -u 5de53f78f`), so the next
+  commit's parent is `e0c5faa26`.
+- Restore the backend from `e0c5faa26`:
   `git checkout e0c5faa26 -- tinygrad/runtime/ops_tinytpu.py tinygrad/renderer/tinytpu`.
-- Remove the stale pre-move package location if present in `5de53f78f`:
+- Remove the stale pre-move package location that `5de53f78f` still carries:
   `git rm -r tinygrad/runtime/support/tinytpu_lowering`.
 - Cross-check against `git diff --name-status 705d7e08d e0c5faa26` so that
   every backend file the migration created/moved/deleted is accounted for —
   no migration artifact is left behind and no stale file survives.
+
+The resulting tree is `5de53f78f`'s core plus `e0c5faa26`'s backend; only the
+commit parent differs (`e0c5faa26`, keeping history linear).
 
 **2. Apply the 8 enum renames.** Edit the 3 files. Verify with
 `grep -rn 'Ops\.\(IDIV\|MOD\|VECTORIZE\)' tinygrad/runtime/ops_tinytpu.py tinygrad/renderer/tinytpu`
@@ -118,7 +139,8 @@ Port to `tinygrad.codegen.to_program`; extract the uops from the new
 `Ops.PROGRAM`/`Ops.LINEAR` UOp structure. Keep the same assertions
 (`can_lower(uops)`, `lower_kernel(uops)` produces a descriptor).
 
-**5. Commit.** One submodule commit on top of `5de53f78f`, then one
+**5. Commit.** One submodule commit on top of `e0c5faa26` (a plain
+fast-forward advance of master — no rebase, no force-push), then one
 parent-repo commit advancing the submodule pointer. Follow the submodule
 workflow (commit inside submodule first, then parent pointer).
 
