@@ -1009,3 +1009,47 @@ def test_assemble_error_bad_vmem():
 def test_assemble_error_unknown_mnemonic():
     with pytest.raises(SyntaxError, match="unknown mnemonic"):
         assemble("JUMP v0\nHALT\nEND\n")
+
+
+# ---------------------------------------------------------------------------
+# MXU epilogue opcodes (42, 43)
+# ---------------------------------------------------------------------------
+
+def test_sxu_mxu_epilogue_roundtrip():
+    # opcode 42; config bits packed in the vpuOp field (index 5 of the wire instr)
+    prog = "MXU_EPILOGUE v3 = GEMM(WMEM[0], AMEM[0], tiles=1) BIAS=v2 RELU DST_VREG\nHALT\nEND\n"
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 42 "))
+    fields = line.split()
+    assert fields[5] == "3"   # vpuOp config = bias(bit0) | relu(bit1)
+    assert fields[4] == "2"   # vregSrc = bias vreg v2
+    assert fields[3] == "3"   # vregDst = result vreg v3
+    dis = disassemble(wire)
+    assert "BIAS=v2" in dis and "RELU" in dis and "DST_VREG" in dis
+
+
+def test_sxu_mxu_epilogue_vmem_reduce_roundtrip():
+    # bias + REDUCE_SUMSQ + DST_VMEM exercises config bits 0, 2, 3, 4.
+    prog = ("MXU_EPILOGUE v4 = GEMM(WMEM[1], AMEM[2], tiles=2) "
+            "BIAS=v6 REDUCE_SUMSQ DST_VMEM[5]\nHALT\nEND\n")
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 42 "))
+    fields = line.split()
+    # config = bias(bit0=1) | reduce_enable(bit2=4) | reduce_sumsq(bit3=8) | vmem(bit4=16)
+    expected_config = (1 << 0) | (1 << 2) | (1 << 3) | (1 << 4)
+    assert expected_config == 29
+    # wire fields: 0=record 1=opc 2=vmemAddr 3=vregDst 4=vregSrc 5=vpuOp
+    assert fields[5] == str(expected_config)   # vpuOp config field
+    assert fields[2] == "5"                    # vmemAddr = DST_VMEM[5]
+    assert fields[4] == "6"                    # vregSrc = bias vreg v6
+    assert fields[3] == "4"                    # vregDst = result vreg v4
+    dis = disassemble(wire)
+    assert "REDUCE_SUMSQ" in dis and "DST_VMEM[5]" in dis and "BIAS=v6" in dis
+
+
+def test_sxu_load_epilogue_stat_roundtrip():
+    prog = "LOAD_EPILOGUE_STAT v5\nHALT\nEND\n"
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 43 "))
+    assert line.split()[3] == "5"   # vregDst field
+    assert "LOAD_EPILOGUE_STAT v5" in disassemble(wire)

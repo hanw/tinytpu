@@ -71,6 +71,8 @@ _SXU = {
     "SET_PRED_NE_ZERO":        39,
     "SKIP_IF_NOT_PRED":        40,
     "DISPATCH_VPU_BG":         41,
+    "DISPATCH_MXU_EPILOGUE":   42,
+    "LOAD_EPILOGUE_STAT":      43,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -507,6 +509,81 @@ def assemble(text: str) -> str:
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=klen))
 
+            elif kw == "MXU_EPILOGUE":
+                # MXU_EPILOGUE v<dst> = GEMM(WMEM[<w>], AMEM[<a>], tiles=<t>)
+                #              [BIAS=v<b>] [RELU] [REDUCE_SUM|REDUCE_SUMSQ]
+                #              DST_VREG | DST_VMEM[<addr>]
+                # vpuOp carries a 7-bit config:
+                #   bit0 biasEnable, bit1 reluEnable, bit2 reduceEnable,
+                #   bit3 reduceOp (0=SUM,1=SUMSQ), bit4 writebackMode (0=VREG,1=VMEM)
+                rest = line[len("MXU_EPILOGUE"):].strip()
+                # Split on the closing paren to isolate the GEMM(...) part
+                m = re.match(
+                    r"(v\d+)\s*=\s*GEMM\(WMEM\[(\d+)\],\s*AMEM\[(\d+)\],\s*tiles=(\d+)\)(.*)",
+                    rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "MXU_EPILOGUE syntax: "
+                        "MXU_EPILOGUE v<dst> = GEMM(WMEM[W], AMEM[A], tiles=N) "
+                        "[BIAS=v<b>] [RELU] [REDUCE_SUM|REDUCE_SUMSQ] "
+                        "DST_VREG|DST_VMEM[<addr>]")
+                vd      = _parse_vreg(m.group(1))
+                wbase   = int(m.group(2))
+                abase   = int(m.group(3))
+                tlen    = int(m.group(4))
+                tail    = m.group(5).upper().split()
+                bias_en    = 0
+                relu_en    = 0
+                reduce_en  = 0
+                reduce_op  = 0   # 0=SUM, 1=SUMSQ
+                wb_mode    = 0   # 0=VREG, 1=VMEM
+                vmem_addr  = 0
+                vbias      = 0
+                i = 0
+                while i < len(tail):
+                    tok = tail[i]
+                    if tok.startswith("BIAS=V"):
+                        bias_en = 1
+                        vbias = int(tok[6:])   # strip "BIAS=V"
+                    elif tok == "RELU":
+                        relu_en = 1
+                    elif tok == "REDUCE_SUM":
+                        reduce_en = 1
+                        reduce_op = 0
+                    elif tok == "REDUCE_SUMSQ":
+                        reduce_en = 1
+                        reduce_op = 1
+                    elif tok == "DST_VREG":
+                        wb_mode = 0
+                    elif tok.startswith("DST_VMEM["):
+                        wb_mode = 1
+                        am = re.fullmatch(r"DST_VMEM\[(\d+)\]", tok, re.IGNORECASE)
+                        if not am:
+                            raise SyntaxError(
+                                f"expected DST_VMEM[N], got {tok!r}")
+                        vmem_addr = int(am.group(1))
+                    else:
+                        raise SyntaxError(
+                            f"unexpected token in MXU_EPILOGUE: {tok!r}")
+                    i += 1
+                config = (bias_en
+                          | (relu_en   << 1)
+                          | (reduce_en << 2)
+                          | (reduce_op << 3)
+                          | (wb_mode   << 4))
+                out.append(_instr(_SXU["DISPATCH_MXU_EPILOGUE"],
+                                  vmemAddr=vmem_addr,
+                                  vregDst=vd,
+                                  vregSrc=vbias,
+                                  vpuOp=config,
+                                  mxuWBase=wbase, mxuABase=abase,
+                                  mxuTLen=tlen))
+
+            elif kw == "LOAD_EPILOGUE_STAT":
+                # LOAD_EPILOGUE_STAT v<dst>
+                dst = _parse_vreg(tokens[1])
+                out.append(_instr(_SXU["LOAD_EPILOGUE_STAT"], vregDst=dst))
+
             elif kw == "WAIT_MXU":
                 out.append(_instr(_SXU["WAIT_MXU"]))
 
@@ -842,6 +919,29 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["HALT"]:
                     out.append("HALT")
+
+                elif opc == _SXU["DISPATCH_MXU_EPILOGUE"]:
+                    config     = vpuOp
+                    bias_en    = (config >> 0) & 1
+                    relu_en    = (config >> 1) & 1
+                    reduce_en  = (config >> 2) & 1
+                    reduce_op  = (config >> 3) & 1
+                    wb_mode    = (config >> 4) & 1
+                    parts = [f"MXU_EPILOGUE v{vregDst} = GEMM(WMEM[{mxuWBase}], AMEM[{mxuABase}], tiles={mxuTLen})"]
+                    if bias_en:
+                        parts.append(f"BIAS=v{vregSrc}")
+                    if relu_en:
+                        parts.append("RELU")
+                    if reduce_en:
+                        parts.append("REDUCE_SUMSQ" if reduce_op else "REDUCE_SUM")
+                    if wb_mode:
+                        parts.append(f"DST_VMEM[{vmemAddr}]")
+                    else:
+                        parts.append("DST_VREG")
+                    out.append(" ".join(parts))
+
+                elif opc == _SXU["LOAD_EPILOGUE_STAT"]:
+                    out.append(f"LOAD_EPILOGUE_STAT v{vregDst}")
 
                 else:
                     out.append(f"# UNKNOWN SXU OPCODE {opc}")
