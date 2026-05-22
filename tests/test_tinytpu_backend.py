@@ -4232,16 +4232,24 @@ class TestTinyTPUBackend(unittest.TestCase):
     # doc/plan-tinytpu-instsel.md: int32/bool elementwise kernels are lowered
     # by the UOp-walking InstSel pass, not the legacy _render_* recognizers.
     from tinygrad import Device
-    from tinygrad.engine.realize import get_program
+    from tinygrad.codegen import to_program
     from tinygrad.uop.ops import Ops
     from tinygrad.renderer.tinytpu import can_lower, lower_kernel
     a = Tensor([1, 2, 3, 4], dtype="int32", device="TINYTPU")
     b = Tensor([5, 6, 7, 8], dtype="int32", device="TINYTPU")
-    asts = [s.ast for s in (a + b).schedule() if s.ast.op is not Ops.COPY]
-    self.assertTrue(asts, "no compute kernel scheduled")
-    prog = get_program(asts[-1], Device["TINYTPU"].renderer)
-    self.assertTrue(can_lower(prog.uops), "InstSel walker did not claim int elementwise add")
-    desc = lower_kernel(prog.uops)
+    # schedule_linear() returns a linear UOp; its items wrap kernel ASTs.
+    # The compute kernel's AST is an Ops.SINK (host->device COPYs are not).
+    linear = (a + b).schedule_linear()
+    kernel_asts = [s.src[0] for s in linear.src if s.src and s.src[0].op is Ops.SINK]
+    self.assertTrue(kernel_asts, f"no compute kernel scheduled; got {[s.op for s in linear.src]}")
+    prog = to_program(kernel_asts[-1], Device["TINYTPU"].renderer)
+    # to_program returns an Ops.PROGRAM UOp; find its Ops.LINEAR child by op
+    # (not positional index), whose .src is the tuple of linearized uops.
+    linear_uop = next((s for s in prog.src if s.op is Ops.LINEAR), None)
+    self.assertIsNotNone(linear_uop, f"no Ops.LINEAR child in program; got {[s.op for s in prog.src]}")
+    uops = list(linear_uop.src)
+    self.assertTrue(can_lower(uops), "InstSel walker did not claim int elementwise add")
+    desc = lower_kernel(uops)
     self.assertEqual(desc["op"], "SXU_PROGRAM")
     self.assertTrue(any(i.startswith("2 2 ") for i in desc["instructions"]), desc["instructions"])
 
