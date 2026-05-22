@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all, _set_pred_ne_zero, _skip_if_not_pred
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all, _set_pred_ne_zero, _skip_if_not_pred
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -7322,6 +7322,171 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     # WS per-PE = diag(a), then + bias column-wise:
     expected = [11, 20, 30, 40,  10, 22, 30, 40,  10, 20, 33, 40,  10, 20, 30, 44]
     self.assertEqual(tile, expected, f"epilogue bias: got {tile}")
+
+  def test_mxu_epilogue_bias_relu(self):
+    # SXU_DISPATCH_MXU_EPILOGUE with bias=True, relu=True.
+    # Identity weights + act [-3, 2, -1, 4].  WS tLen=1:
+    #   per-PE matrix = diag([-3, 2, -1, 4])
+    #     row 0: [-3, 0, 0, 0]
+    #     row 1: [  0, 2, 0, 0]
+    #     row 2: [  0, 0,-1, 0]
+    #     row 3: [  0, 0, 0, 4]
+    # After column-broadcast bias [5, -10, 3, -8]:
+    #     row 0: [2, -10, 3, -8]
+    #     row 1: [5,  -8, 3, -8]
+    #     row 2: [5, -10, 2, -8]
+    #     row 3: [5, -10, 3, -4]
+    # After relu (max(x, 0)):
+    #     row 0: [2, 0, 3, 0]
+    #     row 1: [5, 0, 3, 0]
+    #     row 2: [5, 0, 2, 0]
+    #     row 3: [5, 0, 3, 0]
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _mxu_epilogue
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    act_vec       = [-3, 2, -1, 4]
+    bias          = [5, -10, 3, -8]
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, act_vec),
+      _vmem(0, bias + [0] * 12),   # bias tile in VMEM[0]
+      _load(0, 0),                  # v0 := VMEM[0]  (bias vreg)
+      _mxu_epilogue(0, 0, 1, bias_vreg=0, dst=1, bias=True, relu=True),
+      _store(1, 1),                 # VMEM[1] := epilogue result (vreg 1)
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Hand-derived: diag(act) + bias, then relu.  Some negative pre-relu
+    # values must clamp to 0; if relu were missing those cells would be
+    # negative and the assertion would fail.
+    expected = [2, 0, 3, 0,  5, 0, 3, 0,  5, 0, 2, 0,  5, 0, 3, 0]
+    self.assertEqual(tile, expected, f"epilogue bias+relu: got {tile}")
+
+  def test_mxu_epilogue_vmem_writeback(self):
+    # SXU_DISPATCH_MXU_EPILOGUE with vmem_dst=True: the Controller writes
+    # the epilogue result directly into VMEM (no explicit _store needed).
+    # This test exercises the VMEM-dst writeback path AND ReLU together:
+    # bias=True, relu=True, vmem_dst=True.
+    # Identity weights + act [-3, 2, -1, 4].  WS tLen=1:
+    #   per-PE matrix = diag([-3, 2, -1, 4])
+    #     row 0: [-3, 0, 0, 0]
+    #     row 1: [  0, 2, 0, 0]
+    #     row 2: [  0, 0,-1, 0]
+    #     row 3: [  0, 0, 0, 4]
+    # After column-broadcast bias [5, -10, 3, -8]:
+    #     row 0: [2, -10, 3, -8]
+    #     row 1: [5,  -8, 3, -8]
+    #     row 2: [5, -10, 2, -8]
+    #     row 3: [5, -10, 3, -4]
+    # After relu (max(x, 0)):
+    #     row 0: [2, 0, 3, 0]
+    #     row 1: [5, 0, 3, 0]
+    #     row 2: [5, 0, 2, 0]
+    #     row 3: [5, 0, 3, 0]
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _mxu_epilogue
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    act_vec       = [-3, 2, -1, 4]
+    bias          = [5, -10, 3, -8]
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, act_vec),
+      _vmem(0, bias + [0] * 12),   # bias tile in VMEM[0]
+      _load(0, 0),                  # v0 := VMEM[0]  (bias vreg)
+      _mxu_epilogue(0, 0, 1, bias_vreg=0, dst=2, bias=True, relu=True, vmem_dst=True),
+      # No _store: epilogue wrote directly to VMEM[2]
+      _halt(),
+      _output_vmem(2),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Hand-derived: diag(act) + bias column-wise, then relu (max(x, 0)).
+    # Negative post-bias cells must clamp to 0; the VMEM-dst writeback
+    # path is the focus, now also exercising ReLU.
+    expected = [2, 0, 3, 0,  5, 0, 3, 0,  5, 0, 2, 0,  5, 0, 3, 0]
+    self.assertEqual(tile, expected, f"epilogue vmem_dst+relu: got {tile}")
+
+  def test_mxu_epilogue_equiv_legacy(self):
+    # Cross-check: fused GEMM+bias+relu epilogue must produce byte-identical
+    # results to the legacy sequence: _mxu_psum_write -> _psum_read_row
+    # per row -> _vpu ADD bias -> _vpu RELU (opcode 2) -> _store.
+    # Activation has negative values so relu actually clamps some cells.
+    #
+    # Inputs: identity weights, act [-3, 2, -1, 4], bias [5, -10, 3, -8].
+    # Per-PE matrix = diag([-3, 2, -1, 4]).
+    # After bias+relu (hand-derived):
+    #   row 0: [2, 0, 3, 0]
+    #   row 1: [5, 0, 3, 0]
+    #   row 2: [5, 0, 2, 0]
+    #   row 3: [5, 0, 3, 0]
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _mxu_epilogue, _parse_multi_vmem_output
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    act_vec       = [-3, 2, -1, 4]
+    bias          = [5, -10, 3, -8]
+
+    # --- fused path ---
+    fused_bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, act_vec),
+      _vmem(0, bias + [0] * 12),
+      _load(0, 0),
+      _mxu_epilogue(0, 0, 1, bias_vreg=0, dst=1, bias=True, relu=True),
+      _store(1, 1),
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    fused_out = _run_bundle(sim, fused_bundle)
+    fused_tile = _parse_vmem_output(fused_out)
+    # Split the 16-element flat tile into 4 rows of 4
+    fused_rows = [fused_tile[r*4:(r+1)*4] for r in range(4)]
+
+    # --- legacy path: plain MXU dispatch -> load_mxu_matrix_row per row
+    #     -> vpu ADD bias -> vpu RELU (opcode 2) -> store ---
+    # VMEM[0]: bias tile; VMEM[1..4]: output rows 0..3
+    # VREGs: v0=bias, v1=matrix row (load target), v2=after ADD, v3=after RELU
+    legacy_bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, act_vec),
+      _vmem(0, bias + [0] * 12),
+      _load(0, 0),                            # v0 := bias tile
+      _mxu(0, 0, 1),                          # plain WS dispatch (psum_mode=OFF)
+      _wait_mxu(),
+      _load_mxu_matrix_row(1, 0),            # v1.row[0] := matrix row 0
+      _vpu(2, 1, _VPU_OPS["ADD"], 0),        # v2 := v1 + v0  (bias add)
+      _vpu(3, 2, 2),                          # v3 := relu(v2)  (VPU op 2 = RELU)
+      _store(1, 3),                           # VMEM[1] := v3
+      _load_mxu_matrix_row(1, 1),            # v1.row[0] := matrix row 1
+      _vpu(2, 1, _VPU_OPS["ADD"], 0),
+      _vpu(3, 2, 2),
+      _store(2, 3),                           # VMEM[2] := v3
+      _load_mxu_matrix_row(1, 2),            # v1.row[0] := matrix row 2
+      _vpu(2, 1, _VPU_OPS["ADD"], 0),
+      _vpu(3, 2, 2),
+      _store(3, 3),                           # VMEM[3] := v3
+      _load_mxu_matrix_row(1, 3),            # v1.row[0] := matrix row 3
+      _vpu(2, 1, _VPU_OPS["ADD"], 0),
+      _vpu(3, 2, 2),
+      _store(4, 3),                           # VMEM[4] := v3
+      _halt(),
+      _output_vmem(1),
+      _output_vmem(2),
+      _output_vmem(3),
+      _output_vmem(4),
+      _end(),
+    )
+    legacy_out = _run_bundle(sim, legacy_bundle)
+    legacy_tiles = _parse_multi_vmem_output(legacy_out)
+    # Each legacy tile has the row in elements [0:4]; elements [4:16] are zero
+    legacy_rows = [t[0:4] for t in legacy_tiles]
+
+    self.assertEqual(fused_rows, legacy_rows,
+                     f"fused path {fused_rows} != legacy path {legacy_rows}")
 
 
 if __name__ == "__main__":

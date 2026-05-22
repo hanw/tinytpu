@@ -353,6 +353,7 @@ module mkController#(
             for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
                Int#(32) v = m[ri][ci];
                if (epiCfgReg.biasEnable) v = v + biasReg[ci];
+               if (epiCfgReg.reluEnable && v < 0) v = 0;
                outm[ri][ci] = v;
             end
          epilogueBuf <= outm;
