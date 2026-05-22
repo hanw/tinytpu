@@ -9,7 +9,23 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all, _set_pred_ne_zero, _skip_if_not_pred
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all, _set_pred_ne_zero, _skip_if_not_pred, _mxu_epilogue, _load_epilogue_stat
+
+
+def _recon_signed_i64(lo_raw, hi_raw):
+  """Reconstruct a signed INT64 from two 32-bit lanes (low, high).
+
+  SXU_LOAD_EPILOGUE_STAT packs each per-row INT64 statistic as
+  lane (r,0) = low 32 bits and lane (r,1) = high 32 bits.  The sim
+  emits lanes as signed Int32, so each half is masked to 32 unsigned
+  bits before recombining, then re-signed into the INT64 range.
+  """
+  lo = lo_raw & 0xFFFFFFFF
+  hi = hi_raw & 0xFFFFFFFF
+  v = (hi << 32) | lo
+  if v >= (1 << 63):
+    v -= (1 << 64)
+  return v
 
 
 @unittest.skipUnless((REPO_ROOT / "build" / "mkTbTinyTPURuntime.bexe").exists(), "runtime binary not built")
@@ -7487,6 +7503,97 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
 
     self.assertEqual(fused_rows, legacy_rows,
                      f"fused path {fused_rows} != legacy path {legacy_rows}")
+
+
+  def test_mxu_epilogue_reduce_sum(self):
+    # SXU_DISPATCH_MXU_EPILOGUE with bias=True, relu=True, reduce=1 (SUM).
+    # Identity weights, act = [10, 20, 30, 40], bias = [1, 2, 3, 4].
+    # WS tLen=1: per-PE matrix = diag([10, 20, 30, 40])
+    #   row 0: [10,  0,  0,  0]
+    #   row 1: [ 0, 20,  0,  0]
+    #   row 2: [ 0,  0, 30,  0]
+    #   row 3: [ 0,  0,  0, 40]
+    # After column-broadcast bias [1, 2, 3, 4]:
+    #   row 0: [11,  2,  3,  4]
+    #   row 1: [ 1, 22,  3,  4]
+    #   row 2: [ 1,  2, 33,  4]
+    #   row 3: [ 1,  2,  3, 44]
+    # After relu (all positive, unchanged).
+    # Per-row SUM: row 0 = 20, row 1 = 30, row 2 = 40, row 3 = 50.
+    # SXU_LOAD_EPILOGUE_STAT packs each INT64 row stat into vreg row r:
+    #   lane (r,0) = low 32 bits, lane (r,1) = high 32 bits, lanes 2-3 = 0.
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _mxu_epilogue, _load_epilogue_stat
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    act_vec       = [10, 20, 30, 40]
+    bias          = [1, 2, 3, 4]
+    vd = 2  # stat result vreg
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, act_vec),
+      _vmem(0, bias + [0] * 12),    # bias tile in VMEM[0]
+      _load(0, 0),                   # v0 := VMEM[0]  (bias vreg)
+      _mxu_epilogue(0, 0, 1, bias_vreg=0, dst=1, bias=True, relu=True, reduce=1),
+      _load_epilogue_stat(vd),       # v2 := per-row INT64 SUM stats
+      _store(1, vd),                 # VMEM[1] := stat vreg
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Reconstruct INT64 from lo/hi pairs for each row.
+    stats = [_recon_signed_i64(tile[r*4], tile[r*4+1]) for r in range(4)]
+    # Expected per-row SUM (hand-derived):
+    #   post-bias-post-relu row 0: [11, 2, 3, 4]  -> sum = 20
+    #   post-bias-post-relu row 1: [ 1,22, 3, 4]  -> sum = 30
+    #   post-bias-post-relu row 2: [ 1, 2,33, 4]  -> sum = 40
+    #   post-bias-post-relu row 3: [ 1, 2, 3,44]  -> sum = 50
+    expected = [20, 30, 40, 50]
+    self.assertEqual(stats, expected, f"epilogue reduce SUM: got {stats}")
+
+  def test_mxu_epilogue_reduce_sumsq(self):
+    # SXU_DISPATCH_MXU_EPILOGUE with bias=True, relu=True, reduce=2 (SUMSQ).
+    # Identity weights, act = [0, 0, 0, 0], bias = [30000, 30000, 30000, 30000].
+    # WS tLen=1: per-PE matrix = diag([0, 0, 0, 0]) = all zeros.
+    # After column-broadcast bias [30000, 30000, 30000, 30000]:
+    #   every row = [30000, 30000, 30000, 30000]
+    # After relu (all positive, unchanged).
+    # Per-row SUMSQ: 4 * 30000^2 = 3,600,000,000.
+    # NOTE: 3,600,000,000 > 2^31 - 1 = 2,147,483,647  ->  INT32 would overflow.
+    # Only an INT64 accumulator can hold this correctly.
+    # SXU_LOAD_EPILOGUE_STAT packs each INT64 row stat into vreg row r:
+    #   lane (r,0) = low 32 bits, lane (r,1) = high 32 bits, lanes 2-3 = 0.
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _mxu_epilogue, _load_epilogue_stat
+    ident_weights = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+    act_vec       = [0, 0, 0, 0]
+    bias          = [30000, 30000, 30000, 30000]
+    vd = 2  # stat result vreg
+    bundle = _bundle(
+      _wmem(0, ident_weights),
+      _amem(0, act_vec),
+      _vmem(0, bias + [0] * 12),    # bias tile in VMEM[0]
+      _load(0, 0),                   # v0 := VMEM[0]  (bias vreg)
+      _mxu_epilogue(0, 0, 1, bias_vreg=0, dst=1, bias=True, relu=True, reduce=2),
+      _load_epilogue_stat(vd),       # v2 := per-row INT64 SUMSQ stats
+      _store(1, vd),                 # VMEM[1] := stat vreg
+      _halt(),
+      _output_vmem(1),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    tile = _parse_vmem_output(out)
+    # Reconstruct INT64 from lo/hi pairs for each row.
+    stats = [_recon_signed_i64(tile[r*4], tile[r*4+1]) for r in range(4)]
+    # Expected per-row SUMSQ (hand-derived):
+    #   post-bias-post-relu every row: [30000, 30000, 30000, 30000]
+    #   sumsq = 30000^2 + 30000^2 + 30000^2 + 30000^2 = 4 * 900,000,000
+    #         = 3,600,000,000  (exceeds INT32 max of 2,147,483,647)
+    expected_sumsq = 4 * 30000 * 30000   # = 3_600_000_000
+    assert expected_sumsq > 2**31, "SUMSQ value must exceed INT32 range to prove INT64 width"
+    expected = [expected_sumsq] * 4
+    self.assertEqual(stats, expected, f"epilogue reduce SUMSQ: got {stats}")
 
 
 if __name__ == "__main__":

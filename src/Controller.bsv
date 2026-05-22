@@ -111,6 +111,11 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Vector#(rows, Vector#(cols, Int#(32))) resultsMatrix;
    // Post-epilogue result matrix (valid when isDone and epilogueActive).
    method Vector#(rows, Vector#(cols, Int#(32))) epilogueResult;
+   // Per-row INT64 reduction statistic. Callable only when reduceEnable was
+   // set in the preceding epilogue dispatch (in addition to isDone and
+   // epilogueActive) — calling it otherwise deadlocks the caller rather
+   // than returning a stale/undefined value.
+   method Vector#(rows, Int#(64)) epilogueStat;
    method ControlState getState;
    // Currently selected dataflow mode (set via startOS in future iters;
    // exposed now so SXU/tests can observe Controller state without
@@ -178,6 +183,9 @@ module mkController#(
    Reg#(EpilogueConfig)                      epiCfgReg     <- mkRegU;
    Reg#(Bool)                                epilogueActive <- mkReg(False);
    Reg#(Vector#(rows, Vector#(cols, Int#(32)))) epilogueBuf <- mkRegU;
+   // Per-row INT64 reduction accumulator (SUM or SUM-OF-SQUARES).
+   // Populated at drain time when epiCfgReg.reduceEnable is set.
+   Reg#(Vector#(rows, Int#(64)))             epilogueStatBuf <- mkRegU;
 `ifdef TRACE
    Reg#(UInt#(32)) cycle <- mkReg(0);
 
@@ -357,6 +365,18 @@ module mkController#(
                outm[ri][ci] = v;
             end
          epilogueBuf <= outm;
+         if (epiCfgReg.reduceEnable) begin
+            Vector#(rows, Int#(64)) stat = replicate(0);
+            for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1) begin
+               Int#(64) acc = 0;
+               for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
+                  Int#(64) e = signExtend(outm[ri][ci]);
+                  acc = acc + (epiCfgReg.reduceSumsq ? (e * e) : e);
+               end
+               stat[ri] = acc;
+            end
+            epilogueStatBuf <= stat;
+         end
       end
       case (psumModeReg)
          PSUM_WRITE: begin
@@ -513,6 +533,10 @@ module mkController#(
 
    method Vector#(rows, Vector#(cols, Int#(32))) epilogueResult if (cstate == Done && epilogueActive);
       return epilogueBuf;
+   endmethod
+
+   method Vector#(rows, Int#(64)) epilogueStat if (cstate == Done && epilogueActive && epiCfgReg.reduceEnable);
+      return epilogueStatBuf;
    endmethod
 
    method ControlState getState;

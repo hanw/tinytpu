@@ -1077,9 +1077,23 @@ module mkScalarUnit#(
       pc_state <= SXU_FETCH;
    endrule
 
-   // LOAD_EPILOGUE_STAT stub: placeholder for a future status-register read.
-   // Currently a no-op that advances pc; filled in by a later task.
+   // LOAD_EPILOGUE_STAT: read per-row INT64 reduction stats from the Controller
+   // and write them into vregDst. Each row r of the vreg tile holds:
+   //   lane (r,0) = low 32 bits of stat[r], lane (r,1) = high 32 bits,
+   //   lanes (r,2) and (r,3) = 0.
    rule do_load_epilogue_stat (pc_state == SXU_EXEC_LOAD_EPILOGUE_STAT);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=LOAD_EPILOGUE_STAT pc=%0d dst=v%0d",
+               cycle, pc, curInstr.vregDst);
+`endif
+      let stat = ctrl.epilogueStat;
+      Vector#(sublanes, Vector#(lanes, Int#(32))) v = replicate(replicate(0));
+      for (Integer ri = 0; ri < valueOf(sublanes); ri = ri + 1) begin
+         Bit#(64) b = pack(stat[ri]);
+         v[ri][0] = unpack(b[31:0]);
+         v[ri][1] = unpack(b[63:32]);
+      end
+      vrf.write(truncate(curInstr.vregDst), v);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule
