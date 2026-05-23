@@ -781,8 +781,14 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                end
             end
             VPU_DIV: begin
-               for (Integer l = 0; l < valueOf(lanes); l = l + 1)
-                  row[l] = (src2[s][l] == 0) ? 0 : (src1[s][l] / src2[s][l]);
+               for (Integer l = 0; l < valueOf(lanes); l = l + 1) begin
+                  // Replace the divisor with 1 when it would be zero so the
+                  // (combinationally evaluated) divide never traps in Bluesim;
+                  // the multiplexer below still selects 0 for those lanes.
+                  Int#(32) d   = (src2[s][l] == 0) ? 1 : src2[s][l];
+                  Int#(32) q   = src1[s][l] / d;
+                  row[l] = (src2[s][l] == 0) ? 0 : q;
+               end
             end
             VPU_AND: begin
                for (Integer l = 0; l < valueOf(lanes); l = l + 1)
