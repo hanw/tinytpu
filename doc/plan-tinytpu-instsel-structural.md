@@ -46,8 +46,8 @@ all kernel lowering lives behind one positive classifier.
 - Changing the `SXU_PROGRAM` descriptor or `TinyTPUProgram` runtime.
 - Fixing the broken `EXP2`/`LOG2`/`SIN` hardware (separate; see
   `doc/plan-primitive-ops-handoff.md`).
-- Removing `analyze_tinytpu_uops` — it has an external consumer
-  (`tests/onnx_tinytpu_trace/driver.py`).
+- Removing `analyze_tinytpu_uops` was deferred in this slice; it was removed
+  later after `tests/onnx_tinytpu_trace/driver.py` switched to renderer descriptors.
 
 ## 4. Decisions (fixed)
 
@@ -211,5 +211,6 @@ Unchanged from the first slice:
   allocator, runtime, device glue, and the `lower()` / `classify()` calls.
 - All kernel lowering lives in the `tinytpu_lowering` package behind `classify()`.
 - `TinyTPUProgram` and the `SXU_PROGRAM` descriptor are unchanged.
-- `analyze_tinytpu_uops` remains for its external consumer.
+- The legacy analyzer was subsequently removed; descriptor reporting covers the
+  former external consumer.
 - The backend suite shows no walker-bug regression versus the captured base.

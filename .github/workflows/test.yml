@@ -1,0 +1,83 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-tooling:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pytest
+
+      - name: Run non-simulator Python checks
+        env:
+          PYTHONPATH: tinygrad
+          TINYTPU_SKIP_SIM_STALENESS_CHECK: "1"
+        run: |
+          python scripts/check_tinyspec_tinytpu_profile.py
+          python -m pytest tests/test_tasm.py tests/test_tinytpu_docs.py tests/test_profile_tpu.py -q
+
+  tinytpu-simulator:
+    runs-on: ubuntu-22.04
+    env:
+      BSC_VERSION: "2026.01"
+      BSC_TARBALL: "bsc-2026.01-ubuntu-22.04.tar.gz"
+      PYTHONPATH: tinygrad
+      TINYTPU_SIM: ${{ github.workspace }}/build/mkTbTinyTPURuntime.bexe
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential curl ca-certificates
+          python -m pip install --upgrade pip
+          python -m pip install numpy pytest
+
+      - name: Cache BSC
+        id: cache-bsc
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bsc-${{ env.BSC_VERSION }}
+          key: bsc-${{ runner.os }}-${{ env.BSC_VERSION }}-ubuntu-22.04
+
+      - name: Install BSC
+        if: steps.cache-bsc.outputs.cache-hit != 'true'
+        run: |
+          curl -L --retry 3 \
+            "https://downloads.sourceforge.net/project/bsc.mirror/${BSC_VERSION}/${BSC_TARBALL}" \
+            -o "/tmp/${BSC_TARBALL}"
+          mkdir -p "$HOME/.local/bsc-${BSC_VERSION}"
+          tar -xzf "/tmp/${BSC_TARBALL}" -C "$HOME/.local/bsc-${BSC_VERSION}" --strip-components=1
+
+      - name: Add BSC to PATH
+        run: |
+          echo "$HOME/.local/bsc-${BSC_VERSION}/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bsc-${BSC_VERSION}/bin/bsc" -help > /dev/null
+
+      - name: Build TinyTPU runtime simulator
+        run: make runtime-tb
+
+      - name: Run simulator-backed Python tests
+        run: |
+          python -m pytest tests/test_tasm.py tests/test_tinytpu_docs.py tests/test_profile_tpu.py tests/test_run_tinytpu.py tests/test_tinytpu_backend.py -q

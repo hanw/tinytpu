@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-import os, runpy, subprocess, sys
+import os, runpy, sys
 from .bundle import Bundle, parse_bundle_text
 
 
@@ -16,10 +16,10 @@ def bundles_from_tinygrad_script(script_path: str | Path) -> list[Bundle]:
         raise RuntimeError("tinygrad submodule not found; run `git submodule update --init`")
 
     sys.path.insert(0, str(tinygrad_dir))
-    import tinygrad.runtime.ops_tinytpu as ops_tinytpu
+    from tinygrad.runtime.support import tinytpu as tinytpu_rt
 
     captured: list[str] = []
-    orig_run = ops_tinytpu.subprocess.run
+    orig_run = tinytpu_rt.subprocess.run
 
     def capture_run(*args, **kwargs):
         env = kwargs.get("env") or os.environ
@@ -28,11 +28,11 @@ def bundles_from_tinygrad_script(script_path: str | Path) -> list[Bundle]:
             captured.append(Path(bundle_path).read_text(encoding="utf-8"))
         return orig_run(*args, **kwargs)
 
-    ops_tinytpu.subprocess.run = capture_run
+    tinytpu_rt.subprocess.run = capture_run
     try:
         runpy.run_path(str(script_path), run_name="__main__")
     finally:
-        ops_tinytpu.subprocess.run = orig_run
+        tinytpu_rt.subprocess.run = orig_run
 
     if not captured:
         raise RuntimeError("tinygrad script did not execute any TINYTPU programs")

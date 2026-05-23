@@ -80,7 +80,7 @@ sim tests.
 - [x] Milestone 6: simplify runtime after descriptor removal
   - `_SUPPORTED_OPS = {"SXU_PROGRAM"}`
   - `_render_legacy_descriptor` now returns only SXU descriptors (the GEMM fallback builds an SXU_PROGRAM)
-  - `analyze_tinytpu_uops` remains for external consumers in `tests/onnx_tinytpu_trace/driver.py` but is unreachable from the runtime dispatch
+  - `analyze_tinytpu_uops` deleted; ONNX trace reporting now reads renderer descriptors directly
 
 ## InstSel Migration (UOp-Walking Renderer)
 
@@ -390,9 +390,9 @@ backend — see `doc/plan-primitive-ops-handoff.md`.
 #### Shrink ops_tinytpu.py (~2335 → target <1200 lines)
 
 Current bloat sources:
-- `analyze_tinytpu_uops` (~800 lines): old UOp-counting renderer, mostly
-  superseded by WMMA path. Delete dead paths, merge remaining VPU detection
-  into structural matchers.
+- Structural lowerers in `tinygrad/renderer/tinytpu/*` still contain legacy
+  recognizer ports. Convert repeated descriptor/data-plan construction into
+  reusable builders.
 - Bundle builders (~400 lines): `_build_vpu_binary_bundle`,
   `_build_vpu_where_bundle`, `_build_full_gemm_bundle`, etc. Unify into a
   single generic bundle builder with a template pattern.
@@ -411,9 +411,9 @@ Cleanup plan — eliminate analyze_tinytpu_uops via SXU_PROGRAM migration:
 - [x] Migrate scalar reductions (SUM/MAX/MIN to scalar) to SXU_PROGRAM
 - [x] Migrate row-wise reduce to SXU_PROGRAM (done: _render_rowreduce_sxu_program, legacy VPU_ROWSUM removed)
 - [x] Migrate row-broadcast binary (VPU_ROWBC_BINARY) to SXU_PROGRAM
-- [ ] Emit host fallbacks (HOST_*) directly from renderer without analyze_tinytpu_uops
+- [x] Emit unsupported diagnostics directly from renderer descriptors
 - [x] Delete dead analyze blocks, _exec_vpu_where/unary, _build_vpu_where, _render_wmma_descriptor
-- [ ] Delete remaining analyze_tinytpu_uops (now limited to scalar-const DIV/MOD)
+- [x] Delete remaining analyze_tinytpu_uops
 - [x] Run selected upstream tinygrad tests on `TINYTPU` (2 tests pass via scripts/run_tinytpu_upstream_subset.py — expand list as coverage grows)
 - [ ] Add skipped/xfail manifest for unsupported tinyspec areas
 - [ ] Track coverage by tinyspec op category
@@ -1076,8 +1076,8 @@ Highest-value next work:
    and outer RANGE over rows) — current renderer handles only unrolled.
 3. Hardware epilogue for multi-K-tile GEMM (currently still a numpy
    fallback).
-4. Delete remaining `analyze_tinytpu_uops` (only scalar-const DIV/MOD
-   left — requires matching tinygrad's WHERE+CMPLT+AND floor-div decomp).
+4. Replace remaining hand-written structural recognizer duplication with
+   reusable TinyTPU descriptor builders.
 5. Dtype expansion beyond int32/bool: int8/uint8/int16 elementwise policy.
 6. Movement gaps: PAD (requires CMPLT bounds check), FLIP (LOAD index =
    const - STORE index), CAT (WHERE-based select between two buffers),

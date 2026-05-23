@@ -23,8 +23,8 @@ fingerprint tinygrad injects when it lowers `exp` into `exp2(x·log2(e))`. Any
 change to tinygrad's decomposition silently breaks ~20 recognizers.
 
 A healthy renderer has one small pattern per primitive UOp and emits one
-instruction per UOp (see `cstyle.py`). `ops_tinytpu.py` instead has ~47 patterns,
-one per composite kernel, plus a 500-line `analyze_tinytpu_uops` and a dozen
+instruction per UOp (see `cstyle.py`). `ops_tinytpu.py` instead had ~47 patterns,
+one per composite kernel, plus a legacy whole-kernel analyzer and a dozen
 `_find_*` helpers — all pattern-sniffing infrastructure. There is no
 `PatternMatcher`/`UPat` in the file at all.
 
@@ -165,9 +165,8 @@ bulk of the ~37 recognizers in §8 fall out this way.
 
 Plus every `_find_*` / helper used **only** by the deleted functions — each
 checked for remaining callers before deletion (dead-code removal, not a
-fallback). `analyze_tinytpu_uops` is **kept**: it has an external consumer
-(`tests/onnx_tinytpu_trace/driver.py`) and is a diagnostic, not part of the
-render path.
+fallback). The legacy `analyze_tinytpu_uops` diagnostic was removed later after
+`tests/onnx_tinytpu_trace/driver.py` switched to renderer descriptors.
 
 **Kept this slice** (own structural paths; future slices):
 GEMM/WMMA path and `_render_gemm_fallback_sxu_program`,
