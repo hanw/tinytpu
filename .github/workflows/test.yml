@@ -73,7 +73,7 @@ jobs:
       - name: Add BSC to PATH
         run: |
           echo "$HOME/.local/bsc-${BSC_VERSION}/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bsc-${BSC_VERSION}/bin/bsc" -version
+          "$HOME/.local/bsc-${BSC_VERSION}/bin/bsc" -help > /dev/null
 
       - name: Build TinyTPU runtime simulator
         run: make runtime-tb
