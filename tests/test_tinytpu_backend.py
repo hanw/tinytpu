@@ -9,7 +9,7 @@ os.environ["DISABLE_COMPILER_CACHE"] = "1"
 
 import numpy as np
 from tinygrad import Tensor
-from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all, _set_pred_ne_zero, _skip_if_not_pred, _mxu_epilogue, _load_epilogue_stat
+from tinygrad.runtime.ops_tinytpu import _VPU_BOOL_OPS, _VPU_OPS, _infer_tiling, _parse_sim_output, _parse_vmem_output, _parse_asram_output, _tiling_failure_note, _run_bundle, _build_full_gemm_bundle, _vmem, _wmem, _amem, _mxu, _mxu_psum_write, _mxu_psum_acc, _mxu_accumulate, _mxu_os, _mxu_clear, _psum_read, _psum_read_row, _psum_clear, _wait_mxu, _load, _store, _halt, _output_vmem, _output_asram, _end, _bundle, _vpu, _vpu_exp2, _vpu_log2, _load_vpu_result, _load_xlu_result, _set_pred_if_zero, _skip_if_pred, _psum_accumulate_row, _load_mxu_matrix_row, _read_cycle, _loop_begin, _loop_end, _vzero, _vfill, _vmov, _mxu_os_accumulate, _vneg, _vabs, _load_loop_depth, _xlu_rotate, _psum_clear_all, _set_pred_ne_zero, _skip_if_not_pred, _mxu_epilogue, _load_epilogue_stat, _set_requant_config, _mxu_requant
 
 
 def _recon_signed_i64(lo_raw, hi_raw):
@@ -7594,6 +7594,34 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     assert expected_sumsq > 2**31, "SUMSQ value must exceed INT32 range to prove INT64 width"
     expected = [expected_sumsq] * 4
     self.assertEqual(stats, expected, f"epilogue reduce SUMSQ: got {stats}")
+
+  def test_mxu_requant_matches_reference(self):
+    # Fused drain-side requant: GEMM result × scaleMul, round, arithmetic
+    # right shift, saturating clamp to INT8, write to ActivationSRAM.
+    sim = os.environ["TINYTPU_SIM"]
+    a_row     = [3, -5, 7, -9]
+    scale_mul = 65536           # 1.0 in fixed-point with shift=16
+    scale_sh  = 16
+    asram_dst = 12
+    bundle = _bundle(
+      _wmem(0, [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+      _amem(0, a_row),
+      _set_requant_config(scale_mul, scale_sh),
+      _mxu_requant(0, 0, 1, asram_dst),
+      _wait_mxu(),
+      _halt(),
+      _output_asram(asram_dst),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    got = _parse_asram_output(out)
+    def requant(acc, mul, sh):
+      wide = acc * mul
+      rounded = wide + (1 << (sh - 1))
+      shifted = rounded >> sh
+      return max(-128, min(127, shifted))
+    expected = [requant(v, scale_mul, scale_sh) for v in a_row]
+    self.assertEqual(got, expected, f"requant: got {got}, expected {expected}")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,10 @@ interface ActivationSRAMDB_IFC#(numeric type depth, numeric type rows);
    // Controller dispatch using the same address reads the value.
    // Use the plain.write path for DMA-overlap writes to the INACTIVE
    // bank instead.
+   // plain.writeBack writes the ACTIVE bank (drain-side requant path, used by Controller).
    method Action writeActive(UInt#(TLog#(depth)) addr, Vector#(rows, Int#(8)) data);
+   // Combinational peek into the active bank (for testbench output).
+   method Vector#(rows, Int#(8)) peekActive(UInt#(TLog#(depth)) addr);
    method Action swap;
    method Bit#(1) activeBank;
 endinterface
@@ -42,6 +45,12 @@ module mkActivationSRAMDB(ActivationSRAMDB_IFC#(depth, rows))
          else             mem_a.upd(addr, data);
       endmethod
 
+      // writeBack: writes to the ACTIVE bank (drain-side requant result).
+      method Action writeBack(UInt#(TLog#(depth)) addr, Vector#(rows, Int#(8)) data);
+         if (active == 0) mem_a.upd(addr, data);
+         else             mem_b.upd(addr, data);
+      endmethod
+
       method Action readReq(UInt#(TLog#(depth)) addr);
          if (active == 0) resp <= mem_a.sub(addr);
          else             resp <= mem_b.sub(addr);
@@ -50,11 +59,21 @@ module mkActivationSRAMDB(ActivationSRAMDB_IFC#(depth, rows))
       method Vector#(rows, Int#(8)) readResp;
          return resp;
       endmethod
+
+      method Vector#(rows, Int#(8)) peek(UInt#(TLog#(depth)) addr);
+         if (active == 0) return mem_a.sub(addr);
+         else             return mem_b.sub(addr);
+      endmethod
    endinterface
 
    method Action writeActive(UInt#(TLog#(depth)) addr, Vector#(rows, Int#(8)) data);
       if (active == 0) mem_a.upd(addr, data);
       else             mem_b.upd(addr, data);
+   endmethod
+
+   method Vector#(rows, Int#(8)) peekActive(UInt#(TLog#(depth)) addr);
+      if (active == 0) return mem_a.sub(addr);
+      else             return mem_b.sub(addr);
    endmethod
 
    method Action swap;

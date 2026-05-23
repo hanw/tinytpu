@@ -55,6 +55,7 @@ typedef enum {
    TSIM_OUTPUT_MXU,
    TSIM_VMEM_TILE,
    TSIM_OUTPUT_VMEM,
+   TSIM_OUTPUT_ASRAM,
    TSIM_START,
    TSIM_RUNNING,
    TSIM_OUTPUT
@@ -72,6 +73,10 @@ module mkTbTinyTPURuntime();
    Reg#(UInt#(5))  outVmemCount <- mkReg(0);
    Vector#(32, Reg#(UInt#(8))) outVmemAddrs <- replicateM(mkReg(0));
    Reg#(UInt#(5))  outVmemIdx <- mkReg(0);   // current output index during TSIM_OUTPUT
+   // Support up to 32 OUTPUT_ASRAM addresses
+   Reg#(UInt#(5))  outAsramCount <- mkReg(0);
+   Vector#(32, Reg#(UInt#(8))) outAsramAddrs <- replicateM(mkReg(0));
+   Reg#(UInt#(5))  outAsramIdx <- mkReg(0);  // current ASRAM output index during TSIM_OUTPUT
    Reg#(UInt#(16)) cycle  <- mkReg(0);
 
    rule count_cycles;
@@ -102,6 +107,7 @@ module mkTbTinyTPURuntime();
       else if (typ == 4) state <= TSIM_START;
       else if (typ == 5) state <= TSIM_VMEM_TILE;
       else if (typ == 6) state <= TSIM_OUTPUT_VMEM;
+      else if (typ == 7) state <= TSIM_OUTPUT_ASRAM;
       else begin
          $display("ERROR: unknown bundle record type %0d", typ);
          $finish(1);
@@ -237,6 +243,14 @@ module mkTbTinyTPURuntime();
       state <= TSIM_READ_TYPE;
    endrule
 
+   // Record 7: OUTPUT_ASRAM — addr to emit after HALT (accumulates)
+   rule do_output_asram (state == TSIM_OUTPUT_ASRAM);
+      Int#(32) addr <- tinytpu_bundle_read_int();
+      outAsramAddrs[outAsramCount] <= unpack(truncate(pack(addr)));
+      outAsramCount <= outAsramCount + 1;
+      state <= TSIM_READ_TYPE;
+   endrule
+
    // Record 4: END — start TensorCore execution
    rule do_start (state == TSIM_START);
       tc.start(pc);
@@ -269,8 +283,16 @@ module mkTbTinyTPURuntime();
       outVmemIdx <= outVmemIdx + 1;
    endrule
 
+   // Emit ASRAM results sequentially (after all VMEM outputs)
+   rule do_output_asram_seq (state == TSIM_OUTPUT && !outMxu && outVmemIdx >= outVmemCount && outAsramIdx < outAsramCount);
+      Vector#(4, Int#(8)) row = tc.peekActivationRow(truncate(outAsramAddrs[outAsramIdx]));
+      $display("asram_result %0d %0d %0d %0d",
+               row[0], row[1], row[2], row[3]);
+      outAsramIdx <= outAsramIdx + 1;
+   endrule
+
    // Finish after all outputs emitted
-   rule do_output_done (state == TSIM_OUTPUT && !outMxu && outVmemIdx >= outVmemCount);
+   rule do_output_done (state == TSIM_OUTPUT && !outMxu && outVmemIdx >= outVmemCount && outAsramIdx >= outAsramCount);
       $display("cycles %0d", cycle);
       $display("status ok");
       $finish(0);

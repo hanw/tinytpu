@@ -148,7 +148,10 @@ typedef enum {
    // vreg (bit4=0) or VMEM (bit4=1) as indicated by the vpuOp config.
    // Opcodes 42 and 43 — must match assembler DISPATCH_MXU_EPILOGUE / LOAD_EPILOGUE_STAT.
    SXU_DISPATCH_MXU_EPILOGUE,
-   SXU_LOAD_EPILOGUE_STAT
+   SXU_LOAD_EPILOGUE_STAT,
+   // SP3: drain-side requantization
+   SXU_SET_REQUANT_CONFIG,
+   SXU_DISPATCH_MXU_REQUANT
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -212,6 +215,7 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_VPU_BG,
                SXU_EXEC_MXU_EPILOGUE, SXU_WAIT_MXU_EPILOGUE,
                SXU_EXEC_MXU_EPILOGUE_WB, SXU_EXEC_LOAD_EPILOGUE_STAT,
+               SXU_EXEC_SET_REQUANT_CONFIG, SXU_EXEC_MXU_REQUANT,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -351,6 +355,8 @@ module mkScalarUnit#(
          SXU_DISPATCH_VPU_BG: pc_state <= SXU_EXEC_VPU_BG;
          SXU_DISPATCH_MXU_EPILOGUE: pc_state <= SXU_EXEC_MXU_EPILOGUE;
          SXU_LOAD_EPILOGUE_STAT: pc_state <= SXU_EXEC_LOAD_EPILOGUE_STAT;
+         SXU_SET_REQUANT_CONFIG:   pc_state <= SXU_EXEC_SET_REQUANT_CONFIG;
+         SXU_DISPATCH_MXU_REQUANT: pc_state <= SXU_EXEC_MXU_REQUANT;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -1094,6 +1100,34 @@ module mkScalarUnit#(
          v[ri][1] = unpack(b[63:32]);
       end
       vrf.write(truncate(curInstr.vregDst), v);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // SET_REQUANT_CONFIG: unpack scaleMul from 4 bytes (little-endian across
+   // mxuWBase/mxuABase/mxuTLen/vmemAddr) and scaleShift from vpuOp low bits.
+   rule do_set_requant_config (pc_state == SXU_EXEC_SET_REQUANT_CONFIG);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=SET_REQUANT_CONFIG", cycle);
+`endif
+      Bit#(32) m = { pack(curInstr.vmemAddr), pack(curInstr.mxuTLen),
+                     pack(curInstr.mxuABase), pack(curInstr.mxuWBase) };
+      Bit#(5)  s = truncate(pack(curInstr.vpuOp));
+      ctrl.setRequantConfig(unpack(m), unpack(s));
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_MXU_REQUANT: fire-and-forget WS dispatch with drain-side
+   // requant. The Controller writes INT8 results to aSRAM at drain time.
+   rule do_mxu_requant (pc_state == SXU_EXEC_MXU_REQUANT);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_REQUANT", cycle);
+`endif
+      ctrl.startRequant(truncate(curInstr.mxuWBase),
+                        truncate(curInstr.mxuABase),
+                        truncate(curInstr.mxuTLen),
+                        curInstr.vmemAddr);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule

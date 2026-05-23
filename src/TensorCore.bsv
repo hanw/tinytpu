@@ -43,6 +43,8 @@ interface TensorCore_IFC#(numeric type rows, numeric type cols, numeric type dep
    method Action readVmemTile(UInt#(TLog#(depth)) addr);
    method Vector#(rows, Vector#(cols, Int#(32))) getVmemResult;
    method Vector#(rows, Vector#(cols, Int#(32))) peekVmemTile(UInt#(TLog#(depth)) addr);
+   // Combinational peek into the active ActivationSRAM bank (for testbench ASRAM output).
+   method Vector#(rows, Int#(8)) peekActivationRow(UInt#(TLog#(depth)) addr);
    // Start SXU execution
    method Action start(UInt#(8) len);
    method Bool isDone;
@@ -141,6 +143,10 @@ module mkTensorCore(TensorCore_IFC#(rows, cols, depth))
 
    method Vector#(rows, Vector#(cols, Int#(32))) peekVmemTile(UInt#(TLog#(depth)) addr);
       return vmem.peek(addr);
+   endmethod
+
+   method Vector#(rows, Int#(8)) peekActivationRow(UInt#(TLog#(depth)) addr);
+      return asramDB.peekActive(addr);
    endmethod
 
    method Action start(UInt#(8) len);

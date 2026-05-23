@@ -121,6 +121,18 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    // exposed now so SXU/tests can observe Controller state without
    // changing the start/startPsum signatures).
    method DataflowMode getDataflowMode;
+   // SP3: drain-side requantization.
+   // setRequantConfig stores the INT32 scale multiplier and shift;
+   // startRequant launches a WS dispatch that, at drain time, applies
+   // the requant formula per column and writes INT8 results to aSRAM.
+   // Precondition: shift >= 1. With shift == 0, `scaleShift - 1` wraps in
+   // UInt#(5) arithmetic to 31, producing a large wrong rounding offset
+   // instead of zero. All v1 quantization flows use shift >= 1.
+   method Action setRequantConfig(Int#(32) mul, UInt#(5) shift);
+   method Action startRequant(UInt#(TLog#(depth)) weightBase,
+                              UInt#(TLog#(depth)) actBase,
+                              UInt#(TLog#(depth)) tileLen,
+                              UInt#(8) asramTargetBase);
 endinterface
 
 module mkController#(
@@ -137,7 +149,9 @@ module mkController#(
             Add#(logd_, TLog#(depth), 32),
             Add#(osr_, TLog#(rows), 32),
             Add#(osrd_, TLog#(rows), TLog#(depth)),
-            Add#(psumTrunc__, TLog#(psumDepth), 8));
+            Add#(psumTrunc__, TLog#(psumDepth), 8),
+            Add#(logd8_, TLog#(depth), 8),
+            Add#(0, cols, rows));
 
    Reg#(ControlState) cstate <- mkReg(Idle);
 
@@ -177,6 +191,13 @@ module mkController#(
    // an OS start path lands this flips in startOS() for the duration
    // of a dispatch.
    Reg#(DataflowMode)             dfModeReg   <- mkReg(DF_WEIGHT_STATIONARY);
+
+   // Requantization state: scale factor, shift, active flag, and ASRAM target.
+   Reg#(Int#(32))  scaleMul             <- mkReg(0);
+   Reg#(UInt#(5))  scaleShift           <- mkReg(0);
+   Reg#(Bool)      requantActive        <- mkReg(False);
+   Reg#(UInt#(8))  requantTargetBase    <- mkReg(0);
+   Reg#(UInt#(8))  requantTargetOffset  <- mkReg(0);
 
    // Epilogue state: bias vector, config, active flag, and result buffer.
    Reg#(Vector#(cols, Int#(32)))             biasReg       <- mkRegU;
@@ -354,7 +375,27 @@ module mkController#(
       // and clears explicitly with clearArray().
       if (dfModeReg == DF_WEIGHT_STATIONARY)
          array.clearAll;
-      if (epilogueActive) begin
+      if (requantActive) begin
+`ifdef TRACE
+         $display("TRACE cycle=%0d unit=MXU ev=REQUANT base=%0d off=%0d",
+                  cycle, requantTargetBase, requantTargetOffset);
+`endif
+         Vector#(cols, Int#(8)) reqRow = newVector;
+         for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
+            Int#(32) acc     = r[ci];
+            Int#(64) wide    = signExtend(acc) * signExtend(scaleMul);
+            Int#(64) one     = 1;
+            Int#(64) rounded = wide + (one << (scaleShift - 1));
+            Int#(64) shifted = rounded >> scaleShift;
+            Int#(64) clamped = (shifted >  127) ?  127 :
+                               (shifted < -128) ? -128 : shifted;
+            reqRow[ci] = truncate(clamped);
+         end
+         // requantTargetBase + requantTargetOffset is UInt#(8) arithmetic; callers must
+         // keep base + tileLen <= 255 (current 4x4/depth=32 configs trivially satisfy this).
+         aSRAM.writeBack(truncate(requantTargetBase + requantTargetOffset), reqRow);
+         requantTargetOffset <= requantTargetOffset + 1;
+      end else if (epilogueActive) begin
          Vector#(rows, Vector#(cols, Int#(32))) m = drainMatrix;
          Vector#(rows, Vector#(cols, Int#(32))) outm = m;
          for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
@@ -377,23 +418,24 @@ module mkController#(
             end
             epilogueStatBuf <= stat;
          end
+      end else begin
+         case (psumModeReg)
+            PSUM_WRITE: begin
+`ifdef TRACE
+               $display("TRACE cycle=%0d unit=MXU ev=PSUM_WRITE addr=%0d row=%0d",
+                        cycle, psumAddrReg, psumRowReg);
+`endif
+               psum.writeRow(truncate(psumAddrReg), psumRowReg, r);
+            end
+            PSUM_ACCUMULATE: begin
+`ifdef TRACE
+               $display("TRACE cycle=%0d unit=MXU ev=PSUM_ACCUMULATE addr=%0d row=%0d",
+                        cycle, psumAddrReg, psumRowReg);
+`endif
+               psum.accumulateRow(truncate(psumAddrReg), psumRowReg, r);
+            end
+         endcase
       end
-      case (psumModeReg)
-         PSUM_WRITE: begin
-`ifdef TRACE
-            $display("TRACE cycle=%0d unit=MXU ev=PSUM_WRITE addr=%0d row=%0d",
-                     cycle, psumAddrReg, psumRowReg);
-`endif
-            psum.writeRow(truncate(psumAddrReg), psumRowReg, r);
-         end
-         PSUM_ACCUMULATE: begin
-`ifdef TRACE
-            $display("TRACE cycle=%0d unit=MXU ev=PSUM_ACCUMULATE addr=%0d row=%0d",
-                     cycle, psumAddrReg, psumRowReg);
-`endif
-            psum.accumulateRow(truncate(psumAddrReg), psumRowReg, r);
-         end
-      endcase
       cstate <= Done;
    endrule
 
@@ -409,6 +451,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
       epilogueActive <= False;
+      requantActive  <= False;
       // WS always starts from a zeroed accumulator. Prior dispatches may
       // have been OS mode (which intentionally does not drain-clear).
       array.clearAll;
@@ -432,6 +475,7 @@ module mkController#(
       psumModeReg <= psumMode;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
       epilogueActive <= False;
+      requantActive  <= False;
       array.clearAll;
       cstate <= LoadWeights;
    endmethod
@@ -452,6 +496,7 @@ module mkController#(
       biasReg     <= biasVec;
       epiCfgReg   <= epiCfg;
       epilogueActive <= True;
+      requantActive  <= False;
       array.clearAll;
       cstate <= LoadWeights;
    endmethod
@@ -468,6 +513,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_WEIGHT_STATIONARY_ACCUMULATE;
       epilogueActive <= False;
+      requantActive  <= False;
       cstate <= LoadWeights;
    endmethod
 
@@ -489,6 +535,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_OUTPUT_STATIONARY;
       epilogueActive <= False;
+      requantActive  <= False;
       // OS consumers start from a cleared array so each dispatch's
       // psum matrix reflects only its own inputs.
       array.clearAll;
@@ -510,6 +557,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_OUTPUT_STATIONARY;
       epilogueActive <= False;
+      requantActive  <= False;
       // Skip the clearAll — psums carry over from the previous OS
       // dispatch, letting multi-K-tile OS scale past K == rows.
       cstate <= LoadWeights;
@@ -545,6 +593,34 @@ module mkController#(
 
    method DataflowMode getDataflowMode;
       return dfModeReg;
+   endmethod
+
+   // Precondition: shift >= 1. With shift == 0, `scaleShift - 1` wraps in
+   // UInt#(5) arithmetic to 31, producing a large wrong rounding offset
+   // instead of zero. All v1 quantization flows use shift >= 1.
+   method Action setRequantConfig(Int#(32) mul, UInt#(5) shift) if (cstate == Idle || cstate == Done);
+      scaleMul   <= mul;
+      scaleShift <= shift;
+   endmethod
+
+   method Action startRequant(UInt#(TLog#(depth)) weightBase,
+                              UInt#(TLog#(depth)) actBase,
+                              UInt#(TLog#(depth)) tileLen,
+                              UInt#(8) asramTargetBase) if (cstate == Idle || cstate == Done);
+      wBase        <= weightBase;
+      aBase        <= actBase;
+      tLen         <= tileLen;
+      actIdx       <= 0;
+      streamCycle  <= 0;
+      firstActRead <= False;
+      psumModeReg  <= PSUM_OFF;
+      dfModeReg    <= DF_WEIGHT_STATIONARY;
+      epilogueActive      <= False;
+      requantActive       <= True;
+      requantTargetBase   <= asramTargetBase;
+      requantTargetOffset <= 0;
+      array.clearAll;
+      cstate <= LoadWeights;
    endmethod
 
 endmodule
