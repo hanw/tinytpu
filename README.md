@@ -423,7 +423,8 @@ Tips for Codex:
 | `doc/software-spec.md` | Co-simulation software stack spec |
 | `doc/profiler-design.md` | Profiler and tracing design |
 | `doc/tinytpu_bundle_format.md` | Bundle record format reference |
-| `doc/tinyspec.tex` | Tinyspec formal specification |
+| `tinygrad/spec/tinyspec.tex` | Tinyspec formal specification |
 | `doc/tinyspec_coverage.md` | Coverage tracking by tinyspec category |
+| `doc/plan-tinyspec-tinytpu-sync.md` | Plan to sync Tinyspec with the current TinyTPU backend profile |
 | `doc/plan-*.md` | TDD implementation plans for each hardware unit |
 | `doc/viz-pipeline.md` | Pipeline visualizer design spec and extension notes |

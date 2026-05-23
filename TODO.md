@@ -1,7 +1,7 @@
 # TinyTPU Tinyspec Coverage TODO
 
 This TODO estimates the remaining work to support the tinyspec surface in
-`doc/tinyspec.tex`. It uses the current repo iteration style: one narrow,
+`tinygrad/spec/tinyspec.tex`. It uses the current repo iteration style: one narrow,
 tested, committed behavior per iteration.
 
 ## Overall Estimate
@@ -24,7 +24,7 @@ sim tests.
 
 ## Current Progress
 
-- [x] Save tinyspec source in `doc/tinyspec.tex`
+- [x] Track tinyspec source in `tinygrad/spec/tinyspec.tex`
 - [x] Runtime co-simulation bundle format for MXU programs
 - [x] Runtime VMEM preload and VMEM result output path
 - [x] Tinygrad GEMM lowering for supported tiled int32 cases through 4x4 MXU
