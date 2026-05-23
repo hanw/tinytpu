@@ -637,6 +637,55 @@ def test_gemm_bundle_roundtrips_through_tasm():
     assert assemble(disassemble(wire)) == wire
 
 
+# ---------------------------------------------------------------------------
+# Requant opcodes round-trip tests
+# ---------------------------------------------------------------------------
+
+def test_sxu_set_requant_config_roundtrip():
+    # SET_REQUANT_CONFIG scale_mul=0x12345678 scale_shift=7
+    # scaleMul little-endian across mxuWBase/mxuABase/mxuTLen/vmemAddr; shift in vpuOp.
+    prog = "SET_REQUANT_CONFIG scale_mul=305419896 scale_shift=7\nHALT\nEND\n"
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 44 "))
+    f = line.split()
+    # field order: 2 opc vmemAddr vregDst vregSrc vpuOp vregSrc2 mxuWBase mxuABase mxuTLen
+    assert int(f[7]) == 0x78    # mxuWBase = scaleMul[7:0]
+    assert int(f[8]) == 0x56    # mxuABase = scaleMul[15:8]
+    assert int(f[9]) == 0x34    # mxuTLen  = scaleMul[23:16]
+    assert int(f[2]) == 0x12    # vmemAddr = scaleMul[31:24]
+    assert int(f[5]) == 7       # vpuOp low 5 bits = scaleShift
+    dis = disassemble(wire)
+    assert "SET_REQUANT_CONFIG" in dis
+    assert "scale_mul=305419896" in dis
+    assert "scale_shift=7" in dis
+    assert assemble(disassemble(wire)) == wire
+
+def test_sxu_set_requant_config_signed_roundtrip():
+    prog = "SET_REQUANT_CONFIG scale_mul=-1 scale_shift=0\nHALT\nEND\n"
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 44 "))
+    f = line.split()
+    # -1 packs to all-0xFF across the four byte fields
+    assert int(f[2]) == 255 and int(f[7]) == 255 and int(f[8]) == 255 and int(f[9]) == 255
+    dis = disassemble(wire)
+    assert "scale_mul=-1" in dis
+    assert assemble(disassemble(wire)) == wire
+
+def test_sxu_dispatch_mxu_requant_roundtrip():
+    prog = "DISPATCH_MXU_REQUANT WMEM[3] AMEM[5] tiles=2 ASRAM[9]\nHALT\nEND\n"
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 45 "))
+    f = line.split()
+    assert int(f[7]) == 3     # mxuWBase
+    assert int(f[8]) == 5     # mxuABase
+    assert int(f[9]) == 2     # mxuTLen
+    assert int(f[2]) == 9     # vmemAddr = ASRAM target base
+    dis = disassemble(wire)
+    assert "DISPATCH_MXU_REQUANT" in dis
+    assert "WMEM[3]" in dis and "AMEM[5]" in dis and "tiles=2" in dis and "ASRAM[9]" in dis
+    assert assemble(disassemble(wire)) == wire
+
+
 def test_program_bundle_roundtrips_through_tasm():
     import numpy as np
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tinygrad"))

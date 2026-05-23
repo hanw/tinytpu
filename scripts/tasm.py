@@ -73,6 +73,8 @@ _SXU = {
     "DISPATCH_VPU_BG":         41,
     "DISPATCH_MXU_EPILOGUE":   42,
     "LOAD_EPILOGUE_STAT":      43,
+    "SET_REQUANT_CONFIG":      44,
+    "DISPATCH_MXU_REQUANT":    45,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -584,6 +586,48 @@ def assemble(text: str) -> str:
                 dst = _parse_vreg(tokens[1])
                 out.append(_instr(_SXU["LOAD_EPILOGUE_STAT"], vregDst=dst))
 
+            elif kw == "SET_REQUANT_CONFIG":
+                # SET_REQUANT_CONFIG scale_mul=<int> scale_shift=<int>
+                # Packs a signed 32-bit multiplier little-endian across
+                # mxuWBase/mxuABase/mxuTLen/vmemAddr (one byte each) and
+                # a 5-bit shift into the low bits of vpuOp.
+                rest = line[len("SET_REQUANT_CONFIG"):].strip()
+                m = re.fullmatch(
+                    r"scale_mul=(-?\d+)\s+scale_shift=(\d+)",
+                    rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "SET_REQUANT_CONFIG syntax: "
+                        "SET_REQUANT_CONFIG scale_mul=<int> scale_shift=<int>")
+                mul_val   = int(m.group(1)) & 0xFFFFFFFF
+                shift_val = int(m.group(2)) & 0x1F
+                out.append(_instr(_SXU["SET_REQUANT_CONFIG"],
+                                  vmemAddr=(mul_val >> 24) & 0xFF,
+                                  vpuOp=shift_val,
+                                  mxuWBase=mul_val & 0xFF,
+                                  mxuABase=(mul_val >> 8) & 0xFF,
+                                  mxuTLen=(mul_val >> 16) & 0xFF))
+
+            elif kw == "DISPATCH_MXU_REQUANT":
+                # DISPATCH_MXU_REQUANT WMEM[W] AMEM[A] tiles=N ASRAM[dst]
+                # mxuWBase=W, mxuABase=A, mxuTLen=N, vmemAddr=dst (ActivationSRAM base)
+                rest = line[len("DISPATCH_MXU_REQUANT"):].strip()
+                m = re.fullmatch(
+                    r"WMEM\[(\d+)\]\s+AMEM\[(\d+)\]\s+tiles=(\d+)\s+ASRAM\[(\d+)\]",
+                    rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "DISPATCH_MXU_REQUANT syntax: "
+                        "DISPATCH_MXU_REQUANT WMEM[W] AMEM[A] tiles=N ASRAM[dst]")
+                wbase = int(m.group(1))
+                abase = int(m.group(2))
+                tlen  = int(m.group(3))
+                dst   = int(m.group(4))
+                out.append(_instr(_SXU["DISPATCH_MXU_REQUANT"],
+                                  vmemAddr=dst,
+                                  mxuWBase=wbase, mxuABase=abase,
+                                  mxuTLen=tlen))
+
             elif kw == "WAIT_MXU":
                 out.append(_instr(_SXU["WAIT_MXU"]))
 
@@ -942,6 +986,21 @@ def disassemble(wire: str) -> str:
 
                 elif opc == _SXU["LOAD_EPILOGUE_STAT"]:
                     out.append(f"LOAD_EPILOGUE_STAT v{vregDst}")
+
+                elif opc == _SXU["SET_REQUANT_CONFIG"]:
+                    # Reassemble scale_mul from little-endian bytes.
+                    m = ((vmemAddr & 0xFF) << 24 | (mxuTLen & 0xFF) << 16 |
+                         (mxuABase & 0xFF) << 8  |  (mxuWBase & 0xFF))
+                    # Sign-extend from 32-bit unsigned to signed INT32.
+                    if m & 0x80000000:
+                        m -= 0x100000000
+                    shift = vpuOp & 0x1F
+                    out.append(f"SET_REQUANT_CONFIG scale_mul={m} scale_shift={shift}")
+
+                elif opc == _SXU["DISPATCH_MXU_REQUANT"]:
+                    out.append(
+                        f"DISPATCH_MXU_REQUANT WMEM[{mxuWBase}] AMEM[{mxuABase}] "
+                        f"tiles={mxuTLen} ASRAM[{vmemAddr}]")
 
                 else:
                     out.append(f"# UNKNOWN SXU OPCODE {opc}")
