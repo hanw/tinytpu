@@ -7623,6 +7623,113 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
     expected = [requant(v, scale_mul, scale_sh) for v in a_row]
     self.assertEqual(got, expected, f"requant: got {got}, expected {expected}")
 
+  def test_mxu_requant_saturates(self):
+    # Drive scaled values outside INT8 range; assert clamp to 127 / -128.
+    # Identity weights => per-PE result is diag(activation); scale_mul=32768
+    # with scale_sh=14 gives effective scale=2 so values >=64 saturate.
+    # a_row values are INT8-valid; the post-GEMM multiply blows some over range.
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _set_requant_config, _mxu_requant
+    a_row     = [5, -5, 100, -100]     # all fit INT8; 100/-100 overflow after x2
+    scale_mul = 32768                   # effective scale = 32768 / 2^14 = 2.0
+    scale_sh  = 14
+    asram_dst = 3
+    bundle = _bundle(
+      _wmem(0, [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+      _amem(0, a_row),
+      _set_requant_config(scale_mul, scale_sh),
+      _mxu_requant(0, 0, 1, asram_dst),
+      _wait_mxu(),
+      _halt(),
+      _output_asram(asram_dst),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    got = _parse_asram_output(out)
+    # 5*2=10, -5*2=-10 (in range); 100*2=200 clamps to 127; -100*2=-200 clamps to -128.
+    expected = [10, -10, 127, -128]
+    self.assertEqual(got, expected, f"requant saturation: got {got}, expected {expected}")
+
+  def test_mxu_requant_pipeline_matches_python(self):
+    # Exercise multiple (mul, shift, input) combinations against an
+    # independent Python implementation of the spec pipeline.
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _set_requant_config, _mxu_requant
+    def py_requant(acc, mul, sh):
+      wide    = acc * mul
+      rounded = wide + (1 << (sh - 1))
+      shifted = rounded >> sh
+      return max(-128, min(127, shifted))
+    # covers ~identity, fractional scaling (0.5), scaling up (2.0), and negative-input cases
+    cases = [
+      ([10, -7, 4, -3],   16384, 14),     # ~identity (mul/2^sh ≈ 1.0)
+      ([100, 50, 25, 0],  32768, 16),     # mul = 0.5
+      ([1, 2, 3, 4],      65536, 15),     # mul = 2.0
+      ([-50, -1, 0, 1],   16384, 14),     # negative-input case
+    ]
+    for ci, (a_row, mul, sh) in enumerate(cases):
+      asram_dst = 16 + ci
+      bundle = _bundle(
+        _wmem(ci, [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+        _amem(ci, a_row),
+        _set_requant_config(mul, sh),
+        _mxu_requant(ci, ci, 1, asram_dst),
+        _wait_mxu(),
+        _halt(),
+        _output_asram(asram_dst),
+        _end(),
+      )
+      out = _run_bundle(sim, bundle)
+      got = _parse_asram_output(out)
+      expected = [py_requant(v, mul, sh) for v in a_row]
+      self.assertEqual(got, expected,
+        f"case {ci} (mul={mul}, sh={sh}, a={a_row}): got {got}, expected {expected}")
+
+  def test_mxu_requant_feeds_chained_gemm(self):
+    # Two-layer chain proves the requant output is consumable by a downstream
+    # DISPATCH_MXU. Sequence: GEMM1 → drain-requant → ASRAM[K] → GEMM2 reads
+    # ASRAM[K] as activation. Final result must match the spec pipeline
+    # applied between the two matmuls.
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _set_requant_config, _mxu_requant
+    # Pick magnitudes that stay well within INT8 post-scale (no saturation).
+    W1 = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]            # identity (4x4)
+    A1 = [3, -4, 5, -6]                                    # one activation row
+    W2 = [2,0,0,0, 0,3,0,0, 0,0,1,0, 0,0,0,2]            # diagonal 4x4
+    mul, sh = 16384, 14                                    # ≈ identity scaling
+    asram_chain = 24
+    psum_addr   = 0
+    bundle = _bundle(
+      _wmem(0, W1),
+      _amem(0, A1),
+      _wmem(1, W2),
+      _set_requant_config(mul, sh),
+      _mxu_requant(0, 0, 1, asram_chain),                  # GEMM1 + requant → ASRAM[24]
+      _wait_mxu(),
+      _mxu_psum_write(1, asram_chain, 1, psum_addr, 0),    # GEMM2 reads ASRAM[24]
+      _wait_mxu(),
+      _psum_read_row(2, psum_addr, 0),
+      _store(5, 2),              # _store(vmem_dst, vreg_src): store vreg 2 to VMEM[5]
+      _halt(),
+      _output_vmem(5),
+      _end(),
+    )
+    out = _run_bundle(sim, bundle)
+    got = _parse_vmem_output(out)
+    # Python reference: GEMM1 (identity) gives A1; requantize each element;
+    # GEMM2 with diag W2 multiplies each lane by its diagonal coefficient.
+    def py_requant(acc, m, s):
+      wide    = acc * m
+      rounded = wide + (1 << (s - 1))
+      shifted = rounded >> s
+      return max(-128, min(127, shifted))
+    requantized = [py_requant(v, mul, sh) for v in A1]
+    diag        = [W2[i * 4 + i] for i in range(4)]
+    expected    = [requantized[i] * diag[i] for i in range(4)]
+    # psum_read_row fills row 0 of vreg 2 (4 lanes); lanes 4..15 are zero padding
+    self.assertEqual(got[:4], expected,
+      f"chained GEMM: got {got[:4]}, expected {expected}")
+
 
 if __name__ == "__main__":
   unittest.main()
