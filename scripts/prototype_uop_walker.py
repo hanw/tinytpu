@@ -1,8 +1,8 @@
 """
 Prototype: UOp-walking renderer for TinyTPU.
 
-Instead of analyze_tinytpu_uops (pattern-match entire kernel) → JSON descriptor →
-bundle builder → sim, this walks UOps linearly and emits bundle text directly.
+Instead of whole-kernel pattern matching → JSON descriptor → bundle builder →
+sim, this walks UOps linearly and emits bundle text directly.
 
 Run: PYTHONPATH=tinygrad python scripts/prototype_uop_walker.py
 """

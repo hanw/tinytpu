@@ -13,11 +13,11 @@ for p in (TINYGRAD_ROOT, SCRIPTS_ROOT):
   if str(p) not in sys.path: sys.path.insert(0, str(p))
 
 from tinygrad import Tensor
-from tinygrad.device import Device
-from tinygrad.codegen import get_program
+from tinygrad.engine.realize import compile_linear
 from tinygrad.nn.onnx import OnnxRunner
-from tinygrad.runtime.ops_tinytpu import analyze_tinytpu_uops
-import tinygrad.runtime.ops_tinytpu as ops_tinytpu
+from tinygrad.uop.ops import Ops
+from tinygrad.runtime.support.compiler_tinytpu import SUPPORTED_TINYTPU_OPS
+from tinygrad.runtime.support import tinytpu as tinytpu_rt
 
 from profiler.bundle import parse_bundle_text
 from profiler.perfetto_emitter import write_perfetto
@@ -72,27 +72,32 @@ def make_tinytpu_outputs(onnx_path:Path, input_values:np.ndarray) -> tuple[dict[
 
 def compile_onnx_to_tinytpu(outputs:dict[str, Tensor]) -> list[dict]:
   compiled: list[dict] = []
-  for kernel_idx, si in enumerate(Tensor.schedule(*outputs.values())):
-    if si.ast.op.name != "SINK": continue
-    prg = get_program(si.ast, Device["TINYTPU"].renderer)
-    src = json.loads(prg.src)
-    diag = analyze_tinytpu_uops(prg.uops)
+  tensors = list(outputs.values())
+  if not tensors: return compiled
+  linear = compile_linear(tensors[0].schedule_linear(*tensors[1:]))
+  kernel_idx = 0
+  for call in linear.src:
+    prg = call.src[0]
+    if prg.op is not Ops.PROGRAM: continue
+    src = json.loads(next(u.arg for u in prg.src if u.op is Ops.SOURCE))
+    supported = src.get("op") in SUPPORTED_TINYTPU_OPS
     compiled.append({
       "kernel_index": kernel_idx,
-      "program_name": prg.name,
+      "program_name": prg.arg.name,
       "src": src,
-      "supported": diag["supported"],
-      "reason": diag["reason"],
-      "missing_instructions": diag["missing_instructions"],
-      "notes": diag["notes"],
-      "op_counts": diag["op_counts"],
+      "supported": supported,
+      "reason": "supported renderer descriptor" if supported else src.get("reason", "unsupported renderer descriptor"),
+      "missing_instructions": src.get("missing_instructions", []),
+      "notes": src.get("notes", []),
+      "op_counts": src.get("op_counts", {}),
     })
+    kernel_idx += 1
   return compiled
 
 
 def lower_supported_matmul_to_bundle(onnx_path:Path, input_values:np.ndarray) -> tuple[str, dict]:
   captured: dict[str, str] = {}
-  orig_run = ops_tinytpu.subprocess.run
+  orig_run = tinytpu_rt.subprocess.run
 
   def fake_run(*args, **kwargs):
     env = kwargs.get("env") or os.environ
@@ -101,7 +106,7 @@ def lower_supported_matmul_to_bundle(onnx_path:Path, input_values:np.ndarray) ->
       captured["bundle_text"] = Path(bundle_path).read_text(encoding="utf-8")
     raise _BundleCaptured()
 
-  ops_tinytpu.subprocess.run = fake_run
+  tinytpu_rt.subprocess.run = fake_run
   try:
     outputs, input_meta = make_tinytpu_outputs(onnx_path, input_values)
     try:
@@ -109,7 +114,7 @@ def lower_supported_matmul_to_bundle(onnx_path:Path, input_values:np.ndarray) ->
     except _BundleCaptured:
       pass
   finally:
-    ops_tinytpu.subprocess.run = orig_run
+    tinytpu_rt.subprocess.run = orig_run
 
   if "bundle_text" not in captured:
     raise RuntimeError("failed to capture TinyTPU bundle from ONNX execution")

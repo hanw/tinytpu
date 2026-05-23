@@ -123,13 +123,13 @@ Examples of hardware-first decisions:
 - `VPU_SELECT` replaced a 4-instruction MUL/SUB/MUL/ADD WHERE sequence
 - `VPU_NOT` replaced XOR-with-all-ones constant tile loading
 - `VPU_MIN` is preferred over detecting XOR+MAX decomposition in software
-- Remaining `analyze_tinytpu_uops` patterns (scalar-const DIV truncation,
-  MOD via DIV+MUL+SUB) should be resolved by adding `VPU_TRUNC_DIV` and
-  `VPU_MOD` hardware opcodes, not by more graph walking
+- Remaining decomposition-heavy ops should be resolved by adding direct
+  hardware opcodes where appropriate, not by reintroducing whole-kernel
+  graph counting.
 
 Propose ISA additions in `TODO.md` and get user approval before implementing
 (per the microarchitecture rule below). The goal is a 1:1 UOp→instruction
-mapping that eliminates the `analyze_tinytpu_uops` pattern-matching layer.
+mapping that avoids whole-kernel pattern-matching layers.
 
 ## Unsupported Feature Triage
 
