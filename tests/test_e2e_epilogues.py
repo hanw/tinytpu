@@ -74,6 +74,53 @@ class TestElementwiseEpilogues(unittest.TestCase):
     out = (g * u).realize().numpy()
     np.testing.assert_array_equal(out, (x @ Wg) * np.maximum(x @ Wu, 0))
 
+  def test_rope_pairwise_full_e2e(self):
+    """Apply RoPE to pairs of adjacent features in the GEMM output.
+
+    D = A @ B, then O = RoPE(D). For each row i and pair index k:
+      O[i, 2k]   = D[i, 2k] * c[i,k] - D[i, 2k+1] * s[i,k]
+      O[i, 2k+1] = D[i, 2k] * s[i,k] + D[i, 2k+1] * c[i,k]
+
+    Implemented on TPU as:
+      D        = A @ B                              (MXU)
+      D_swap   = D @ P                              (MXU, P swaps adjacent cols)
+      O        = D * C_full + D_swap * S_signed    (VPU elementwise)
+
+    C_full and S_signed are precomputed (M, N) integer tables that broadcast
+    the per-pair (c, s) across the two columns of each feature pair, with
+    S_signed carrying the (-sin, +sin) sign pattern needed by the rotation.
+    """
+    M, N, K = 4, 4, 4
+    rng = np.random.default_rng(700)
+    A = rng.integers(-2, 3, (M, K), dtype=np.int32)
+    B = rng.integers(-2, 3, (K, N), dtype=np.int32)
+    c = rng.integers(-2, 3, (M, N // 2), dtype=np.int32)
+    s = rng.integers(-2, 3, (M, N // 2), dtype=np.int32)
+
+    # Per-element rotation tables.
+    C_full = np.empty((M, N), dtype=np.int32)
+    S_signed = np.empty((M, N), dtype=np.int32)
+    C_full[:, 0::2] = c;          C_full[:, 1::2] = c
+    S_signed[:, 0::2] = -s;       S_signed[:, 1::2] = s
+
+    # Pair-swap permutation: P[2k, 2k+1] = P[2k+1, 2k] = 1.
+    P = np.zeros((N, N), dtype=np.int32)
+    for k in range(N // 2):
+      P[2*k, 2*k+1] = 1
+      P[2*k+1, 2*k] = 1
+
+    D = (_t(A) @ _t(B)).realize()
+    D_swap = (D @ _t(P)).realize()
+    term1 = (D * _t(C_full)).realize()
+    term2 = (D_swap * _t(S_signed)).realize()
+    O = (term1 + term2).realize().numpy()
+
+    D_ref = A @ B
+    O_ref = np.empty_like(D_ref)
+    O_ref[:, 0::2] = D_ref[:, 0::2] * c - D_ref[:, 1::2] * s
+    O_ref[:, 1::2] = D_ref[:, 0::2] * s + D_ref[:, 1::2] * c
+    np.testing.assert_array_equal(O, O_ref)
+
   def test_rope_style_rotation(self):
     """Pairwise rotation: (a, b) -> (a*c - b*s, a*s + b*c) with integer (c,s).
 
