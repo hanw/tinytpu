@@ -228,6 +228,28 @@ transcendental/activation test failures, plus `test_elu_positive_branch` and
 `test_log_compound_input`, trace to this. Fix belongs in `src/` BSV, not the
 backend — see `doc/plan-primitive-ops-handoff.md`.
 
+## Epilogue Gaps (surfaced by `tests/test_e2e_epilogues.py`)
+
+End-to-end tests for the five CODA epilogue primitive classes (elementwise/
+pairwise maps, vector loads/stores, tile loads/stores, tile reductions,
+stateful transforms) live in `tests/test_e2e_epilogues.py`. 18/19 pass; the
+following gaps are explicit:
+
+- [x] **Column-vector `(M,1)` broadcast over `(M,N)` mis-lowered as elementwise
+  multiply.** `_classify_colbc` picked the VPU op by the first non-zero
+  op_count, so a single address-arithmetic `MUL` shadowed the real `ADD`. Fix:
+  match the compute op by finding a binary UOp whose LOAD sources are the two
+  input params (`tinygrad/tinygrad/renderer/tinytpu/broadcast.py`). Verified
+  for ADD/MUL/SUB/rSUB/MAX with `(M,1)` operand.
+- [ ] **Inline `relu → reduce` inside an add chain mis-lowers.**
+  `(m + centered.relu().realize().sum(axis=1, keepdim=True)).realize()` returns
+  wrong values when finally read via `.numpy()`. The same expression with each
+  intermediate named (`relud = centered.relu().realize()`; `ssum = relud.sum(...)`;
+  `lse = (m + ssum).realize()`) produces correct results, suggesting a scheduler
+  / fusion bug in the multi-step SXU program emission when a reduce result is
+  consumed inline by a broadcasting add. The cross-entropy test side-steps it
+  via named intermediates; the underlying lowering issue is still open.
+
 ## Coverage Estimate by Area
 
 ### Current VPU/Runtime Architecture: 20-40 iterations
