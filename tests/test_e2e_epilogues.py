@@ -265,10 +265,11 @@ class TestStatefulEpilogues(unittest.TestCase):
     Gather isn't lowered, so the target index is materialized as a one-hot
     mask on the host, then z * mask is summed on TPU to extract z[row, tgt].
 
-    Note: each intermediate is named and .realize()'d before being consumed.
-    Inlining `centered.relu().realize().sum(...)` inside the (m + ...) add
-    currently mis-lowers (see TODO.md, "Inline relu->reduce inside add chain
-    mis-lowers"). Using named intermediates side-steps the issue.
+    Each intermediate is named and .realize()'d before being consumed.
+    Inlining the reduce inside the surrounding add (e.g. `(m + tile.sum(...))`)
+    produces a fused kernel that the renderer currently does not lower; after
+    the GEMM-fallback hardening that pattern now raises NotImplementedError
+    rather than silently producing wrong output. See `test_inline_reduce_in_add_raises`.
     """
     rng = np.random.default_rng(502)
     x  = rng.integers(-2, 3, (4, 4), dtype=np.int32)
@@ -292,6 +293,23 @@ class TestStatefulEpilogues(unittest.TestCase):
     lse_ref = m_ref + np.maximum(z_ref - m_ref, 0).sum(axis=1, keepdims=True)
     z_tgt_ref = z_ref[np.arange(4), tgt].reshape(-1, 1)
     np.testing.assert_array_equal(ce, lse_ref - z_tgt_ref)
+
+
+  def test_inline_reduce_in_add_raises(self):
+    """`(m + tile.sum(axis=1, keepdim=True)).realize()` fuses a reduce inside
+    an add. No fused lowering exists for that pattern. Before the GEMM-fallback
+    hardening (`tinygrad/renderer/tinytpu/gemm.py: lower_gemm_fallback`), this
+    kernel silently fell into the phantom-GEMM path and produced wrong output.
+    It must now raise NotImplementedError so callers either lift the reduce to
+    a named intermediate or add a real fused lowerer.
+    """
+    rng = np.random.default_rng(503)
+    m = rng.integers(-5, 5, (4, 1), dtype=np.int32)
+    t = rng.integers(-5, 5, (4, 4), dtype=np.int32)
+    mt = _t(m).realize()
+    tt = _t(t).realize()
+    with self.assertRaises(NotImplementedError):
+      (mt + tt.sum(axis=1, keepdim=True)).realize().numpy()
 
 
 if __name__ == "__main__":

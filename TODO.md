@@ -241,14 +241,15 @@ following gaps are explicit:
   match the compute op by finding a binary UOp whose LOAD sources are the two
   input params (`tinygrad/tinygrad/renderer/tinytpu/broadcast.py`). Verified
   for ADD/MUL/SUB/rSUB/MAX with `(M,1)` operand.
-- [ ] **Inline `relu → reduce` inside an add chain mis-lowers.**
-  `(m + centered.relu().realize().sum(axis=1, keepdim=True)).realize()` returns
-  wrong values when finally read via `.numpy()`. The same expression with each
-  intermediate named (`relud = centered.relu().realize()`; `ssum = relud.sum(...)`;
-  `lse = (m + ssum).realize()`) produces correct results, suggesting a scheduler
-  / fusion bug in the multi-step SXU program emission when a reduce result is
-  consumed inline by a broadcasting add. The cross-entropy test side-steps it
-  via named intermediates; the underlying lowering issue is still open.
+- [x] **Inline reduce inside an add chain silently produced garbage.** Root
+  cause: `lower_gemm_fallback` admitted any 3-param kernel with a single MUL +
+  RANGE + STORE. An address-arithmetic MUL (`RANGE * stride`) was enough, so
+  the unsupported fused-reduce-add kernel got phantom-lowered as a 1x1x1 GEMM.
+  Fix: require the MUL to multiply two LOADed values (the actual `acc += a*b`
+  signature). The fused kernel now raises NotImplementedError. The test
+  `tests/test_e2e_epilogues.py::TestStatefulEpilogues::test_inline_reduce_in_add_raises`
+  pins this behavior. A proper fused lowerer for `(M,1) + reduce(tile, axis=1)`
+  is still open — callers lift the reduce to a named intermediate today.
 
 ## Coverage Estimate by Area
 
