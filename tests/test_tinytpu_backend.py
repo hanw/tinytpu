@@ -7731,5 +7731,78 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       f"chained GEMM: got {got[:4]}, expected {expected}")
 
 
+class TestMxuVpuEpilogue(unittest.TestCase):
+  """Slice 5: end-to-end sim coverage of DISPATCH_MXU_VPU_EPILOGUE (op 46).
+
+  Each test builds a tiny GEMM with identity weights so that the drained
+  per-PE matrix is diag(act_vec), then asserts the lane-wise application
+  of the curated VPU op against a known src2 tile. Covers ADD/SUB/MUL/
+  MAX/MIN + both writeback modes (DST_VMEM and DST_VREG).
+  """
+
+  _IDENT_W = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
+  _ACT     = [-3, 2, -1, 4]
+  _SRC2    = [ 1, 2, 3, 4,
+               5, 6, 7, 8,
+               9,10,11,12,
+              13,14,15,16]
+  _DRAIN   = [-3, 0, 0, 0,
+                0, 2, 0, 0,
+                0, 0,-1, 0,
+                0, 0, 0, 4]
+
+  def _run(self, vpu_op_name: str, vmem_dst: bool):
+    sim = os.environ["TINYTPU_SIM"]
+    from tinygrad.runtime.ops_tinytpu import _mxu_vpu_epilogue
+    op_int = _VPU_OPS[vpu_op_name]
+    lines = [
+      _wmem(0, self._IDENT_W),
+      _amem(0, self._ACT),
+      _vmem(0, self._SRC2),
+      _load(0, 0),
+    ]
+    if vmem_dst:
+      lines.append(_mxu_vpu_epilogue(0, 0, 1, src2_vreg=0, vpu_op=op_int, dst=1, vmem_dst=True))
+      lines += [_halt(), _output_vmem(1), _end()]
+    else:
+      lines.append(_mxu_vpu_epilogue(0, 0, 1, src2_vreg=0, vpu_op=op_int, dst=1, vmem_dst=False))
+      lines += [_store(1, 1), _halt(), _output_vmem(1), _end()]
+    out = _run_bundle(sim, _bundle(*lines))
+    return _parse_vmem_output(out)
+
+  def test_vpu_add_dst_vmem(self):
+    got = self._run("ADD", vmem_dst=True)
+    expected = [d + s for d, s in zip(self._DRAIN, self._SRC2)]
+    self.assertEqual(got, expected)
+
+  def test_vpu_sub_dst_vmem(self):
+    got = self._run("SUB", vmem_dst=True)
+    expected = [d - s for d, s in zip(self._DRAIN, self._SRC2)]
+    self.assertEqual(got, expected)
+
+  def test_vpu_mul_dst_vmem(self):
+    got = self._run("MUL", vmem_dst=True)
+    expected = [d * s for d, s in zip(self._DRAIN, self._SRC2)]
+    self.assertEqual(got, expected)
+
+  def test_vpu_max_dst_vmem(self):
+    got = self._run("MAX", vmem_dst=True)
+    expected = [max(d, s) for d, s in zip(self._DRAIN, self._SRC2)]
+    self.assertEqual(got, expected)
+
+  def test_vpu_min_dst_vmem(self):
+    got = self._run("MIN", vmem_dst=True)
+    expected = [min(d, s) for d, s in zip(self._DRAIN, self._SRC2)]
+    self.assertEqual(got, expected)
+
+  def test_vpu_add_dst_vreg(self):
+    # DST_VREG path exercises the alternate writeback branch in
+    # do_mxu_vpu_epilogue_wb. Bundle stores the vreg back to VMEM for
+    # readback.
+    got = self._run("ADD", vmem_dst=False)
+    expected = [d + s for d, s in zip(self._DRAIN, self._SRC2)]
+    self.assertEqual(got, expected)
+
+
 if __name__ == "__main__":
   unittest.main()
