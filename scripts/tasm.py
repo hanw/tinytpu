@@ -166,6 +166,7 @@ _VPU = {
     "MIN_U32":           82,
     "MAX_U32":           83,
     "PAIR_ROTATE":       84,
+    "IPAIR_ROTATE":      85,
 }
 _VPU_INV = {v: k for k, v in _VPU.items()}
 

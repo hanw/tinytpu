@@ -7803,6 +7803,22 @@ class TestMxuVpuEpilogue(unittest.TestCase):
     expected = [d + s for d, s in zip(self._DRAIN, self._SRC2)]
     self.assertEqual(got, expected)
 
+  def test_vpu_ipair_rotate_dst_vmem(self):
+    # IPAIR_ROTATE: per-row pair rotation.
+    #   out[r][2p]   = d[r][2p]   * s[r][2p]   - d[r][2p+1] * s[r][2p+1]
+    #   out[r][2p+1] = d[r][2p]   * s[r][2p+1] + d[r][2p+1] * s[r][2p]
+    got = self._run("IPAIR_ROTATE", vmem_dst=True)
+    expected = []
+    for r in range(4):
+      d_row = self._DRAIN[r * 4:(r + 1) * 4]
+      s_row = self._SRC2[r * 4:(r + 1) * 4]
+      for p in range(2):
+        de, do = d_row[2 * p], d_row[2 * p + 1]
+        c, sn  = s_row[2 * p], s_row[2 * p + 1]
+        expected.append(de * c  - do * sn)
+        expected.append(de * sn + do * c)
+    self.assertEqual(got, expected)
+
 
 if __name__ == "__main__":
   unittest.main()

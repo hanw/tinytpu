@@ -470,6 +470,25 @@ module mkController#(
                endcase
                outm[ri][ci] = v;
             end
+         // Lane-pair rotation. Separate inner-loop pass because the op
+         // works on adjacent lane pairs rather than a single (r,c) cell:
+         //   out[r][2p]     = drain[r][2p]   * src2[r][2p]
+         //                  - drain[r][2p+1] * src2[r][2p+1]
+         //   out[r][2p + 1] = drain[r][2p]   * src2[r][2p+1]
+         //                  + drain[r][2p+1] * src2[r][2p]
+         // Matches VPU.bsv VPU_IPAIR_ROTATE semantics so a future caller
+         // can lower to either the dedicated VPU dispatch or the fused
+         // MXU epilogue interchangeably.
+         if (vpuOpReg == VPU_IPAIR_ROTATE)
+            for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
+               for (Integer p = 0; p < valueOf(cols) / 2; p = p + 1) begin
+                  Int#(32) de = m[ri][2 * p];
+                  Int#(32) doo = m[ri][2 * p + 1];
+                  Int#(32) c  = src2[ri][2 * p];
+                  Int#(32) sn = src2[ri][2 * p + 1];
+                  outm[ri][2 * p]     = de * c  - doo * sn;
+                  outm[ri][2 * p + 1] = de * sn + doo * c;
+            end
          epilogueBuf <= outm;
       end else begin
          case (psumModeReg)

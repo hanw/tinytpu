@@ -777,9 +777,9 @@ def test_vpu_ops_cover_full_range():
     from scripts.tasm import _VPU
     # Full VPU opcode range including EXP2/LOG2/SIN/COS transcendentals
     # and the packed-int8 quantized ops at the tail.
-    assert len(_VPU) == 85
+    assert len(_VPU) == 86
     codes = sorted(_VPU.values())
-    assert codes == list(range(85))
+    assert codes == list(range(86))
 
 
 def test_vpu_min_u32_roundtrip():

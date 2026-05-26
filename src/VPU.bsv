@@ -64,7 +64,13 @@ typedef enum { VPU_ADD, VPU_MUL, VPU_RELU, VPU_MAX, VPU_SUM_REDUCE, VPU_CMPLT, V
                //   out[2p]   = d[2p]*cos - d[2p+1]*sin
                //   out[2p+1] = d[2p]*sin + d[2p+1]*cos
                // src2 packs cos in even lanes, sin in odd lanes.
-               VPU_PAIR_ROTATE }
+               VPU_PAIR_ROTATE,
+               // Integer variant of VPU_PAIR_ROTATE. Same arithmetic with
+               // Int#(32) operands; caller is responsible for fixed-point
+               // scaling. Wraps on overflow (no saturation). Useful for
+               // fused RoPE-style epilogues that operate on the MXU's
+               // INT32 drain matrix without round-tripping through float.
+               VPU_IPAIR_ROTATE }
    VpuOp deriving (Bits, Eq, FShow);
 
 // Add two signed 8-bit values with saturation to [-128, 127].
@@ -373,7 +379,7 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
    );
 
    staticAssert(valueOf(lanes) % 2 == 0,
-                "VPU_PAIR_ROTATE requires an even lane count");
+                "VPU_PAIR_ROTATE / VPU_IPAIR_ROTATE require an even lane count");
 
    Reg#(Vector#(sublanes, Vector#(lanes, Int#(32)))) resultReg <- mkRegU;
 
@@ -838,6 +844,18 @@ module mkVPU(VPU_IFC#(sublanes, lanes))
                   Float os_neg = os; os_neg.sign = !os_neg.sign;
                   row[2 * p]     = fp2bits(tpl_1(addFP(ec, os_neg, Rnd_Nearest_Even)));
                   row[2 * p + 1] = fp2bits(tpl_1(addFP(es, oc,     Rnd_Nearest_Even)));
+               end
+            end
+            VPU_IPAIR_ROTATE: begin
+               // Integer pair-rotate. Same shape as VPU_PAIR_ROTATE but
+               // operating on Int#(32) directly — caller scales fixed-point.
+               for (Integer p = 0; p < valueOf(lanes) / 2; p = p + 1) begin
+                  Int#(32) d_e = src1[s][2 * p];
+                  Int#(32) d_o = src1[s][2 * p + 1];
+                  Int#(32) c   = src2[s][2 * p];
+                  Int#(32) sn  = src2[s][2 * p + 1];
+                  row[2 * p]     = d_e * c  - d_o * sn;
+                  row[2 * p + 1] = d_e * sn + d_o * c;
                end
             end
             VPU_FMAX: begin
