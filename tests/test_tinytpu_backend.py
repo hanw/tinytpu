@@ -7731,6 +7731,59 @@ class TestTinyTPUSimOutputParsing(unittest.TestCase):
       f"chained GEMM: got {got[:4]}, expected {expected}")
 
 
+class TestResidualFusion(unittest.TestCase):
+  """Slice 7: lower_gemm's residual recognizer collapses the legacy
+  _mxu + _wait_mxu + _load_mxu_result + _load(bias) + _vpu(ADD) + _store
+  chain (6 instructions per output tile) into a single _load(src2) +
+  _mxu_vpu_epilogue dispatch (2 instructions per output tile) when:
+    has_bias=True, bias_mode=FULL, num_k_tiles=1, not has_relu.
+
+  This test exercises _generate_gemm_sxu_instructions directly with
+  fuse_mxu_vpu_epilogue=True to keep the assertion stable against
+  unrelated tinygrad-side lowering changes.
+  """
+
+  def test_fused_residual_emits_op_46(self):
+    from tinygrad.renderer.tinytpu.gemm import _generate_gemm_sxu_instructions
+    instrs = _generate_gemm_sxu_instructions(
+      num_vecs=1, num_k_tiles=1, num_weight_tiles=1,
+      has_bias=True, bias_vmem_base=0, has_relu=False,
+      use_psum=False, fuse_mxu_vpu_epilogue=True)
+    op46_lines = [ln for ln in instrs if ln.startswith("2 46 ")]
+    self.assertEqual(len(op46_lines), 1)
+    # Total instruction count vs the legacy chain (which produces
+    # _mxu + _wait + _load_mxu_result + _load + _vpu_ADD + _store + _halt = 7).
+    self.assertEqual(len(instrs), 3)  # _load(src2) + _mxu_vpu_epilogue + _halt
+    self.assertTrue(any(ln.startswith("2 7 ") for ln in instrs))  # _halt
+
+  def test_fused_residual_per_tile_count(self):
+    """Multi-tile residual emits one op-46 per output tile."""
+    from tinygrad.renderer.tinytpu.gemm import _generate_gemm_sxu_instructions
+    instrs = _generate_gemm_sxu_instructions(
+      num_vecs=2, num_k_tiles=1, num_weight_tiles=2,
+      has_bias=True, bias_vmem_base=0, has_relu=False,
+      use_psum=False, fuse_mxu_vpu_epilogue=True)
+    op46 = [ln for ln in instrs if ln.startswith("2 46 ")]
+    self.assertEqual(len(op46), 4)  # 2 vecs * 2 tiles
+    # No legacy _mxu (op 4) or _vpu (op 2) chain ops survive
+    self.assertFalse(any(ln.startswith("2 4 ") for ln in instrs),
+                     "unexpected _mxu dispatch in fused path")
+
+  def test_fused_residual_guards(self):
+    """The helper rejects configurations op 46 cannot represent."""
+    from tinygrad.renderer.tinytpu.gemm import _generate_gemm_sxu_instructions
+    # num_k_tiles > 1 (op 46 doesn't multi-K)
+    with self.assertRaises(AssertionError):
+      _generate_gemm_sxu_instructions(
+        num_vecs=1, num_k_tiles=2, num_weight_tiles=1,
+        has_bias=True, has_relu=False, fuse_mxu_vpu_epilogue=True)
+    # has_relu (op 46 doesn't fuse ReLU)
+    with self.assertRaises(AssertionError):
+      _generate_gemm_sxu_instructions(
+        num_vecs=1, num_k_tiles=1, num_weight_tiles=1,
+        has_bias=True, has_relu=True, fuse_mxu_vpu_epilogue=True)
+
+
 class TestMxuVpuEpilogue(unittest.TestCase):
   """Slice 5: end-to-end sim coverage of DISPATCH_MXU_VPU_EPILOGUE (op 46).
 

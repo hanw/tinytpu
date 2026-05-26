@@ -194,15 +194,32 @@ the meaningful microarchitectural delta.
   is RoPE.
 
 ### Slice 7: Backend recognizer (deferred sub-project 2)
-- Pattern-match `(D + R)` → `MXU_VPU_EPILOGUE(VPU_ADD, R)` for residual.
-- Pattern-match `(D * C + swap(D) * S)` → `MXU_VPU_EPILOGUE(VPU_IPAIR_ROTATE, CS)`.
-- Each pattern is a small recognizer in `tinygrad/renderer/tinytpu/`.
+- ✅ **Residual `(D + R)`**: `_extract_wmma_epilogue` already detects a
+  FULL-shape bias add; `lower_gemm` now sets `fuse_residual=True` when
+  `bias_mode == "FULL" and num_k_tiles == 1 and not has_relu` and
+  `_generate_gemm_sxu_instructions` emits one `_load(src2) +
+  _mxu_vpu_epilogue` pair per output tile instead of the legacy
+  `_mxu + _wait + _load_mxu_result + _load(bias) + _vpu(ADD) + _store`
+  chain (6 → 2 instructions per tile). Verified by
+  `TestResidualFusion`.
+- 🟡 **RoPE `(D * C + swap(D) * S)`**: requires a UOp-tree recognizer
+  for the multiplication + add + swap pattern. Infrastructure is
+  in place (op 46 + `VPU_IPAIR_ROTATE` + Controller fusion path);
+  only the lowering pattern is missing. Tracked as a follow-up — the
+  recognizer is essentially a structural match in
+  `tinygrad/renderer/tinytpu/`, similar in shape to
+  `_extract_wmma_epilogue` but inspecting the post-WMMA UOp graph.
 
 ### Slice 8: End-to-end test
-- Update `test_rope_pairwise_full_e2e` (or add `_fused` variant) to
-  assert the RoPE pipeline runs as **1 sim invocation**, not 5.
-- Add an `assertEqual(call_count, 1)` style guard so regressions are
-  caught.
+- 🟡 **RoPE 1-vs-5**: blocked on the RoPE recognizer in slice 7.
+  When that lands, update `test_rope_pairwise_full_e2e` (or add a
+  `_fused` variant) to assert the RoPE pipeline runs as **1 sim
+  invocation**, not 5.
+- ✅ **Residual correctness**: `tests/test_e2e_pipeclean.py`'s
+  `test_residual_block_with_bias` already exercises the FULL-bias
+  path and remains green after the slice-7 lowering change, which
+  validates the fused op-46 output is byte-identical to the legacy
+  chain.
 
 ---
 
