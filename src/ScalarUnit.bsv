@@ -151,7 +151,14 @@ typedef enum {
    SXU_LOAD_EPILOGUE_STAT,
    // SP3: drain-side requantization
    SXU_SET_REQUANT_CONFIG,
-   SXU_DISPATCH_MXU_REQUANT
+   SXU_DISPATCH_MXU_REQUANT,
+   // Generic-VPU MXU epilogue: applies an arbitrary VpuOp lane-wise
+   // between the drained accumulator and a tile-shape src2 (CODA-style
+   // composable epilogue primitive). Stub only — execution is wired in
+   // a later slice; this opcode currently falls through to a clean
+   // UNSUPPORTED error so the encoding number is reserved.
+   // Opcode 46 — must match assembler DISPATCH_MXU_VPU_EPILOGUE.
+   SXU_DISPATCH_MXU_VPU_EPILOGUE
 } SxuOpCode deriving (Bits, Eq, FShow);
 
 typedef struct {

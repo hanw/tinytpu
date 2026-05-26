@@ -10,7 +10,7 @@ single-bundle kernel becomes the default for every epilogue primitive
 (residual, RoPE, SwiGLU, partial-RMS, cross-entropy, …) instead of the
 multi-bundle GEMM→VMEM→VPU chain the runtime emits today.
 
-**Architecture:** Add `SXU_DISPATCH_MXU_VPU_EPILOGUE` (op 44). The
+**Architecture:** Add `SXU_DISPATCH_MXU_VPU_EPILOGUE` (op 46). The
 Controller's drain stage embeds a VPU functional unit; on drain it
 applies the configured VPU op lane-wise between the drained accumulator
 matrix and a caller-supplied tile-shape src2. Result lands in
@@ -89,7 +89,7 @@ on `cfg[4]`. `cfg[5]` and `cfg[6]` are unused today.
 
 ## Target state
 
-Add **`SXU_DISPATCH_MXU_VPU_EPILOGUE`** (op 44) with the same
+Add **`SXU_DISPATCH_MXU_VPU_EPILOGUE`** (op 46) with the same
 field overloading as op 42 except:
 
 - `vpuOp` field carries the **actual `VpuOp`** (e.g. `VPU_PAIR_ROTATE`,
@@ -122,7 +122,7 @@ the meaningful microarchitectural delta.
 
 ---
 
-## ISA encoding (op 44)
+## ISA encoding (op 46)
 
 | Field | Meaning |
 |---|---|
@@ -154,8 +154,8 @@ the meaningful microarchitectural delta.
 ### Slice 1: pure refactor, no behavior change
 - Add `SXU_DISPATCH_MXU_VPU_EPILOGUE = 44` to `SxuOpCode` enum.
 - Wire SXU rule that falls through to UNSUPPORTED (no behavior yet).
-- Add Python opcode 44 to `_SXU_OPS`.
-- Sanity: backend suite still passes (no kernel hits op 44 yet).
+- Add Python opcode 46 to `_SXU_OPS`.
+- Sanity: backend suite still passes (no kernel hits op 46 yet).
 
 ### Slice 2: Controller plumbing
 - Add `startGenericEpilogue(..., src2Tile, vpuOp, wbVmem)` method
@@ -177,7 +177,7 @@ the meaningful microarchitectural delta.
 - Writeback rule analogous to existing `do_mxu_epilogue_wb`.
 
 ### Slice 4: Assembler + Python bundle helper
-- `scripts/tasm.py`: encode/decode op 44 with the new field semantics.
+- `scripts/tasm.py`: encode/decode op 46 with the new field semantics.
 - New `_mxu_vpu_epilogue` helper alongside `_mxu_epilogue` in the
   tinygrad common bundle helpers.
 - Round-trip test in `tests/test_tasm.py`.
@@ -238,7 +238,7 @@ The same end-to-end RoPE test that today produces 5 VCDs produces
 **one** VCD, and the bundle dump shows a single SXU dispatch:
 
 ```
-2 44  <cfg> <dst> <src=cs_tile> 84(IPAIR_ROTATE) <wb_bit> <wbase> <abase> <tlen>
+2 46  <cfg> <dst> <src=cs_tile> 84(IPAIR_ROTATE) <wb_bit> <wbase> <abase> <tlen>
 2 7   HALT
 6 <out_addr>
 4
