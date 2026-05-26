@@ -75,6 +75,7 @@ _SXU = {
     "LOAD_EPILOGUE_STAT":      43,
     "SET_REQUANT_CONFIG":      44,
     "DISPATCH_MXU_REQUANT":    45,
+    "DISPATCH_MXU_VPU_EPILOGUE": 46,
 }
 _SXU_INV = {v: k for k, v in _SXU.items()}
 
@@ -628,6 +629,60 @@ def assemble(text: str) -> str:
                                   mxuWBase=wbase, mxuABase=abase,
                                   mxuTLen=tlen))
 
+            elif kw == "MXU_VPU_EPILOGUE":
+                # MXU_VPU_EPILOGUE v<dst> = GEMM(WMEM[W], AMEM[A], tiles=N)
+                #                  SRC2=v<s2> OP=<VpuOp> DST_VREG|DST_VMEM[<addr>]
+                # vregSrc carries the tile-shape src2; vpuOp carries the
+                # actual VpuOp enum value; vregSrc2.bit0 = writeback mode.
+                rest = line[len("MXU_VPU_EPILOGUE"):].strip()
+                m = re.match(
+                    r"(v\d+)\s*=\s*GEMM\(WMEM\[(\d+)\],\s*AMEM\[(\d+)\],\s*tiles=(\d+)\)(.*)",
+                    rest, re.IGNORECASE)
+                if not m:
+                    raise SyntaxError(
+                        "MXU_VPU_EPILOGUE syntax: "
+                        "MXU_VPU_EPILOGUE v<dst> = GEMM(WMEM[W], AMEM[A], tiles=N) "
+                        "SRC2=v<s2> OP=<VpuOp> DST_VREG|DST_VMEM[<addr>]")
+                vd     = _parse_vreg(m.group(1))
+                wbase  = int(m.group(2))
+                abase  = int(m.group(3))
+                tlen   = int(m.group(4))
+                tail   = m.group(5).split()
+                src2   = None
+                op_name = None
+                wb_mode  = 0
+                vmem_addr = 0
+                for tok in tail:
+                    up = tok.upper()
+                    if up.startswith("SRC2=V"):
+                        src2 = int(tok[6:])
+                    elif up.startswith("OP="):
+                        op_name = tok[3:].upper()
+                    elif up == "DST_VREG":
+                        wb_mode = 0
+                    elif up.startswith("DST_VMEM["):
+                        wb_mode = 1
+                        am = re.fullmatch(r"DST_VMEM\[(\d+)\]", tok, re.IGNORECASE)
+                        if not am:
+                            raise SyntaxError(f"expected DST_VMEM[N], got {tok!r}")
+                        vmem_addr = int(am.group(1))
+                    else:
+                        raise SyntaxError(
+                            f"unexpected token in MXU_VPU_EPILOGUE: {tok!r}")
+                if src2 is None or op_name is None:
+                    raise SyntaxError(
+                        "MXU_VPU_EPILOGUE requires SRC2=v<s2> and OP=<VpuOp>")
+                if op_name not in _VPU:
+                    raise SyntaxError(f"unknown VPU op {op_name!r}")
+                out.append(_instr(_SXU["DISPATCH_MXU_VPU_EPILOGUE"],
+                                  vmemAddr=vmem_addr,
+                                  vregDst=vd,
+                                  vregSrc=src2,
+                                  vpuOp=_VPU[op_name],
+                                  vregSrc2=wb_mode,
+                                  mxuWBase=wbase, mxuABase=abase,
+                                  mxuTLen=tlen))
+
             elif kw == "WAIT_MXU":
                 out.append(_instr(_SXU["WAIT_MXU"]))
 
@@ -1001,6 +1056,15 @@ def disassemble(wire: str) -> str:
                     out.append(
                         f"DISPATCH_MXU_REQUANT WMEM[{mxuWBase}] AMEM[{mxuABase}] "
                         f"tiles={mxuTLen} ASRAM[{vmemAddr}]")
+
+                elif opc == _SXU["DISPATCH_MXU_VPU_EPILOGUE"]:
+                    op_name = _VPU_INV.get(vpuOp, f"VPU_OP_{vpuOp}")
+                    wb_vmem = (vregSrc2 & 1) == 1
+                    dst_str = f"DST_VMEM[{vmemAddr}]" if wb_vmem else "DST_VREG"
+                    out.append(
+                        f"MXU_VPU_EPILOGUE v{vregDst} = "
+                        f"GEMM(WMEM[{mxuWBase}], AMEM[{mxuABase}], tiles={mxuTLen}) "
+                        f"SRC2=v{vregSrc} OP={op_name} {dst_str}")
 
                 else:
                     out.append(f"# UNKNOWN SXU OPCODE {opc}")

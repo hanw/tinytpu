@@ -1102,3 +1102,37 @@ def test_sxu_load_epilogue_stat_roundtrip():
     line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 43 "))
     assert line.split()[3] == "5"   # vregDst field
     assert "LOAD_EPILOGUE_STAT v5" in disassemble(wire)
+
+
+def test_sxu_mxu_vpu_epilogue_vreg_roundtrip():
+    # opcode 46; VPU_ADD lane-wise epilogue, src2 in v7, result in v3.
+    prog = ("MXU_VPU_EPILOGUE v3 = GEMM(WMEM[0], AMEM[0], tiles=1) "
+            "SRC2=v7 OP=ADD DST_VREG\nHALT\nEND\n")
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 46 "))
+    fields = line.split()
+    # wire fields: 0=record 1=opc 2=vmemAddr 3=vregDst 4=vregSrc 5=vpuOp 6=vregSrc2
+    assert fields[3] == "3"   # vregDst
+    assert fields[4] == "7"   # vregSrc = src2 tile
+    assert fields[5] == "0"   # vpuOp = VPU_ADD
+    assert fields[6] == "0"   # vregSrc2.bit0 = 0 (DST_VREG)
+    dis = disassemble(wire)
+    assert "OP=ADD" in dis and "SRC2=v7" in dis and "DST_VREG" in dis
+
+
+def test_sxu_mxu_vpu_epilogue_vmem_pair_rotate_roundtrip():
+    # PAIR_ROTATE op (84) + DST_VMEM[5] exercises wb_bit=1 and a
+    # non-curated VpuOp (Controller pass-through; assembler only checks
+    # that the encoding round-trips.)
+    prog = ("MXU_VPU_EPILOGUE v0 = GEMM(WMEM[2], AMEM[1], tiles=3) "
+            "SRC2=v9 OP=PAIR_ROTATE DST_VMEM[5]\nHALT\nEND\n")
+    wire = assemble(prog)
+    line = next(ln for ln in wire.strip().splitlines() if ln.startswith("2 46 "))
+    fields = line.split()
+    assert fields[2] == "5"     # vmemAddr = DST_VMEM[5]
+    assert fields[4] == "9"     # vregSrc = src2 tile
+    assert fields[5] == "84"    # vpuOp = PAIR_ROTATE
+    assert fields[6] == "1"     # vregSrc2.bit0 = 1 (DST_VMEM)
+    assert fields[7] == "2" and fields[8] == "1" and fields[9] == "3"  # W/A/tiles
+    dis = disassemble(wire)
+    assert "OP=PAIR_ROTATE" in dis and "DST_VMEM[5]" in dis and "SRC2=v9" in dis
