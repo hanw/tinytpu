@@ -223,6 +223,8 @@ typedef enum { SXU_IDLE, SXU_FETCH, SXU_EXEC_LOAD_REQ, SXU_EXEC_LOAD_RESP,
                SXU_EXEC_MXU_EPILOGUE, SXU_WAIT_MXU_EPILOGUE,
                SXU_EXEC_MXU_EPILOGUE_WB, SXU_EXEC_LOAD_EPILOGUE_STAT,
                SXU_EXEC_SET_REQUANT_CONFIG, SXU_EXEC_MXU_REQUANT,
+               SXU_EXEC_MXU_VPU_EPILOGUE, SXU_WAIT_MXU_VPU_EPILOGUE,
+               SXU_EXEC_MXU_VPU_EPILOGUE_WB,
                SXU_HALTED }
    SxuState deriving (Bits, Eq, FShow);
 
@@ -364,6 +366,7 @@ module mkScalarUnit#(
          SXU_LOAD_EPILOGUE_STAT: pc_state <= SXU_EXEC_LOAD_EPILOGUE_STAT;
          SXU_SET_REQUANT_CONFIG:   pc_state <= SXU_EXEC_SET_REQUANT_CONFIG;
          SXU_DISPATCH_MXU_REQUANT: pc_state <= SXU_EXEC_MXU_REQUANT;
+         SXU_DISPATCH_MXU_VPU_EPILOGUE: pc_state <= SXU_EXEC_MXU_VPU_EPILOGUE;
          SXU_HALT: begin
 `ifdef TRACE
             $display("TRACE cycle=%0d unit=SXU ev=HALT pc=%0d", cycle, pc);
@@ -1135,6 +1138,50 @@ module mkScalarUnit#(
                         truncate(curInstr.mxuABase),
                         truncate(curInstr.mxuTLen),
                         curInstr.vmemAddr);
+      pc <= pc + 1;
+      pc_state <= SXU_FETCH;
+   endrule
+
+   // DISPATCH_MXU_VPU_EPILOGUE: read the full src2 tile from vregSrc and
+   // fire ctrl.startGenericEpilogue with the caller-supplied VpuOp. The
+   // writeback target (vreg vs vmem) is encoded in vregSrc2 bit0 — the
+   // Controller stashes the bit so the writeback rule can read it back
+   // via genericEpilogueWbVmem once the dispatch is done.
+   rule do_mxu_vpu_epilogue (pc_state == SXU_EXEC_MXU_VPU_EPILOGUE);
+      let src2Tile = vrf.read(truncate(curInstr.vregSrc));
+      Bool wbVmem  = pack(curInstr.vregSrc2)[0] == 1;
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=DISPATCH_MXU_VPU_EPILOGUE pc=%0d src=v%0d vpuOp=", cycle, pc, curInstr.vregSrc, fshow(curInstr.vpuOp));
+`endif
+      ctrl.startGenericEpilogue(truncate(curInstr.mxuWBase),
+                                truncate(curInstr.mxuABase),
+                                truncate(curInstr.mxuTLen),
+                                src2Tile,
+                                curInstr.vpuOp,
+                                wbVmem);
+      pc_state <= SXU_WAIT_MXU_VPU_EPILOGUE;
+   endrule
+
+   rule do_wait_mxu_vpu_epilogue (pc_state == SXU_WAIT_MXU_VPU_EPILOGUE);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=WAIT_MXU_VPU_EPILOGUE pc=%0d", cycle, pc);
+`endif
+      if (ctrl.isDone) pc_state <= SXU_EXEC_MXU_VPU_EPILOGUE_WB;
+   endrule
+
+   // Writeback for the generic-VPU epilogue. Mirrors do_mxu_epilogue_wb
+   // but reads the writeback-mode bit from the Controller (which stashed
+   // vregSrc2.bit0 at start time) so the encoding stays opaque to the SXU.
+   rule do_mxu_vpu_epilogue_wb (pc_state == SXU_EXEC_MXU_VPU_EPILOGUE_WB);
+`ifdef TRACE
+      $display("TRACE cycle=%0d unit=SXU ev=MXU_VPU_EPILOGUE_WB pc=%0d dst=v%0d vmem=%0d",
+               cycle, pc, curInstr.vregDst, curInstr.vmemAddr);
+`endif
+      let m = ctrl.epilogueResult;
+      if (ctrl.genericEpilogueWbVmem)
+         vmem.write(truncate(curInstr.vmemAddr), m);
+      else
+         vrf.write(truncate(curInstr.vregDst), m);
       pc <= pc + 1;
       pc_state <= SXU_FETCH;
    endrule
