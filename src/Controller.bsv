@@ -5,6 +5,7 @@ import SystolicArray :: *;
 import WeightSRAM :: *;
 import ActivationSRAM :: *;
 import PSUMBank :: *;
+import VPU :: *;
 
 export ControlState(..);
 export DataflowMode(..);
@@ -72,6 +73,20 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
                                UInt#(TLog#(depth)) tileLen,
                                Vector#(cols, Int#(32)) biasVec,
                                EpilogueConfig epiCfg);
+   // Generic-VPU MXU epilogue: WS dispatch that, at drain, applies an
+   // arbitrary VpuOp lane-wise between drainMatrix and a tile-shape
+   // src2, depositing the result in epilogueBuf. The curated op subset
+   // currently lowered combinationally is {VPU_ADD, VPU_SUB, VPU_MUL,
+   // VPU_MAX, VPU_MIN}; any other op is treated as pass-through of
+   // drainMatrix so that the SXU can still complete the dispatch.
+   // wbVmem is captured but unused inside the Controller — the SXU
+   // reads it back to choose the writeback target.
+   method Action startGenericEpilogue(UInt#(TLog#(depth)) weightBase,
+                                      UInt#(TLog#(depth)) actBase,
+                                      UInt#(TLog#(depth)) tileLen,
+                                      Vector#(rows, Vector#(cols, Int#(32))) src2Tile,
+                                      VpuOp vpuOp,
+                                      Bool wbVmem);
    // WS with cross-dispatch accumulator-hold. Runs the same feed path
    // as start() but skips the drain-time clearAll, so consecutive
    // startAccumulate calls sum partial psums into the same PE. The
@@ -116,6 +131,10 @@ interface Controller_IFC#(numeric type rows, numeric type cols, numeric type dep
    // epilogueActive) — calling it otherwise deadlocks the caller rather
    // than returning a stale/undefined value.
    method Vector#(rows, Int#(64)) epilogueStat;
+   // True when the most recent dispatch was startGenericEpilogue, so the
+   // SXU can read back the captured writeback-mode bit and choose between
+   // VREG and VMEM writeback. Valid once isDone.
+   method Bool genericEpilogueWbVmem;
    method ControlState getState;
    // Currently selected dataflow mode (set via startOS in future iters;
    // exposed now so SXU/tests can observe Controller state without
@@ -207,6 +226,17 @@ module mkController#(
    // Per-row INT64 reduction accumulator (SUM or SUM-OF-SQUARES).
    // Populated at drain time when epiCfgReg.reduceEnable is set.
    Reg#(Vector#(rows, Int#(64)))             epilogueStatBuf <- mkRegU;
+
+   // Generic-VPU epilogue state. src2Reg is the tile-shape second
+   // operand captured at start time. vpuOpReg picks the lane-wise op.
+   // wbVmemReg is opaque to the Controller — the SXU reads it back via
+   // genericEpilogueWbVmem to choose its writeback path. The drain
+   // result lands in the shared epilogueBuf so epilogueResult covers
+   // both legacy and generic dispatches.
+   Reg#(Vector#(rows, Vector#(cols, Int#(32)))) src2Reg          <- mkRegU;
+   Reg#(VpuOp)                                  vpuOpReg         <- mkRegU;
+   Reg#(Bool)                                   wbVmemReg        <- mkReg(False);
+   Reg#(Bool)                                   genericEpilogueActive <- mkReg(False);
 `ifdef TRACE
    Reg#(UInt#(32)) cycle <- mkReg(0);
 
@@ -418,6 +448,29 @@ module mkController#(
             end
             epilogueStatBuf <= stat;
          end
+      end else if (genericEpilogueActive) begin
+         // Lane-wise apply vpuOpReg(drainMatrix, src2Reg) into epilogueBuf.
+         // Curated subset is inlined as combinational arithmetic; ops
+         // outside the subset fall through as pass-through of drainMatrix
+         // so the dispatch still completes deterministically.
+         Vector#(rows, Vector#(cols, Int#(32))) m    = drainMatrix;
+         Vector#(rows, Vector#(cols, Int#(32))) src2 = src2Reg;
+         Vector#(rows, Vector#(cols, Int#(32))) outm = m;
+         for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
+            for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
+               Int#(32) a = m[ri][ci];
+               Int#(32) b = src2[ri][ci];
+               Int#(32) v = a;
+               case (vpuOpReg)
+                  VPU_ADD: v = a + b;
+                  VPU_SUB: v = a - b;
+                  VPU_MUL: v = a * b;
+                  VPU_MAX: v = (a > b) ? a : b;
+                  VPU_MIN: v = (a < b) ? a : b;
+               endcase
+               outm[ri][ci] = v;
+            end
+         epilogueBuf <= outm;
       end else begin
          case (psumModeReg)
             PSUM_WRITE: begin
@@ -451,6 +504,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
       epilogueActive <= False;
+      genericEpilogueActive <= False;
       requantActive  <= False;
       // WS always starts from a zeroed accumulator. Prior dispatches may
       // have been OS mode (which intentionally does not drain-clear).
@@ -475,6 +529,7 @@ module mkController#(
       psumModeReg <= psumMode;
       dfModeReg   <= DF_WEIGHT_STATIONARY;
       epilogueActive <= False;
+      genericEpilogueActive <= False;
       requantActive  <= False;
       array.clearAll;
       cstate <= LoadWeights;
@@ -496,6 +551,31 @@ module mkController#(
       biasReg     <= biasVec;
       epiCfgReg   <= epiCfg;
       epilogueActive <= True;
+      genericEpilogueActive <= False;
+      requantActive  <= False;
+      array.clearAll;
+      cstate <= LoadWeights;
+   endmethod
+
+   method Action startGenericEpilogue(UInt#(TLog#(depth)) weightBase,
+                                      UInt#(TLog#(depth)) actBase,
+                                      UInt#(TLog#(depth)) tileLen,
+                                      Vector#(rows, Vector#(cols, Int#(32))) src2Tile,
+                                      VpuOp vpuOp,
+                                      Bool wbVmem) if (cstate == Idle || cstate == Done);
+      wBase       <= weightBase;
+      aBase       <= actBase;
+      tLen        <= tileLen;
+      actIdx      <= 0;
+      streamCycle <= 0;
+      firstActRead <= False;
+      psumModeReg <= PSUM_OFF;
+      dfModeReg   <= DF_WEIGHT_STATIONARY;
+      src2Reg     <= src2Tile;
+      vpuOpReg    <= vpuOp;
+      wbVmemReg   <= wbVmem;
+      epilogueActive <= False;
+      genericEpilogueActive <= True;
       requantActive  <= False;
       array.clearAll;
       cstate <= LoadWeights;
@@ -513,6 +593,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_WEIGHT_STATIONARY_ACCUMULATE;
       epilogueActive <= False;
+      genericEpilogueActive <= False;
       requantActive  <= False;
       cstate <= LoadWeights;
    endmethod
@@ -535,6 +616,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_OUTPUT_STATIONARY;
       epilogueActive <= False;
+      genericEpilogueActive <= False;
       requantActive  <= False;
       // OS consumers start from a cleared array so each dispatch's
       // psum matrix reflects only its own inputs.
@@ -557,6 +639,7 @@ module mkController#(
       psumModeReg <= PSUM_OFF;
       dfModeReg   <= DF_OUTPUT_STATIONARY;
       epilogueActive <= False;
+      genericEpilogueActive <= False;
       requantActive  <= False;
       // Skip the clearAll — psums carry over from the previous OS
       // dispatch, letting multi-K-tile OS scale past K == rows.
@@ -579,12 +662,17 @@ module mkController#(
       return matrixBuf;
    endmethod
 
-   method Vector#(rows, Vector#(cols, Int#(32))) epilogueResult if (cstate == Done && epilogueActive);
+   method Vector#(rows, Vector#(cols, Int#(32))) epilogueResult
+         if (cstate == Done && (epilogueActive || genericEpilogueActive));
       return epilogueBuf;
    endmethod
 
    method Vector#(rows, Int#(64)) epilogueStat if (cstate == Done && epilogueActive && epiCfgReg.reduceEnable);
       return epilogueStatBuf;
+   endmethod
+
+   method Bool genericEpilogueWbVmem if (cstate == Done && genericEpilogueActive);
+      return wbVmemReg;
    endmethod
 
    method ControlState getState;
@@ -616,6 +704,7 @@ module mkController#(
       psumModeReg  <= PSUM_OFF;
       dfModeReg    <= DF_WEIGHT_STATIONARY;
       epilogueActive      <= False;
+      genericEpilogueActive <= False;
       requantActive       <= True;
       requantTargetBase   <= asramTargetBase;
       requantTargetOffset <= 0;
