@@ -245,6 +245,54 @@ module mkController#(
    endrule
 `endif
 
+   // --- Helpers for the generic-VPU MXU epilogue drain branch -------------
+   // Pulled out of do_drain so the case statement elaborates once, not
+   // inside the per-cell nested for-loop. (The inlined version pushed
+   // do_drain past the BSV unfolder's warning threshold.)
+   function Vector#(rows, Vector#(cols, Int#(32)))
+            applyCuratedOp(VpuOp op,
+                           Vector#(rows, Vector#(cols, Int#(32))) m,
+                           Vector#(rows, Vector#(cols, Int#(32))) src2);
+      Vector#(rows, Vector#(cols, Int#(32))) outm = m;
+      for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
+         for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
+            Int#(32) a = m[ri][ci];
+            Int#(32) b = src2[ri][ci];
+            Int#(32) v;
+            case (op)
+               VPU_ADD: v = a + b;
+               VPU_SUB: v = a - b;
+               VPU_MUL: v = a * b;
+               VPU_MAX: v = (a > b) ? a : b;
+               VPU_MIN: v = (a < b) ? a : b;
+               default: v = a;
+            endcase
+            outm[ri][ci] = v;
+         end
+      return outm;
+   endfunction
+
+   // Lane-pair rotation. Adjacent lane pairs (2p, 2p+1) on each row:
+   //   out[r][2p]     = drain[r][2p]   * src2[r][2p]   - drain[r][2p+1] * src2[r][2p+1]
+   //   out[r][2p + 1] = drain[r][2p]   * src2[r][2p+1] + drain[r][2p+1] * src2[r][2p]
+   // Matches VPU.bsv's VPU_IPAIR_ROTATE so the lowerer can route via
+   // either the VPU dispatch or the fused MXU epilogue interchangeably.
+   function Vector#(rows, Vector#(cols, Int#(32)))
+            applyIpairRotate(Vector#(rows, Vector#(cols, Int#(32))) m,
+                             Vector#(rows, Vector#(cols, Int#(32))) src2);
+      Vector#(rows, Vector#(cols, Int#(32))) outm = m;
+      for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
+         for (Integer p = 0; p < valueOf(cols) / 2; p = p + 1) begin
+            Int#(32) de  = m[ri][2 * p];
+            Int#(32) doo = m[ri][2 * p + 1];
+            Int#(32) c   = src2[ri][2 * p];
+            Int#(32) sn  = src2[ri][2 * p + 1];
+            outm[ri][2 * p]     = de * c  - doo * sn;
+            outm[ri][2 * p + 1] = de * sn + doo * c;
+         end
+      return outm;
+   endfunction
+
    // Phase 1: Issue weight read request. The next-state depends on
    // the dataflow mode: WS / WS-accumulate preload into the array,
    // OS buffers the tile and streams rows per cycle.
@@ -450,46 +498,18 @@ module mkController#(
          end
       end else if (genericEpilogueActive) begin
          // Lane-wise apply vpuOpReg(drainMatrix, src2Reg) into epilogueBuf.
-         // Curated subset is inlined as combinational arithmetic; ops
-         // outside the subset fall through as pass-through of drainMatrix
-         // so the dispatch still completes deterministically.
-         Vector#(rows, Vector#(cols, Int#(32))) m    = drainMatrix;
-         Vector#(rows, Vector#(cols, Int#(32))) src2 = src2Reg;
-         Vector#(rows, Vector#(cols, Int#(32))) outm = m;
-         for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
-            for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
-               Int#(32) a = m[ri][ci];
-               Int#(32) b = src2[ri][ci];
-               Int#(32) v = a;
-               case (vpuOpReg)
-                  VPU_ADD: v = a + b;
-                  VPU_SUB: v = a - b;
-                  VPU_MUL: v = a * b;
-                  VPU_MAX: v = (a > b) ? a : b;
-                  VPU_MIN: v = (a < b) ? a : b;
-               endcase
-               outm[ri][ci] = v;
-            end
-         // Lane-pair rotation. Separate inner-loop pass because the op
-         // works on adjacent lane pairs rather than a single (r,c) cell:
-         //   out[r][2p]     = drain[r][2p]   * src2[r][2p]
-         //                  - drain[r][2p+1] * src2[r][2p+1]
-         //   out[r][2p + 1] = drain[r][2p]   * src2[r][2p+1]
-         //                  + drain[r][2p+1] * src2[r][2p]
-         // Matches VPU.bsv VPU_IPAIR_ROTATE semantics so a future caller
-         // can lower to either the dedicated VPU dispatch or the fused
-         // MXU epilogue interchangeably.
-         if (vpuOpReg == VPU_IPAIR_ROTATE)
-            for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
-               for (Integer p = 0; p < valueOf(cols) / 2; p = p + 1) begin
-                  Int#(32) de = m[ri][2 * p];
-                  Int#(32) doo = m[ri][2 * p + 1];
-                  Int#(32) c  = src2[ri][2 * p];
-                  Int#(32) sn = src2[ri][2 * p + 1];
-                  outm[ri][2 * p]     = de * c  - doo * sn;
-                  outm[ri][2 * p + 1] = de * sn + doo * c;
-            end
-         epilogueBuf <= outm;
+         // Two paths factored into helper functions (defined inside the
+         // module so they close over `rows`/`cols`):
+         //   - applyCuratedOp: cell-wise subset (ADD/SUB/MUL/MAX/MIN),
+         //     default pass-through. The case statement elaborates once
+         //     inside the function instead of expanding inside the
+         //     per-cell nested for-loop.
+         //   - applyIpairRotate: pair-wise rotation, runs in its own
+         //     branch so it doesn't double-write the curated result.
+         // A `?:` at the matrix level chooses one path's full output.
+         epilogueBuf <= (vpuOpReg == VPU_IPAIR_ROTATE)
+            ? applyIpairRotate(drainMatrix, src2Reg)
+            : applyCuratedOp(vpuOpReg, drainMatrix, src2Reg);
       end else begin
          case (psumModeReg)
             PSUM_WRITE: begin
