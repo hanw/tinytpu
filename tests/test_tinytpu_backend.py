@@ -7787,10 +7787,13 @@ class TestResidualFusion(unittest.TestCase):
 class TestMxuVpuEpilogue(unittest.TestCase):
   """Slice 5: end-to-end sim coverage of DISPATCH_MXU_VPU_EPILOGUE (op 46).
 
-  Each test builds a tiny GEMM with identity weights so that the drained
-  per-PE matrix is diag(act_vec), then asserts the lane-wise application
-  of the curated VPU op against a known src2 tile. Covers ADD/SUB/MUL/
-  MAX/MIN + both writeback modes (DST_VMEM and DST_VREG).
+  The Controller's drain branch now reads array.getResults (column-summed
+  GEMM output) rather than getMatrix (per-PE state) and applies the
+  lane-wise op against src2 row 0. With identity weights, getResults
+  equals the input activation vector, so the test asserts:
+      lane c in [0, COLS): act[c] OP src2_row0[c]
+      lanes COLS..15: 0  (Controller zero-fills the other vreg rows)
+  Covers ADD/SUB/MUL/MAX/MIN + both writeback modes.
   """
 
   _IDENT_W = [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1]
@@ -7799,10 +7802,8 @@ class TestMxuVpuEpilogue(unittest.TestCase):
                5, 6, 7, 8,
                9,10,11,12,
               13,14,15,16]
-  _DRAIN   = [-3, 0, 0, 0,
-                0, 2, 0, 0,
-                0, 0,-1, 0,
-                0, 0, 0, 4]
+  _SRC2_ROW0 = _SRC2[:4]
+  _GEMM_RESULT = _ACT  # identity weights → getResults == act_vec
 
   def _run(self, vpu_op_name: str, vmem_dst: bool):
     sim = os.environ["TINYTPU_SIM"]
@@ -7823,54 +7824,50 @@ class TestMxuVpuEpilogue(unittest.TestCase):
     out = _run_bundle(sim, _bundle(*lines))
     return _parse_vmem_output(out)
 
+  def _expected_row(self, op):
+    row0 = [op(a, b) for a, b in zip(self._GEMM_RESULT, self._SRC2_ROW0)]
+    return row0 + [0] * 12
+
   def test_vpu_add_dst_vmem(self):
-    got = self._run("ADD", vmem_dst=True)
-    expected = [d + s for d, s in zip(self._DRAIN, self._SRC2)]
-    self.assertEqual(got, expected)
+    self.assertEqual(self._run("ADD", vmem_dst=True),
+                     self._expected_row(lambda a, b: a + b))
 
   def test_vpu_sub_dst_vmem(self):
-    got = self._run("SUB", vmem_dst=True)
-    expected = [d - s for d, s in zip(self._DRAIN, self._SRC2)]
-    self.assertEqual(got, expected)
+    self.assertEqual(self._run("SUB", vmem_dst=True),
+                     self._expected_row(lambda a, b: a - b))
 
   def test_vpu_mul_dst_vmem(self):
-    got = self._run("MUL", vmem_dst=True)
-    expected = [d * s for d, s in zip(self._DRAIN, self._SRC2)]
-    self.assertEqual(got, expected)
+    self.assertEqual(self._run("MUL", vmem_dst=True),
+                     self._expected_row(lambda a, b: a * b))
 
   def test_vpu_max_dst_vmem(self):
-    got = self._run("MAX", vmem_dst=True)
-    expected = [max(d, s) for d, s in zip(self._DRAIN, self._SRC2)]
-    self.assertEqual(got, expected)
+    self.assertEqual(self._run("MAX", vmem_dst=True),
+                     self._expected_row(max))
 
   def test_vpu_min_dst_vmem(self):
-    got = self._run("MIN", vmem_dst=True)
-    expected = [min(d, s) for d, s in zip(self._DRAIN, self._SRC2)]
-    self.assertEqual(got, expected)
+    self.assertEqual(self._run("MIN", vmem_dst=True),
+                     self._expected_row(min))
 
   def test_vpu_add_dst_vreg(self):
     # DST_VREG path exercises the alternate writeback branch in
     # do_mxu_vpu_epilogue_wb. Bundle stores the vreg back to VMEM for
     # readback.
-    got = self._run("ADD", vmem_dst=False)
-    expected = [d + s for d, s in zip(self._DRAIN, self._SRC2)]
-    self.assertEqual(got, expected)
+    self.assertEqual(self._run("ADD", vmem_dst=False),
+                     self._expected_row(lambda a, b: a + b))
 
   def test_vpu_ipair_rotate_dst_vmem(self):
-    # IPAIR_ROTATE: per-row pair rotation.
-    #   out[r][2p]   = d[r][2p]   * s[r][2p]   - d[r][2p+1] * s[r][2p+1]
-    #   out[r][2p+1] = d[r][2p]   * s[r][2p+1] + d[r][2p+1] * s[r][2p]
+    # IPAIR_ROTATE on the column-summed row + src2 row 0:
+    #   out[2p]   = a[2p]   * s[2p]   - a[2p+1] * s[2p+1]
+    #   out[2p+1] = a[2p]   * s[2p+1] + a[2p+1] * s[2p]
     got = self._run("IPAIR_ROTATE", vmem_dst=True)
-    expected = []
-    for r in range(4):
-      d_row = self._DRAIN[r * 4:(r + 1) * 4]
-      s_row = self._SRC2[r * 4:(r + 1) * 4]
-      for p in range(2):
-        de, do = d_row[2 * p], d_row[2 * p + 1]
-        c, sn  = s_row[2 * p], s_row[2 * p + 1]
-        expected.append(de * c  - do * sn)
-        expected.append(de * sn + do * c)
-    self.assertEqual(got, expected)
+    row0 = []
+    a, s = self._GEMM_RESULT, self._SRC2_ROW0
+    for p in range(2):
+      ae, ao = a[2 * p], a[2 * p + 1]
+      se, so = s[2 * p], s[2 * p + 1]
+      row0.append(ae * se - ao * so)
+      row0.append(ae * so + ao * se)
+    self.assertEqual(got, row0 + [0] * 12)
 
 
 if __name__ == "__main__":

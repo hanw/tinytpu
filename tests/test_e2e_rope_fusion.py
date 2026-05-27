@@ -180,33 +180,25 @@ class TestE2ERopeFusion(unittest.TestCase):
     self.assertEqual(cs_entries[0]["s_param"], 4)
 
   def test_rope_runtime_matches_numpy_reference(self):
-    """Run the fused bundle through the BSV sim and verify the output
-    matches a numpy reference IPAIR_ROTATE applied to the per-PE drain
-    matrix.
-
-    Important semantic note: op-46 reads array.getMatrix (per-PE state,
-    drain[r][c] = act[r] * weight[r][c] for WS tile_len=1), NOT
-    array.getResults (column-summed GEMM output). The "CODA primitive"
-    fusion operates elementwise on the per-PE matrix. We use identity
-    weights here so the per-PE drain is diag(act_vec) — same trick
-    Slice 5 uses — and assert the IPAIR_ROTATE'd full 16-element tile.
+    """Run the fused bundle through the BSV sim. The drain now uses
+    array.getResults (column-summed GEMM output), so for output row r:
+        gemm_row_r = act_row_r @ weights
+        out_row_r  = IPAIR_ROTATE(gemm_row_r, interleaved_cs_row_r)
+        result[r][0..COLS-1] = out_row_r ; rest of the tile is zero.
+    With identity weights, gemm_row_r == act_row_r, so we compare
+    against IPAIR_ROTATE(act_row_r, interleaved_cs_row_r) per row.
     """
     sim = os.environ.get("TINYTPU_SIM",
                          "/home/hanwang/p/tinytpu/build/mkTbTinyTPURuntime.bexe")
     if not os.path.exists(sim):
       self.skipTest(f"sim binary {sim} not built")
 
-    # UOp shape implies nv=4 (16 LOADs per operand → 4 act rows worth of
-    # data). The fused path emits 4 op-46 dispatches, but only dispatch 0
-    # carries our meaningful activation row at AMEM[0]; rows 1..3 are
-    # zero-padded so those dispatches produce zero drain. We assert
-    # against tiles[0].
-    act_row_0 = np.array([-3, 2, -1, 4], dtype=np.int8)
-    a_full = np.zeros((4, 4), dtype=np.int8)
-    a_full[0] = act_row_0
+    # UOp shape implies nv=4 → 4 op-46 dispatches, one per output row.
+    rng = np.random.default_rng(123)
+    a_full  = rng.integers(-3, 3, size=(4, 4), dtype=np.int8)
     ident_w = np.eye(4, dtype=np.int8)
-    c_tile  = np.arange(1, 17, dtype=np.int32).reshape(4, 4)
-    s_tile  = (np.arange(1, 17, dtype=np.int32) * 2).reshape(4, 4)
+    c_tile  = rng.integers(-4, 4, size=(4, 4), dtype=np.int32)
+    s_tile  = rng.integers(-4, 4, size=(4, 4), dtype=np.int32)
 
     out_buf = bytearray(16 * 4)
     a_buf   = bytearray(a_full.astype(np.int32).tobytes())
@@ -223,15 +215,22 @@ class TestE2ERopeFusion(unittest.TestCase):
     bundle = kernel.build_bundle(bufs)
     stdout = run_bundle(sim, bundle)
     tiles = parse_multi_vmem_output(stdout)
-    self.assertTrue(len(tiles) >= 1, f"expected at least 1 vmem_result tile, got {len(tiles)}")
+    self.assertEqual(len(tiles), 4, f"expected 4 vmem_result tiles, got {len(tiles)}")
 
-    # The first vmem_result tile is the dispatch 0 output. With identity
-    # weights and a single-vec input, drain = diag(act_row_0).
-    drain = np.diag(act_row_0).astype(np.int32)
-    expected_full = _numpy_ipair_rotate(drain, c_tile.reshape(-1), s_tile.reshape(-1))
-    got_full = np.array(tiles[0], dtype=np.int32).reshape(4, 4)
-    np.testing.assert_array_equal(got_full, expected_full,
-      "rope-fused per-PE elementwise output mismatch")
+    # Per output row r: meaningful data in lanes 0..3, zeros in 4..15.
+    for r in range(4):
+      gemm_row = a_full[r].astype(np.int32) @ ident_w.astype(np.int32)
+      c_row    = c_tile[r]
+      s_row    = s_tile[r]
+      expected_row = []
+      for p in range(2):
+        ae, ao = int(gemm_row[2 * p]), int(gemm_row[2 * p + 1])
+        cc, ss = int(c_row[2 * p]),    int(s_row[2 * p + 1])
+        expected_row.append(ae * cc - ao * ss)
+        expected_row.append(ae * ss + ao * cc)
+      expected_tile = expected_row + [0] * 12
+      self.assertEqual(tiles[r], expected_tile,
+        f"rope-fused output mismatch at row {r}: got {tiles[r]} expected {expected_tile}")
 
   def test_rope_uses_one_sim_invocation(self):
     """Slice 8 guard: the fused RoPE path must use exactly 1 sim call.

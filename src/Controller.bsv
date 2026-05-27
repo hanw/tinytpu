@@ -246,51 +246,55 @@ module mkController#(
 `endif
 
    // --- Helpers for the generic-VPU MXU epilogue drain branch -------------
-   // Pulled out of do_drain so the case statement elaborates once, not
-   // inside the per-cell nested for-loop. (The inlined version pushed
-   // do_drain past the BSV unfolder's warning threshold.)
-   function Vector#(rows, Vector#(cols, Int#(32)))
-            applyCuratedOp(VpuOp op,
-                           Vector#(rows, Vector#(cols, Int#(32))) m,
-                           Vector#(rows, Vector#(cols, Int#(32))) src2);
-      Vector#(rows, Vector#(cols, Int#(32))) outm = m;
-      for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
-         for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
-            Int#(32) a = m[ri][ci];
-            Int#(32) b = src2[ri][ci];
-            Int#(32) v;
-            case (op)
-               VPU_ADD: v = a + b;
-               VPU_SUB: v = a - b;
-               VPU_MUL: v = a * b;
-               VPU_MAX: v = (a > b) ? a : b;
-               VPU_MIN: v = (a < b) ? a : b;
-               default: v = a;
-            endcase
-            outm[ri][ci] = v;
-         end
-      return outm;
+   // Operate on the column-SUMMED GEMM result (array.getResults), not
+   // the raw per-PE matrix. That lets fused epilogues (bias, residual,
+   // RoPE, lane-wise activations) work on the actual GEMM output —
+   // which is what real NN kernels expect — instead of the rank-1
+   // outer-product the per-PE state holds.
+   //
+   // src2 is taken from row 0 of src2Reg (the SXU pre-loads a 1xCOLS
+   // coefficient row per dispatch into row 0 of the vreg, padding
+   // other rows with don't-cares).
+   function Vector#(cols, Int#(32))
+            applyCuratedOpRow(VpuOp op,
+                              Vector#(cols, Int#(32)) row,
+                              Vector#(cols, Int#(32)) src2);
+      Vector#(cols, Int#(32)) outr = row;
+      for (Integer ci = 0; ci < valueOf(cols); ci = ci + 1) begin
+         Int#(32) a = row[ci];
+         Int#(32) b = src2[ci];
+         Int#(32) v;
+         case (op)
+            VPU_ADD: v = a + b;
+            VPU_SUB: v = a - b;
+            VPU_MUL: v = a * b;
+            VPU_MAX: v = (a > b) ? a : b;
+            VPU_MIN: v = (a < b) ? a : b;
+            default: v = a;
+         endcase
+         outr[ci] = v;
+      end
+      return outr;
    endfunction
 
-   // Lane-pair rotation. Adjacent lane pairs (2p, 2p+1) on each row:
-   //   out[r][2p]     = drain[r][2p]   * src2[r][2p]   - drain[r][2p+1] * src2[r][2p+1]
-   //   out[r][2p + 1] = drain[r][2p]   * src2[r][2p+1] + drain[r][2p+1] * src2[r][2p]
+   // Lane-pair rotation on a single row (RoPE primitive):
+   //   out[2p]     = row[2p]   * src2[2p]   - row[2p+1] * src2[2p+1]
+   //   out[2p + 1] = row[2p]   * src2[2p+1] + row[2p+1] * src2[2p]
    // Matches VPU.bsv's VPU_IPAIR_ROTATE so the lowerer can route via
    // either the VPU dispatch or the fused MXU epilogue interchangeably.
-   function Vector#(rows, Vector#(cols, Int#(32)))
-            applyIpairRotate(Vector#(rows, Vector#(cols, Int#(32))) m,
-                             Vector#(rows, Vector#(cols, Int#(32))) src2);
-      Vector#(rows, Vector#(cols, Int#(32))) outm = m;
-      for (Integer ri = 0; ri < valueOf(rows); ri = ri + 1)
-         for (Integer p = 0; p < valueOf(cols) / 2; p = p + 1) begin
-            Int#(32) de  = m[ri][2 * p];
-            Int#(32) doo = m[ri][2 * p + 1];
-            Int#(32) c   = src2[ri][2 * p];
-            Int#(32) sn  = src2[ri][2 * p + 1];
-            outm[ri][2 * p]     = de * c  - doo * sn;
-            outm[ri][2 * p + 1] = de * sn + doo * c;
-         end
-      return outm;
+   function Vector#(cols, Int#(32))
+            applyIpairRotateRow(Vector#(cols, Int#(32)) row,
+                                Vector#(cols, Int#(32)) src2);
+      Vector#(cols, Int#(32)) outr = row;
+      for (Integer p = 0; p < valueOf(cols) / 2; p = p + 1) begin
+         Int#(32) de  = row[2 * p];
+         Int#(32) doo = row[2 * p + 1];
+         Int#(32) c   = src2[2 * p];
+         Int#(32) sn  = src2[2 * p + 1];
+         outr[2 * p]     = de * c  - doo * sn;
+         outr[2 * p + 1] = de * sn + doo * c;
+      end
+      return outr;
    endfunction
 
    // Phase 1: Issue weight read request. The next-state depends on
@@ -497,19 +501,23 @@ module mkController#(
             epilogueStatBuf <= stat;
          end
       end else if (genericEpilogueActive) begin
-         // Lane-wise apply vpuOpReg(drainMatrix, src2Reg) into epilogueBuf.
-         // Two paths factored into helper functions (defined inside the
-         // module so they close over `rows`/`cols`):
-         //   - applyCuratedOp: cell-wise subset (ADD/SUB/MUL/MAX/MIN),
-         //     default pass-through. The case statement elaborates once
-         //     inside the function instead of expanding inside the
-         //     per-cell nested for-loop.
-         //   - applyIpairRotate: pair-wise rotation, runs in its own
-         //     branch so it doesn't double-write the curated result.
-         // A `?:` at the matrix level chooses one path's full output.
-         epilogueBuf <= (vpuOpReg == VPU_IPAIR_ROTATE)
-            ? applyIpairRotate(drainMatrix, src2Reg)
-            : applyCuratedOp(vpuOpReg, drainMatrix, src2Reg);
+         // Column-summed GEMM result + lane-wise epilogue. This produces
+         // one output row per dispatch (mirroring the legacy chain's
+         // _load_mxu_result + _vpu_add semantics) so fused epilogues
+         // apply to the actual GEMM output, not the per-PE rank-1 state.
+         // src2Reg's row 0 carries the coefficients for this dispatch's
+         // output row (caller materializes one VMEM slot per output row).
+         // outm[0] holds the result; outm[1..] = 0 — the consumer reads
+         // count=COLS lanes from row 0.
+         let reduced = array.getResults;
+         Vector#(cols, Int#(32)) src2_row = src2Reg[0];
+         Vector#(cols, Int#(32)) result_row =
+            (vpuOpReg == VPU_IPAIR_ROTATE)
+              ? applyIpairRotateRow(reduced, src2_row)
+              : applyCuratedOpRow(vpuOpReg, reduced, src2_row);
+         Vector#(rows, Vector#(cols, Int#(32))) outm = replicate(replicate(0));
+         outm[0] = result_row;
+         epilogueBuf <= outm;
       end else begin
          case (psumModeReg)
             PSUM_WRITE: begin
