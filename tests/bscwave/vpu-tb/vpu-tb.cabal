@@ -1,0 +1,12 @@
+cabal-version:   3.0
+name:            vpu-tb
+version:         0.1.0.0
+
+executable testbench
+  main-is:          Main.hs
+  other-modules:    MkVPU_S1L4
+  hs-source-dirs:   app
+  extra-libraries:  sim
+  extra-lib-dirs:   ., src
+  build-depends:    base, bscwave
+  default-language: Haskell2010
